@@ -189,5 +189,6 @@ if __name__ == "__main__":
 
 
 # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
+# with Spatio-Temporal Summary Mixing Mechanism
 # python dstsmgser_v1.py
 # Test Accuracy: 0.9803

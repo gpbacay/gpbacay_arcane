@@ -158,23 +158,13 @@ def main():
     print(f"Test classification accuracy: {classification_acc:.4f}")
 
     # Plot Training History
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(history.history['classification_output_accuracy'], label='Train Accuracy')
-    plt.plot(history.history['val_classification_output_accuracy'], label='Validation Accuracy')
+    plt.figure(figsize=(6, 4))
+    plt.plot(history.history['classification_output_accuracy'], label='Train Classification Accuracy')
+    plt.plot(history.history['val_classification_output_accuracy'], label='Validation Classification Accuracy')
     plt.title('Classification Accuracy')
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.legend()
-
-    plt.subplot(1, 2, 2)
-    plt.plot(history.history['self_modeling_output_mse'], label='Train MSE')
-    plt.plot(history.history['val_self_modeling_output_mse'], label='Validation MSE')
-    plt.title('Self-Modeling MSE')
-    plt.xlabel('Epoch')
-    plt.ylabel('MSE')
-    plt.legend()
-
     plt.tight_layout()
     plt.show()
 
@@ -191,7 +181,9 @@ if __name__ == "__main__":
     main()
 
 
+
 # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
-# with Multihead Linear Summary Attention Mechanism
-# python main.py
-# Test Accuracy: 0.9515 with 96% confidence (impressive result)
+# without Self-modeling Mechanism: 0.9510
+# with Self-modeling Mechanism: 0.9488 but with better confidence
+# python test3.py
+# Test Accuracy: 0.9488

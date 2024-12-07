@@ -78,4 +78,4 @@ if __name__ == "__main__":
 
 # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
 # python test_model.py
-# Remarks:  
+# Remarks: 
