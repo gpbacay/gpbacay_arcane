@@ -7,11 +7,11 @@ from tensorflow.keras.utils import to_categorical
 import matplotlib.pyplot as plt
 import os
 
-from multihead_linear_summary_attention_mechanism import MultiHeadLinearSummaryAttentionLayer
-from hebbian_learning_homeostatic_neuroplasticity_mechanism import HebbianHomeostaticLayer
-from gated_spiking_elastic_reservoir_computing import GatedSpikingElasticReservoirLayer
-from dense_gated_spiking_elastic_reservoir_computing import DenseReservoirLayer
-from expand_dimension_layer import ExpandDimensionLayer
+from gpbacay_arcane import MultiHeadLinearSummaryAttentionLayer
+from gpbacay_arcane import HebbianHomeostaticLayer
+from gpbacay_arcane import GatedSpikingElasticReservoirLayer
+from gpbacay_arcane import DenseReservoirLayer
+from gpbacay_arcane import ExpandDimensionLayer
 
 class DSTSMGSER:
     def __init__(self, input_shape, reservoir_dim, spectral_radius, leak_rate, spike_threshold, max_dynamic_reservoir_dim, output_dim, use_weighted_summary=False):
@@ -35,7 +35,6 @@ class DSTSMGSER:
         x = LayerNormalization()(x)
         x = Dropout(0.2)(x)
 
-        # Replace SpatioTemporalSummaryMixingLayer with MultiHeadLinearSummaryAttentionLayer
         summary_attention_layer = MultiHeadLinearSummaryAttentionLayer(
             d_model=128, num_heads=8, use_weighted_summary=self.use_weighted_summary)
         x = ExpandDimensionLayer()(x)

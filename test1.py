@@ -7,10 +7,10 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from linear_summary_attention_mechanism import LinearSummaryAttentionLayer
-from hebbian_learning_homeostatic_neuroplasticity_mechanism import HebbianHomeostaticLayer
-from gated_spiking_elastic_reservoir_computing import GatedSpikingElasticReservoirLayer
-from dense_gated_spiking_elastic_reservoir_computing import DenseReservoirLayer
+from gpbacay_arcane import LinearSummaryAttentionLayer
+from gpbacay_arcane import HebbianHomeostaticLayer
+from gpbacay_arcane import GatedSpikingElasticReservoirLayer
+from gpbacay_arcane import DenseReservoirLayer
 
 
 class DSTSMGSER:

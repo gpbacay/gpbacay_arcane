@@ -7,12 +7,11 @@ from tensorflow.keras.utils import to_categorical
 import matplotlib.pyplot as plt
 import os
 
+from gpbacay_arcane import MultiHeadLinearSummaryAttentionLayer
 from gpbacay_arcane import HebbianHomeostaticLayer
-from gpbacay_arcane import SpatioTemporalSummaryMixingLayer
 from gpbacay_arcane import GatedSpikingElasticReservoirLayer
 from gpbacay_arcane import DenseReservoirLayer
 from gpbacay_arcane import ExpandDimensionLayer
-
 
 class DSTSMGSER:
     def __init__(self, input_shape, reservoir_dim, spectral_radius, leak_rate, spike_threshold, max_dynamic_reservoir_dim, output_dim, use_weighted_summary=False):
@@ -36,9 +35,10 @@ class DSTSMGSER:
         x = LayerNormalization()(x)
         x = Dropout(0.2)(x)
 
-        summary_mixing_layer = SpatioTemporalSummaryMixingLayer(d_model=128, use_weighted_summary=self.use_weighted_summary)
+        summary_attention_layer = MultiHeadLinearSummaryAttentionLayer(
+            d_model=128, num_heads=8, use_weighted_summary=self.use_weighted_summary)
         x = ExpandDimensionLayer()(x)
-        x = summary_mixing_layer(x)
+        x = summary_attention_layer(x)
 
         # Reservoir layer
         self.reservoir_layer = GatedSpikingElasticReservoirLayer(
@@ -53,19 +53,11 @@ class DSTSMGSER:
         lnn_output = lnn_layer(x)
 
         # Hebbian homeostatic layer
-        hebbian_homeostatic_layer = HebbianHomeostaticLayer(
-            units=self.reservoir_dim,
-            learning_rate=0.00001,
-            target_avg=0.1,
-            homeostatic_rate=0.00001,
-            activation='gelu',
-            name='hebbian_homeostatic_layer'
-        )
+        hebbian_homeostatic_layer = HebbianHomeostaticLayer(units=self.reservoir_dim, name='hebbian_homeostatic_layer')
         hebbian_output = hebbian_homeostatic_layer(lnn_output)
 
         # Replace Dense layers with DenseReservoirLayer
         x = Flatten()(hebbian_output)
-        
         # Self-modeling Mechanism
         self_modeling_output = DenseReservoirLayer(
             units=np.prod(self.input_shape),
@@ -175,7 +167,7 @@ def main():
 
     plt.tight_layout()
     plt.show()
-    
+
     # Create Models directory if it doesn't exist
     os.makedirs('Models', exist_ok=True)
 
@@ -189,5 +181,6 @@ if __name__ == "__main__":
 
 
 # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
+# with Multihead Linear Summary Attention Mechanism
 # python main.py
-# Test Accuracy: 0.9803
+# Test Accuracy: 0.9452

@@ -182,43 +182,6 @@ class GatedSpikingElasticReservoirLayer(tf.keras.layers.Layer):
 
         return padded_state, [padded_state]
 
-    def add_neurons(self, growth_rate):
-        current_size = tf.shape(self.spatiotemporal_reservoir_weights)[0]
-        new_neurons = min(growth_rate, self.max_dynamic_reservoir_dim - current_size)
-        if new_neurons <= 0:
-            return
-
-        new_reservoir_weights = tf.random.normal((new_neurons, current_size + new_neurons))
-        full_new_weights = tf.concat([
-            tf.concat([self.spatiotemporal_reservoir_weights, tf.zeros((current_size, new_neurons))], axis=1),
-            new_reservoir_weights
-        ], axis=0)
-        
-        spectral_radius = tf.math.real(tf.reduce_max(tf.abs(tf.linalg.eigvals(full_new_weights))))
-        scaling_factor = self.spectral_radius / spectral_radius
-        new_reservoir_weights *= scaling_factor
-
-        self.spatiotemporal_reservoir_weights = tf.Variable(full_new_weights, trainable=False)
-        
-        new_input_weights = tf.random.normal((new_neurons, self.input_dim)) * 0.1
-        self.spatiotemporal_input_weights = tf.concat([self.spatiotemporal_input_weights, new_input_weights], axis=0)
-        
-        new_gate_weights = tf.random.normal((3 * new_neurons, self.input_dim)) * 0.1
-        self.spiking_gate_weights = tf.concat([self.spiking_gate_weights, new_gate_weights], axis=0)
-
-    def prune_connections(self, prune_rate):
-        # Get the current weights of the reservoir
-        weights = self.reservoir_weights.numpy()  # Get the weights as numpy array for manipulation
-        
-        # Calculate a threshold based on the prune_rate (e.g., top prune_rate % of smallest weights)
-        threshold = np.percentile(np.abs(weights), prune_rate * 100)  # Threshold value
-        
-        # Create a mask to zero out small weights
-        mask = np.abs(weights) > threshold  # Only keep weights above the threshold
-        
-        # Apply the mask to the reservoir weights
-        self.reservoir_weights.assign(weights * mask)
-
     def get_config(self):
         config = super().get_config()
         config.update({
@@ -638,3 +601,72 @@ class PositionalEncodingLayer(tf.keras.layers.Layer):
     @classmethod
     def from_config(cls, config):
         return cls(config['max_position'], config['d_model'])
+
+
+
+
+class DynamicSelfModelingReservoirCallback(tf.keras.callbacks.Callback):
+    def __init__(self, reservoir_layer, performance_metric='accuracy', target_metric=0.95,
+                 growth_rate=10, prune_rate=0.05, performance_threshold=0.01, 
+                 growth_phase_length=10, pruning_phase_length=5):
+        super().__init__()
+        self.reservoir_layer = reservoir_layer
+        self.performance_metric = performance_metric
+        self.target_metric = target_metric
+        self.growth_rate = growth_rate
+        self.prune_rate = prune_rate
+        self.performance_threshold = performance_threshold
+        self.growth_phase_length = growth_phase_length
+        self.pruning_phase_length = pruning_phase_length
+        self.performance_history = []
+        self.previous_loss = float('inf')
+
+    def on_epoch_end(self, epoch, logs=None):
+        current_metric = logs.get(self.performance_metric, 0)
+        self.performance_history.append(current_metric)
+
+        # Calculate the rate of change in performance over the last 5 epochs
+        if len(self.performance_history) > 5:
+            improvement_rate = (current_metric - self.performance_history[-5]) / 5
+        else:
+            improvement_rate = 0
+
+        # If performance improvement is below the threshold, trigger growth
+        if improvement_rate > self.performance_threshold:
+            self.reservoir_layer.add_neurons(self.growth_rate)
+            print(f"Growing reservoir by {self.growth_rate} neurons.")
+
+        # Trigger pruning if needed based on the prune rate
+        if improvement_rate < self.performance_threshold:
+            self.reservoir_layer.prune_connections(self.prune_rate)
+            print(f"Pruned connections by {self.prune_rate * 100}%.")
+        
+        # If the current metric has reached the target, allow for reservoir growth or pruning
+        if current_metric >= self.target_metric:
+            print(f" - Performance metric {self.performance_metric} reached target {self.target_metric}.")
+            if improvement_rate > self.performance_threshold:
+                self.reservoir_layer.add_neurons(self.growth_rate)
+            elif improvement_rate < self.performance_threshold:
+                self.reservoir_layer.prune_connections(self.prune_rate)
+
+        # Optionally print or log the training progress
+        if epoch % 10 == 0:
+            print(f"Epoch {epoch}: {self.performance_metric} = {current_metric}")
+
+    def reset(self):
+        """Resets the monitoring mechanism for a new training session."""
+        self.previous_loss = float('inf')
+
+    def get_config(self):
+        """Returns the configuration of the callback."""
+        config = {
+            'reservoir_layer': self.reservoir_layer,
+            'performance_metric': self.performance_metric,
+            'target_metric': self.target_metric,
+            'growth_rate': self.growth_rate,
+            'prune_rate': self.prune_rate,
+            'performance_threshold': self.performance_threshold,
+            'growth_phase_length': self.growth_phase_length,
+            'pruning_phase_length': self.pruning_phase_length
+        }
+        return config
