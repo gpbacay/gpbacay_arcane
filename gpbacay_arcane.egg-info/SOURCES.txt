@@ -1,0 +1,7 @@
+README.md
+setup.py
+gpbacay_arcane.egg-info/PKG-INFO
+gpbacay_arcane.egg-info/SOURCES.txt
+gpbacay_arcane.egg-info/dependency_links.txt
+gpbacay_arcane.egg-info/requires.txt
+gpbacay_arcane.egg-info/top_level.txt
