@@ -1,0 +1,2 @@
+[console_scripts]
+gpbacay-arcane-about = gpbacay_arcane:about
