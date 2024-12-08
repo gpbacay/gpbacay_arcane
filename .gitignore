@@ -1,3 +1,2 @@
-# Ignore environment variables file
 .env
 .github\workflows
