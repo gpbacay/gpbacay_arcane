@@ -5,7 +5,7 @@
 ## Features
 
 - **Custom Layers and Mechanisms**: Includes dynamic reservoirs, spiking neurons, Hebbian learning, self-modeling, and more.
-- **Neuromorphic Capabilities**: Built for advanced spatio-temporal processing and homeostatic plasticity.
+- **Neuromimetic Capabilities**: Built for advanced spatio-temporal processing and homeostatic plasticity.
 - **TensorFlow and Keras Integration**: Seamlessly integrates with TensorFlow and Keras to build sophisticated neural networks.
 
 ## Installation
