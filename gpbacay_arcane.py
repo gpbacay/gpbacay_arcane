@@ -460,16 +460,21 @@ class LinearSummaryAttentionLayer(tf.keras.Layer):
 
 
 
-class MultiHeadLinearSummaryAttentionLayer(tf.keras.Layer):
-    def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, **kwargs):
-        super(MultiHeadLinearSummaryAttentionLayer, self).__init__(**kwargs)
+class KernelizedMultiheadSelfAttentionLayer(tf.keras.layers.Layer):
+    def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
+        super(KernelizedMultiheadSelfAttentionLayer, self).__init__(**kwargs)
         self.d_model = d_model
         self.num_heads = num_heads
         self.dropout_rate = dropout_rate
         self.use_weighted_summary = use_weighted_summary
+        self.eps = eps
+
+        # Ensure d_model is divisible by the number of heads
+        assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
+        self.depth = d_model // num_heads
 
     def build(self, input_shape):
-        # Projection layers for Queries, Keys, and Values (for multiple heads)
+        # Query, Key, and Value projection layers for multi-head attention
         self.query_dense = Dense(self.d_model)
         self.key_dense = Dense(self.d_model)
         self.value_dense = Dense(self.d_model)
@@ -480,54 +485,51 @@ class MultiHeadLinearSummaryAttentionLayer(tf.keras.Layer):
         # Dropout layer
         self.dropout = Dropout(self.dropout_rate)
 
-        # Learnable weights for weighted summaries (optional)
+        # Optional weighted summary
         if self.use_weighted_summary:
-            self.summary_weights = Dense(1, activation='softmax')
+            self.summary_weights = Dense(1, activation="softmax")
 
         # Layer normalization
-        self.layer_norm = LayerNormalization(epsilon=1e-6)
+        self.layer_norm = LayerNormalization(epsilon=self.eps)
 
-        super(MultiHeadLinearSummaryAttentionLayer, self).build(input_shape)
+        super(KernelizedMultiheadSelfAttentionLayer, self).build(input_shape)
+
+    def split_heads(self, x, batch_size):
+        """
+        Split the last dimension into (num_heads, depth) and transpose for parallel processing.
+        """
+        x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
+        return tf.transpose(x, perm=[0, 2, 1, 3])  # Shape: (batch_size, num_heads, seq_len, depth)
 
     def call(self, inputs, training=False):
         batch_size = tf.shape(inputs)[0]
-        seq_len = tf.shape(inputs)[1]
 
-        # Step 1: Project inputs to query, key, and value
+        # Project inputs to query, key, and value spaces
         queries = self.query_dense(inputs)  # Shape: (batch_size, seq_len, d_model)
-        keys = self.key_dense(inputs)      # Shape: (batch_size, seq_len, d_model)
-        values = self.value_dense(inputs)  # Shape: (batch_size, seq_len, d_model)
+        keys = self.key_dense(inputs)
+        values = self.value_dense(inputs)
 
-        # Step 2: Reshape for multi-head attention (split along the heads dimension)
-        def split_heads(x, num_heads):
-            batch_size = tf.shape(x)[0]
-            seq_len = tf.shape(x)[1]
-            depth = self.d_model // num_heads
-            x = tf.reshape(x, (batch_size, seq_len, num_heads, depth))
-            return tf.transpose(x, perm=[0, 2, 1, 3])  # Shape: (batch_size, num_heads, seq_len, depth)
+        # Split into multiple heads
+        queries = self.split_heads(queries, batch_size)  # Shape: (batch_size, num_heads, seq_len, depth)
+        keys = self.split_heads(keys, batch_size)
+        values = self.split_heads(values, batch_size)
 
-        queries = split_heads(queries, self.num_heads)
-        keys = split_heads(keys, self.num_heads)
-        values = split_heads(values, self.num_heads)
-
-        # Step 3: Apply kernel trick for linear attention
-        queries = tf.nn.elu(queries) + 1  # Positive activation for kernel trick
+        # Apply kernel trick for linear attention (e.g., positive activation)
+        queries = tf.nn.elu(queries) + 1
         keys = tf.nn.elu(keys) + 1
 
-        # Compute similarity scores using the kernel approximation for each head
-        scores = tf.matmul(queries, keys, transpose_b=True)  # Shape: (batch_size, num_heads, seq_len, seq_len)
+        # Compute linear attention using kernelized queries and keys
+        key_sum = tf.reduce_sum(keys, axis=2, keepdims=True)  # Shape: (batch_size, num_heads, 1, depth)
+        scores = tf.einsum("bhqd,bhkd->bhqk", queries, keys) / (key_sum + self.eps)  # Shape: (batch_size, num_heads, seq_len, seq_len)
 
-        # Normalize scores row-wise (scaled attention mechanism)
-        scores = scores / tf.reduce_sum(scores, axis=-1, keepdims=True)
+        # Compute weighted sum of values
+        attention_output = tf.einsum("bhqk,bhvd->bhqd", scores, values)  # Shape: (batch_size, num_heads, seq_len, depth)
 
-        # Step 4: Compute attention output for each head
-        attention_output = tf.matmul(scores, values)  # Shape: (batch_size, num_heads, seq_len, depth)
-
-        # Step 5: Combine outputs from all heads (concatenate across heads dimension)
+        # Merge heads back
         attention_output = tf.transpose(attention_output, perm=[0, 2, 1, 3])  # Shape: (batch_size, seq_len, num_heads, depth)
-        attention_output = tf.reshape(attention_output, (batch_size, seq_len, self.d_model))  # Shape: (batch_size, seq_len, d_model)
+        attention_output = tf.reshape(attention_output, (batch_size, -1, self.d_model))  # Shape: (batch_size, seq_len, d_model)
 
-        # Step 6: Optional weighted summary extraction
+        # Optionally extract a weighted summary
         if self.use_weighted_summary:
             weights = self.summary_weights(attention_output)  # Shape: (batch_size, seq_len, 1)
             weighted_summary = tf.reduce_sum(attention_output * weights, axis=1, keepdims=True)
@@ -535,28 +537,27 @@ class MultiHeadLinearSummaryAttentionLayer(tf.keras.Layer):
             weighted_summary = tf.reduce_mean(attention_output, axis=1, keepdims=True)
 
         # Expand summary to match sequence length
-        weighted_summary = tf.tile(weighted_summary, [1, seq_len, 1])
+        weighted_summary = tf.tile(weighted_summary, [1, tf.shape(inputs)[1], 1])  # Shape: (batch_size, seq_len, d_model)
 
-        # Step 7: Combine attention output with weighted summary
-        combined_output = tf.concat([attention_output, weighted_summary], axis=-1)  # Combine features
+        # Combine attention output with weighted summary
+        combined_output = tf.concat([attention_output, weighted_summary], axis=-1)  # Shape: (batch_size, seq_len, 2 * d_model)
 
-        # Step 8: Apply output projection and dropout
+        # Apply output projection and dropout
         combined_output = self.output_dense(combined_output)
         combined_output = self.dropout(combined_output, training=training)
 
-        # Step 9: Ensure input dimensions match before adding
-        inputs_projected = self.query_dense(inputs)  # Project 'inputs' to match the output dimension of combined_output
-
-        # Step 10: Add residual connection and layer normalization
+        # Residual connection and layer normalization
+        inputs_projected = self.query_dense(inputs)  # Project inputs to match combined_output
         return self.layer_norm(inputs_projected + combined_output)
 
     def get_config(self):
         config = super().get_config()
         config.update({
-            'd_model': self.d_model,
-            'num_heads': self.num_heads,
-            'dropout_rate': self.dropout_rate,
-            'use_weighted_summary': self.use_weighted_summary,
+            "d_model": self.d_model,
+            "num_heads": self.num_heads,
+            "dropout_rate": self.dropout_rate,
+            "use_weighted_summary": self.use_weighted_summary,
+            "eps": self.eps,
         })
         return config
 

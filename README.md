@@ -1,6 +1,6 @@
 # gpbacay_arcane
 
-**gpbacay_arcane** is a Python library designed for custom neuromorphic neural network mechanisms, built on top of TensorFlow and Keras. It is specifically developed for the **A.R.C.A.N.E** (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) project, enabling the creation of adaptive, biologically-inspired neural networks.
+**gpbacay_arcane** is a Python library designed for custom neuromimetic artificial neural network mechanisms, built on top of TensorFlow and Keras. It is specifically developed for the **A.R.C.A.N.E** (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) project, enabling the creation of adaptive, biologically-inspired neural networks.
 
 ## Features
 
@@ -13,4 +13,4 @@
 To install the library, simply run:
 
 ```bash
-pip install gpbacay_arcane
+pip install gpbacay-arcane

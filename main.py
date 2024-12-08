@@ -7,7 +7,7 @@ from tensorflow.keras.utils import to_categorical
 import matplotlib.pyplot as plt
 import os
 
-from gpbacay_arcane import MultiHeadLinearSummaryAttentionLayer
+from gpbacay_arcane import KernelizedMultiheadSelfAttentionLayer
 from gpbacay_arcane import HebbianHomeostaticLayer
 from gpbacay_arcane import GatedSpikingElasticReservoirLayer
 from gpbacay_arcane import DenseReservoirLayer
@@ -34,7 +34,7 @@ class DSTSMGSER:
         x = LayerNormalization()(x)
         x = Dropout(0.2)(x)
 
-        summary_attention_layer = MultiHeadLinearSummaryAttentionLayer(
+        summary_attention_layer = KernelizedMultiheadSelfAttentionLayer(
             d_model=128, num_heads=8, use_weighted_summary=self.use_weighted_summary)
         x = ExpandDimensionLayer()(x)
         x = summary_attention_layer(x)
@@ -192,6 +192,6 @@ if __name__ == "__main__":
 
 
 # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
-# with Multihead Linear Summary Attention Mechanism
+# with Multihead Linear Self Attention Aggregation Mechanism
 # python main.py
-# Test Accuracy: 0.9515 with 96% confidence (impressive result)
+# Test Accuracy: 0.9744
