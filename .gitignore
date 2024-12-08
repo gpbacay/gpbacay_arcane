@@ -1,3 +1,2 @@
 .env
-.github/workflows
-__pycache__
+.github
