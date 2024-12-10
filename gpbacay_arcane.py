@@ -832,12 +832,12 @@ class DynamicSelfModelingReservoirCallback(tf.keras.callbacks.Callback):
         # If performance improvement is below the threshold, trigger growth
         if improvement_rate > self.performance_threshold:
             self.reservoir_layer.add_neurons(self.growth_rate)
-            print(f"Growing reservoir by {self.growth_rate} neurons.")
+            print(f" - Growing reservoir by {self.growth_rate} neurons.")
 
         # Trigger pruning if needed based on the prune rate
         if improvement_rate < self.performance_threshold:
             self.reservoir_layer.prune_connections(self.prune_rate)
-            print(f"Pruned connections by {self.prune_rate * 100}%.")
+            print(f" - Pruned connections by {self.prune_rate * 100}%.")
         
         # If the current metric has reached the target, allow for reservoir growth or pruning
         if current_metric >= self.target_metric:

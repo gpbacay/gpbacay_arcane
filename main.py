@@ -25,6 +25,7 @@ class DSTSMGSER:
         self.output_dim = output_dim
         self.use_weighted_summary = use_weighted_summary
         self.model = None
+        self.reservoir_layer = None
 
     def build_model(self):
         inputs = Input(shape=self.input_shape)
@@ -41,7 +42,7 @@ class DSTSMGSER:
         x = summary_attention_layer(x)
 
         # Reservoir layer
-        reservoir_layer = GatedSpikingElasticReservoirLayer(
+        self.reservoir_layer = GatedSpikingElasticReservoirLayer(
             initial_reservoir_size=self.reservoir_dim,
             input_dim=x.shape[-1],
             spectral_radius=self.spectral_radius,
@@ -49,7 +50,7 @@ class DSTSMGSER:
             spike_threshold=self.spike_threshold,
             max_dynamic_reservoir_dim=self.max_dynamic_reservoir_dim
         )
-        lnn_layer = RNN(reservoir_layer, return_sequences=True)
+        lnn_layer = RNN(self.reservoir_layer, return_sequences=True)
         lnn_output = lnn_layer(x)
 
         # Hebbian homeostatic layer
@@ -139,12 +140,10 @@ def main():
     # Define callbacks
     early_stopping = EarlyStopping(monitor='val_classification_output_accuracy', patience=10, mode='max', restore_best_weights=True)
     reduce_lr = ReduceLROnPlateau(monitor='val_classification_output_accuracy', factor=0.1, patience=5, mode='max')
-
-    # Initialize custom callback for dynamic self-modeling reservoir
     dynamic_reservoir_callback = DynamicSelfModelingReservoirCallback(
-        reservoir_layer=dstsmgser.model.layers[7],  # The reservoir layer is at index 7 (change if needed)
+        reservoir_layer=dstsmgser.reservoir_layer,
         performance_metric='val_classification_output_accuracy',
-        target_metric=0.95
+        target_metric=0.70
     )
 
     # Train the model
@@ -158,7 +157,7 @@ def main():
 
     # Evaluate the model
     evaluation_results = dstsmgser.model.evaluate(x_test, {'classification_output': y_test, 'self_modeling_output': x_test_flat}, verbose=2)
-    classification_acc = evaluation_results[1]
+    classification_acc = evaluation_results[0]
     print(f"Test accuracy: {classification_acc:.4f}")
 
     # Plot Training History
@@ -196,6 +195,6 @@ if __name__ == "__main__":
 
 
 # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
-# with Multihead Linear Self Attention Aggregation Mechanism
+# with Multihead Linear Self Attention Aggregation Mechanism and DynamicSelfModelingReservoirCallback
 # python main.py
-# Test Accuracy: 0.9744
+# Test Accuracy: 0.9739
