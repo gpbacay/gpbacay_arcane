@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
-from tf.keras.layers import RNN, Input, BatchNormalization, Flatten, Dense, Dropout, LayerNormalization
-from tf.keras.callbacks import Callback
+from tensorflow.keras.layers import RNN, Input, BatchNormalization, Flatten, Dense, Dropout, LayerNormalization
+from tensorflow.keras.callbacks import Callback
 
 
 

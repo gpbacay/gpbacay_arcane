@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import RNN, Input, Dropout, Flatten, BatchNormalization, LayerNormalization, Dense
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.datasets import mnist
 from tensorflow.keras.utils import to_categorical
@@ -51,7 +50,7 @@ def main():
     dynamic_reservoir_callback = DynamicSelfModelingReservoirCallback(
         reservoir_layer=dstsmgser.reservoir_layer,
         performance_metric='val_clf_out_accuracy',
-        target_metric=0.70
+        target_metric=0.98
     )
 
     # Train the model
@@ -108,4 +107,4 @@ if __name__ == "__main__":
 # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
 # with Multihead Linear Self Attention Aggregation Mechanism and Dynamic Self Modeling Reservoir Callback
 # python main.py
-# Test Accuracy: 0.9722
+# Test Accuracy: 0.9738
