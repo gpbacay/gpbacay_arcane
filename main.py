@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import RNN, Input, Dropout, Flatten, BatchNormalization, LayerNormalization
+from tensorflow.keras.layers import RNN, Input, Dropout, Flatten, BatchNormalization, LayerNormalization, Dense
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.datasets import mnist
 from tensorflow.keras.utils import to_categorical
@@ -37,6 +37,7 @@ class DSTSMGSER:
         x = LayerNormalization()(x)
         x = Dropout(0.2)(x)
 
+        # Attention Layer
         linear_attention_layer = MultiheadLinearSelfAttentionKernalizationLayer(
             d_model=128, num_heads=8, use_weighted_summary=self.use_weighted_summary)
         x = ExpandDimensionLayer()(x)
@@ -117,11 +118,11 @@ def main():
 
     # Hyperparameters
     input_shape = (28, 28, 1)
-    reservoir_dim = 512
+    reservoir_dim = 1024
     spectral_radius = 2.0
     leak_rate = 0.2
     spike_threshold = 0.5
-    max_dynamic_reservoir_dim = 4096
+    max_dynamic_reservoir_dim = 8192
     output_dim = 10
 
     # Initialize the model
@@ -196,7 +197,9 @@ if __name__ == "__main__":
 
 
 
+
+
 # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
-# with Multihead Linear Self Attention Aggregation Mechanism and DynamicSelfModelingReservoirCallback
+# with Multihead Linear Self Attention Aggregation Mechanism and Dynamic Self Modeling Reservoir Callback
 # python main.py
-# Test Accuracy: 0.9739
+# Test Accuracy: 0.9722

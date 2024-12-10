@@ -261,28 +261,31 @@ class GatedSpikingElasticReservoirLayer(tf.keras.layers.Layer):
     def add_neurons(self, new_neurons_count):
         """Add new neurons to the reservoir."""
         if self.initial_reservoir_size + new_neurons_count <= self.max_dynamic_reservoir_dim:
-            # Expanding the reservoir state size and weights
+            # Update the reservoir size
             self.initial_reservoir_size += new_neurons_count
             self.state_size[0] = self.initial_reservoir_size  # Update the state size
-            self.spatiotemporal_reservoir_weights = tf.concat([
-                self.spatiotemporal_reservoir_weights,
-                tf.zeros([self.initial_reservoir_size, new_neurons_count])
-            ], axis=1)
-            self.spatiotemporal_reservoir_weights = tf.concat([
-                self.spatiotemporal_reservoir_weights,
-                tf.zeros([new_neurons_count, self.initial_reservoir_size])
-            ], axis=0)
+
+            # Expand reservoir weights with appropriate padding
+            new_row_block = tf.zeros([self.spatiotemporal_reservoir_weights.shape[0], new_neurons_count])
+            new_col_block = tf.zeros([new_neurons_count, self.spatiotemporal_reservoir_weights.shape[1] + new_neurons_count])
             
+            self.spatiotemporal_reservoir_weights = tf.concat([
+                tf.concat([self.spatiotemporal_reservoir_weights, new_row_block], axis=1),
+                new_col_block
+            ], axis=0)
+
             # Reinitialize the new neurons' input connections
+            new_input_weights = tf.zeros([new_neurons_count, self.input_dim])
             self.spatiotemporal_input_weights = tf.concat([
                 self.spatiotemporal_input_weights,
-                tf.zeros([self.initial_reservoir_size, self.input_dim])
+                new_input_weights
             ], axis=0)
-            
+
             # Reset the spiking gate weights for the new neurons
+            new_gate_weights = tf.zeros([3 * new_neurons_count, self.input_dim])
             self.spiking_gate_weights = tf.concat([
                 self.spiking_gate_weights,
-                tf.zeros([3 * new_neurons_count, self.input_dim])
+                new_gate_weights
             ], axis=0)
     
     def prune_connections(self, pruning_threshold=0.1):
