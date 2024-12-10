@@ -14,6 +14,7 @@ from gpbacay_arcane import DenseReservoirLayer
 from gpbacay_arcane import ExpandDimensionLayer
 from gpbacay_arcane import DynamicSelfModelingReservoirCallback
 
+
 class DSTSMGSER:
     def __init__(self, input_shape, reservoir_dim, spectral_radius, leak_rate, spike_threshold, max_dynamic_reservoir_dim, output_dim, use_weighted_summary=False):
         self.input_shape = input_shape
@@ -36,10 +37,10 @@ class DSTSMGSER:
         x = LayerNormalization()(x)
         x = Dropout(0.2)(x)
 
-        summary_attention_layer = MultiheadLinearSelfAttentionKernalizationLayer(
+        linear_attention_layer = MultiheadLinearSelfAttentionKernalizationLayer(
             d_model=128, num_heads=8, use_weighted_summary=self.use_weighted_summary)
         x = ExpandDimensionLayer()(x)
-        x = summary_attention_layer(x)
+        x = linear_attention_layer(x)
 
         # Reservoir layer
         self.reservoir_layer = GatedSpikingElasticReservoirLayer(
@@ -58,7 +59,7 @@ class DSTSMGSER:
         x = hebbian_homeostatic_layer(lnn_output)
 
         # Classification output
-        classification_output = DenseReservoirLayer(
+        clf_out = DenseReservoirLayer(
             units=self.output_dim,
             input_dim=x.shape[-1],
             spectral_radius=self.spectral_radius,
@@ -66,11 +67,11 @@ class DSTSMGSER:
             spike_threshold=self.spike_threshold,
             max_dynamic_units=self.max_dynamic_reservoir_dim,
             activation='softmax',
-            name='classification_output'
+            name='clf_out'
         )(Flatten()(x))
 
         # Self-modeling output
-        self_modeling_output = DenseReservoirLayer(
+        sm_out = DenseReservoirLayer(
             units=np.prod(self.input_shape),
             input_dim=x.shape[-1],
             spectral_radius=self.spectral_radius,
@@ -78,26 +79,26 @@ class DSTSMGSER:
             spike_threshold=self.spike_threshold,
             max_dynamic_units=self.max_dynamic_reservoir_dim,
             activation='sigmoid',
-            name='self_modeling_output'
+            name='sm_out'
         )(Flatten()(x))
 
         # Compile the model
-        self.model = tf.keras.Model(inputs=inputs, outputs=[classification_output, self_modeling_output])
+        self.model = tf.keras.Model(inputs=inputs, outputs=[clf_out, sm_out])
 
     def compile_model(self):
         self.model.compile(
             optimizer='adam',
             loss={
-                'classification_output': 'categorical_crossentropy',
-                'self_modeling_output': 'mse'
+                'clf_out': 'categorical_crossentropy',
+                'sm_out': 'mse'
             },
             loss_weights={
-                'classification_output': 1.0,
-                'self_modeling_output': 0.5
+                'clf_out': 1.0,
+                'sm_out': 0.5
             },
             metrics={
-                'classification_output': 'accuracy',
-                'self_modeling_output': 'mse'
+                'clf_out': 'accuracy',
+                'sm_out': 'mse'
             }
         )
 
@@ -138,41 +139,41 @@ def main():
     dstsmgser.compile_model()
 
     # Define callbacks
-    early_stopping = EarlyStopping(monitor='val_classification_output_accuracy', patience=10, mode='max', restore_best_weights=True)
-    reduce_lr = ReduceLROnPlateau(monitor='val_classification_output_accuracy', factor=0.1, patience=5, mode='max')
+    early_stopping = EarlyStopping(monitor='val_clf_out_accuracy', patience=10, mode='max', restore_best_weights=True)
+    reduce_lr = ReduceLROnPlateau(monitor='val_clf_out_accuracy', factor=0.1, patience=5, mode='max')
     dynamic_reservoir_callback = DynamicSelfModelingReservoirCallback(
         reservoir_layer=dstsmgser.reservoir_layer,
-        performance_metric='val_classification_output_accuracy',
+        performance_metric='val_clf_out_accuracy',
         target_metric=0.70
     )
 
     # Train the model
     history = dstsmgser.model.fit(
-        x_train, {'classification_output': y_train, 'self_modeling_output': x_train_flat},
-        validation_data=(x_test, {'classification_output': y_test, 'self_modeling_output': x_test_flat}),
+        x_train, {'clf_out': y_train, 'sm_out': x_train_flat},
+        validation_data=(x_test, {'clf_out': y_test, 'sm_out': x_test_flat}),
         epochs=10,
         batch_size=64,
         callbacks=[early_stopping, reduce_lr, dynamic_reservoir_callback]
     )
 
     # Evaluate the model
-    evaluation_results = dstsmgser.model.evaluate(x_test, {'classification_output': y_test, 'self_modeling_output': x_test_flat}, verbose=2)
-    classification_acc = evaluation_results[0]
-    print(f"Test accuracy: {classification_acc:.4f}")
+    evaluation_results = dstsmgser.model.evaluate(x_test, {'clf_out': y_test, 'sm_out': x_test_flat}, verbose=2)
+    acc, loss = evaluation_results[3], evaluation_results[0]
+    print(f"\nTest Accuracy: {acc:.4f}, Loss: {loss:.4f}")
 
     # Plot Training History
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
-    plt.plot(history.history['classification_output_accuracy'], label='Train Accuracy')
-    plt.plot(history.history['val_classification_output_accuracy'], label='Validation Accuracy')
+    plt.plot(history.history['clf_out_accuracy'], label='Train Accuracy')
+    plt.plot(history.history['val_clf_out_accuracy'], label='Validation Accuracy')
     plt.title('Classification Accuracy')
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.legend()
 
     plt.subplot(1, 2, 2)
-    plt.plot(history.history['self_modeling_output_mse'], label='Train MSE')
-    plt.plot(history.history['val_self_modeling_output_mse'], label='Validation MSE')
+    plt.plot(history.history['sm_out_mse'], label='Train MSE')
+    plt.plot(history.history['val_sm_out_mse'], label='Validation MSE')
     plt.title('Self-Modeling MSE')
     plt.xlabel('Epoch')
     plt.ylabel('MSE')
@@ -192,6 +193,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
