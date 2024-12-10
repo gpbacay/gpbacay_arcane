@@ -1,12 +1,14 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras.layers import Dense, Dropout, LayerNormalization
+from tensorflow.keras.callbacks import Callback
+
+
 
 
 def about():
     print("""
-        gpbacay_arcane:
-        - A Python library for custom neuromimetic artificial neural network mechanisms built on top of TensorFlow and Keras.
+        The `gpbacay_arcane` is a Python library for my custom neuromimetic artificial neural network mechanisms built on top of TensorFlow and Keras.
         This library provides specialized layers and mechanisms for the A.R.C.A.N.E 
         (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) project, 
         enabling the creation of adaptive, biologically-inspired neural networks. 
@@ -20,13 +22,72 @@ def about():
     
     
 class ExpandDimensionLayer(tf.keras.layers.Layer):
-            def call(self, inputs):
-                return tf.expand_dims(inputs, axis=1)
+    """
+    A custom layer that expands the dimensions of the input tensor along a specified axis.
+    This layer is useful for adding a new axis to the input tensor, which can be necessary 
+    for reshaping the input to be compatible with subsequent layers or operations.
+
+    Attributes:
+        axis (int): The axis along which the dimension will be expanded. Default is 1.
+    """
+    
+    def __init__(self, axis=1, **kwargs):
+        """
+        Initializes the layer with a specified axis along which to expand the input tensor's dimensions.
+        
+        Args:
+            axis (int): The axis along which to expand the input tensor's dimensions (default is 1).
+        """
+        super(ExpandDimensionLayer, self).__init__(**kwargs)
+        self.axis = axis
+
+    def call(self, inputs):
+        """
+        Expands the dimensions of the input tensor along the specified axis.
+        
+        Args:
+            inputs (Tensor): The input tensor to which an additional dimension will be added.
+            
+        Returns:
+            Tensor: The input tensor with an additional dimension added at the specified axis.
+        """
+        return tf.expand_dims(inputs, axis=self.axis)
+
+    def get_config(self):
+        """
+        Returns the configuration of the layer, including the axis parameter used for dimension expansion.
+        """
+        config = super().get_config()
+        config.update({
+            'axis': self.axis
+        })
+        return config
 
 
 
 
 class DenseReservoirLayer(tf.keras.layers.Layer):
+    """
+    A dynamic, dense reservoir layer that integrates input weights, reservoir weights,
+    and gating mechanisms for adaptive state updating and memory retention. The DenseReservoirLayer supports spiking
+    behavior through a spike threshold, allowing for the dynamic adjustment of the reservoir's state. 
+    It includes an internal dense layer for final output transformation, making it suitable for 
+    tasks involving complex, time-varying representations such as spatiotemporal pattern recognition.
+
+    Attributes:
+        units (int): Number of units (neurons) in the reservoir.
+        input_dim (int): Dimension of the input data.
+        spectral_radius (float): Spectral radius of the reservoir weight matrix, influencing stability.
+        leak_rate (float): Rate at which the state of the reservoir decays over time.
+        spike_threshold (float): Threshold above which a spike occurs in the reservoir neurons.
+        max_dynamic_units (int): Maximum dynamic size for the reservoir.
+        activation (function): Activation function to be applied after the state transformation.
+        kernel_initializer (function): Initializer for the input and reservoir weight matrices.
+        bias_initializer (function): Initializer for the bias terms.
+        kernel_regularizer (function): Regularizer for the kernel weights.
+        bias_regularizer (function): Regularizer for the bias weights.
+    """
+    
     def __init__(self, units, input_dim=None, spectral_radius=None, leak_rate=None, spike_threshold=None, 
                  max_dynamic_units=None, activation='relu', kernel_initializer='glorot_uniform', 
                  bias_initializer='zeros', kernel_regularizer=None, bias_regularizer=None, name=None, **kwargs):
@@ -134,7 +195,27 @@ class DenseReservoirLayer(tf.keras.layers.Layer):
 
 
 class GatedSpikingElasticReservoirLayer(tf.keras.layers.Layer):
-    def __init__(self, initial_reservoir_size, input_dim, spectral_radius, leak_rate, spike_threshold, max_dynamic_reservoir_dim, **kwargs):
+    """
+    The Gated Spiking Elastic Reservoir (GSER) Layer is an innovative neural network layer that combines dynamic reservoir sizing, 
+    spiking neuron behavior, and adaptive gating mechanisms to enhance temporal sequence processing. 
+    It features elastic reservoir growth, spiking neurons that trigger upon threshold exceedance, 
+    and three gating mechanisms (input, forget, output) for precise memory control. 
+    Supporting neurogenesis (adding new neurons) and synaptogenesis (pruning connections), 
+    GSER can self-organize to optimize performance, balancing long-term and short-term memory retention. 
+    Its scalability, adaptability, and efficiency make it ideal for complex, event-driven learning tasks in dynamic environments.
+    
+    Attributes:
+        initial_reservoir_size (int): Initial number of neurons in the reservoir.
+        input_dim (int): Dimension of the input data.
+        spectral_radius (float): Spectral radius of the reservoir weight matrix, influencing its stability.
+        leak_rate (float): Rate at which the state of the reservoir decays over time.
+        spike_threshold (float): Threshold above which a spike occurs in the reservoir neurons.
+        max_dynamic_reservoir_dim (int): Maximum dynamic size of the reservoir.
+        state_size (list): Size of the reservoir state.
+        output_size (int): Size of the output of the reservoir layer.
+    """
+
+    def __init__(self, initial_reservoir_size, input_dim, spectral_radius, leak_rate, spike_threshold, max_dynamic_reservoir_dim, neurogenesis_rate=0.05, pruning_rate=0.1, **kwargs):
         super().__init__(**kwargs)
         self.initial_reservoir_size = initial_reservoir_size
         self.input_dim = input_dim
@@ -142,25 +223,34 @@ class GatedSpikingElasticReservoirLayer(tf.keras.layers.Layer):
         self.leak_rate = leak_rate
         self.spike_threshold = spike_threshold
         self.max_dynamic_reservoir_dim = max_dynamic_reservoir_dim
+        self.neurogenesis_rate = neurogenesis_rate  # Rate of new neurons added
+        self.pruning_rate = pruning_rate  # Rate of pruning connections
         
-        self.state_size = [self.max_dynamic_reservoir_dim]
-        self.output_size = self.max_dynamic_reservoir_dim
+        self.state_size = [self.max_dynamic_reservoir_dim]  # Define the size of the state
+        self.output_size = self.max_dynamic_reservoir_dim  # Output size is the dynamic reservoir size
         
+        # Initialize weights and reservoirs
         self.initialize_weights()
 
     def initialize_weights(self):
+        """Initializes the weights for the spatiotemporal reservoir, input weights, and spiking gate weights."""
+        # Initialize reservoir weights (connections between neurons in the reservoir)
         self.spatiotemporal_reservoir_weights = self.add_weight(
             shape=(self.initial_reservoir_size, self.initial_reservoir_size),
             initializer=tf.keras.initializers.RandomNormal(),
             trainable=False,
             name='spatiotemporal_reservoir_weights'
         )
+        
+        # Initialize input weights for mapping the input to the reservoir
         self.spatiotemporal_input_weights = self.add_weight(
             shape=(self.initial_reservoir_size, self.input_dim),
             initializer=tf.keras.initializers.RandomNormal(stddev=0.1),
             trainable=False,
             name='spatiotemporal_input_weights'
         )
+        
+        # Initialize spiking gate weights
         self.spiking_gate_weights = self.add_weight(
             shape=(3 * self.initial_reservoir_size, self.input_dim),
             initializer=tf.keras.initializers.RandomNormal(stddev=0.1),
@@ -168,26 +258,83 @@ class GatedSpikingElasticReservoirLayer(tf.keras.layers.Layer):
             name='spiking_gate_weights'
         )
 
-    def call(self, inputs, states):
-        prev_state = states[0][:, :tf.shape(self.spatiotemporal_reservoir_weights)[0]]
+    def add_neurons(self, new_neurons_count):
+        """Add new neurons to the reservoir."""
+        if self.initial_reservoir_size + new_neurons_count <= self.max_dynamic_reservoir_dim:
+            # Expanding the reservoir state size and weights
+            self.initial_reservoir_size += new_neurons_count
+            self.state_size[0] = self.initial_reservoir_size  # Update the state size
+            self.spatiotemporal_reservoir_weights = tf.concat([
+                self.spatiotemporal_reservoir_weights,
+                tf.zeros([self.initial_reservoir_size, new_neurons_count])
+            ], axis=1)
+            self.spatiotemporal_reservoir_weights = tf.concat([
+                self.spatiotemporal_reservoir_weights,
+                tf.zeros([new_neurons_count, self.initial_reservoir_size])
+            ], axis=0)
+            
+            # Reinitialize the new neurons' input connections
+            self.spatiotemporal_input_weights = tf.concat([
+                self.spatiotemporal_input_weights,
+                tf.zeros([self.initial_reservoir_size, self.input_dim])
+            ], axis=0)
+            
+            # Reset the spiking gate weights for the new neurons
+            self.spiking_gate_weights = tf.concat([
+                self.spiking_gate_weights,
+                tf.zeros([3 * new_neurons_count, self.input_dim])
+            ], axis=0)
+    
+    def prune_connections(self, pruning_threshold=0.1):
+        """Prune connections with small weights, pruning weak or redundant synaptic connections."""
+        # Mask weak or redundant connections based on a pruning threshold
+        mask = tf.abs(self.spatiotemporal_reservoir_weights) < pruning_threshold
+        self.spatiotemporal_reservoir_weights = tf.where(mask, tf.zeros_like(self.spatiotemporal_reservoir_weights), self.spatiotemporal_reservoir_weights)
 
+    def call(self, inputs, states):
+        """
+        The forward pass for the Gated Spiking Elastic Reservoir Layer. The method computes
+        the new state of the reservoir based on the previous state and the input.
+        
+        Parameters:
+            inputs (tensor): The current input to the layer.
+            states (list): The previous state of the reservoir.
+
+        Returns:
+            tensor: The updated state of the reservoir after processing the input.
+            list: The updated state of the reservoir for use in the next time step.
+        """
+        prev_state = states[0][:, :self.initial_reservoir_size]
+
+        # Compute the input part (mapping inputs to the reservoir state)
         input_part = tf.matmul(inputs, self.spatiotemporal_input_weights, transpose_b=True)
+        
+        # Compute the reservoir part (feedback from the reservoir state)
         reservoir_part = tf.matmul(prev_state, self.spatiotemporal_reservoir_weights)
+        
+        # Compute the gate part (gating mechanism to control the input flow)
         gate_part = tf.matmul(inputs, self.spiking_gate_weights, transpose_b=True)
 
+        # Split the gate part into three separate gates (input, forget, and output gates)
         i_gate, f_gate, o_gate = tf.split(tf.sigmoid(gate_part), 3, axis=-1)
 
+        # Update the state using the gating mechanism and reservoir dynamics
         state = (1 - self.leak_rate) * (f_gate * prev_state) + self.leak_rate * tf.tanh(i_gate * (input_part + reservoir_part))
         state = o_gate * state
 
+        # Generate spikes if the state exceeds the spike threshold
         spikes = tf.cast(tf.greater(state, self.spike_threshold), dtype=tf.float32)
+        
+        # If a spike occurs, reset the state by subtracting the spike threshold
         state = tf.where(spikes > 0, state - self.spike_threshold, state)
 
+        # Padding the state to ensure the dynamic reservoir size is met
         padded_state = tf.concat([state, tf.zeros([tf.shape(state)[0], self.max_dynamic_reservoir_dim - tf.shape(state)[-1]])], axis=1)
 
         return padded_state, [padded_state]
 
     def get_config(self):
+        """Returns the configuration of the layer, useful for model serialization."""
         config = super().get_config()
         config.update({
             'initial_reservoir_size': self.initial_reservoir_size,
@@ -195,14 +342,31 @@ class GatedSpikingElasticReservoirLayer(tf.keras.layers.Layer):
             'spectral_radius': self.spectral_radius,
             'leak_rate': self.leak_rate,
             'spike_threshold': self.spike_threshold,
-            'max_dynamic_reservoir_dim': self.max_dynamic_reservoir_dim
+            'max_dynamic_reservoir_dim': self.max_dynamic_reservoir_dim,
+            'neurogenesis_rate': self.neurogenesis_rate,
+            'pruning_rate': self.pruning_rate
         })
         return config
 
 
 
 
+
 class HebbianHomeostaticLayer(tf.keras.Layer):
+    """
+    The HebbianHomeostaticLayer integrates Hebbian learning with homeostatic scaling to stabilize neural activity.
+    It adapts the synaptic weights based on local neuron correlations, while dynamically adjusting the activity level
+    to maintain balance in high-dimensional or temporal input scenarios. This approach provides self-regulating
+    neural networks that do not rely on reward-based mechanisms, enhancing unsupervised learning and efficiency.
+
+    Attributes:
+        units (int): The number of units (neurons) in the layer.
+        learning_rate (float): The learning rate for the Hebbian weight update.
+        target_avg (float): The target average activity level for homeostatic scaling.
+        homeostatic_rate (float): The rate at which activity scaling is adjusted.
+        activation (str or function): The activation function to apply to the output.
+    """
+    
     def __init__(self, units, learning_rate=0.00001, target_avg=0.1, homeostatic_rate=0.00001, activation='gelu', **kwargs):
         super(HebbianHomeostaticLayer, self).__init__(**kwargs)
         self.units = units
@@ -304,6 +468,20 @@ class HebbianHomeostaticLayer(tf.keras.Layer):
 
 
 class SpatioTemporalSummaryMixingLayer(tf.keras.Layer):
+    """
+    The SpatioTemporalSummaryMixingLayer enhances the processing of spatio-temporal data by integrating local and global context, 
+    making it ideal for tasks like video processing and time-series forecasting. It addresses the challenge of efficiently 
+    capturing long-range dependencies by combining GLU and GELU activations, enabling both local interactions and high-level summaries. 
+    The optional weighted summary mechanism dynamically adjusts token importance, improving flexibility and performance. 
+    This layer improves computational efficiency while maintaining the ability to process complex sequences, offering a scalable 
+    solution for real-time applications.
+
+    Attributes:
+        d_model: Dimensionality of the model (output size).
+        dropout_rate: Rate for dropout regularization.
+        use_weighted_summary: Boolean to control the use of learnable summary weights.
+    """
+    
     def __init__(self, d_model, dropout_rate=0.1, use_weighted_summary=False, **kwargs):
         super(SpatioTemporalSummaryMixingLayer, self).__init__(**kwargs)
         self.d_model = d_model
@@ -465,9 +643,23 @@ class LinearSummaryAttentionLayer(tf.keras.Layer):
 
 
 
-class KernelizedMultiheadSelfAttentionLayer(tf.keras.layers.Layer):
+class MultiheadLinearSelfAttentionKernalizationLayer(tf.keras.layers.Layer):
+    """
+    A multi-head linear self-attention layer with kernel approximation, the MultiheadLinearSelfAttentionKernalizationLayer,
+    replaces the quadratic QK^T computation of traditional mechanisms with positive activations and key normalization. 
+    This approach achieves linear complexity O(n), addressing the inefficiencies of standard attention for long sequences 
+    and enabling scalable, real-time processing without compromising performance.
+
+    Attributes:
+        d_model (int): The dimension of the model (input and output space).
+        num_heads (int): The number of attention heads in the multi-head attention mechanism.
+        dropout_rate (float): The rate of dropout to apply to the output of the attention mechanism to prevent overfitting.
+        use_weighted_summary (bool): Whether to use a weighted summary of the attention output or simply the mean.
+        eps (float): A small constant added to the denominator during attention score computation to prevent division by zero.
+    """
+    
     def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
-        super(KernelizedMultiheadSelfAttentionLayer, self).__init__(**kwargs)
+        super(MultiheadLinearSelfAttentionKernalizationLayer, self).__init__(**kwargs)
         self.d_model = d_model
         self.num_heads = num_heads
         self.dropout_rate = dropout_rate
@@ -497,7 +689,7 @@ class KernelizedMultiheadSelfAttentionLayer(tf.keras.layers.Layer):
         # Layer normalization
         self.layer_norm = LayerNormalization(epsilon=self.eps)
 
-        super(KernelizedMultiheadSelfAttentionLayer, self).build(input_shape)
+        super(MultiheadLinearSelfAttentionKernalizationLayer, self).build(input_shape)
 
     def split_heads(self, x, batch_size):
         """
@@ -676,3 +868,6 @@ class DynamicSelfModelingReservoirCallback(tf.keras.callbacks.Callback):
             'pruning_phase_length': self.pruning_phase_length
         }
         return config
+
+
+

@@ -7,11 +7,12 @@ from tensorflow.keras.utils import to_categorical
 import matplotlib.pyplot as plt
 import os
 
-from gpbacay_arcane import KernelizedMultiheadSelfAttentionLayer
+from gpbacay_arcane import MultiheadLinearSelfAttentionKernalizationLayer
 from gpbacay_arcane import HebbianHomeostaticLayer
 from gpbacay_arcane import GatedSpikingElasticReservoirLayer
 from gpbacay_arcane import DenseReservoirLayer
 from gpbacay_arcane import ExpandDimensionLayer
+from gpbacay_arcane import DynamicSelfModelingReservoirCallback
 
 class DSTSMGSER:
     def __init__(self, input_shape, reservoir_dim, spectral_radius, leak_rate, spike_threshold, max_dynamic_reservoir_dim, output_dim, use_weighted_summary=False):
@@ -34,7 +35,7 @@ class DSTSMGSER:
         x = LayerNormalization()(x)
         x = Dropout(0.2)(x)
 
-        summary_attention_layer = KernelizedMultiheadSelfAttentionLayer(
+        summary_attention_layer = MultiheadLinearSelfAttentionKernalizationLayer(
             d_model=128, num_heads=8, use_weighted_summary=self.use_weighted_summary)
         x = ExpandDimensionLayer()(x)
         x = summary_attention_layer(x)
@@ -139,23 +140,26 @@ def main():
     early_stopping = EarlyStopping(monitor='val_classification_output_accuracy', patience=10, mode='max', restore_best_weights=True)
     reduce_lr = ReduceLROnPlateau(monitor='val_classification_output_accuracy', factor=0.1, patience=5, mode='max')
 
+    # Initialize custom callback for dynamic self-modeling reservoir
+    dynamic_reservoir_callback = DynamicSelfModelingReservoirCallback(
+        reservoir_layer=dstsmgser.model.layers[7],  # The reservoir layer is at index 7 (change if needed)
+        performance_metric='val_classification_output_accuracy',
+        target_metric=0.95
+    )
+
     # Train the model
     history = dstsmgser.model.fit(
         x_train, {'classification_output': y_train, 'self_modeling_output': x_train_flat},
         validation_data=(x_test, {'classification_output': y_test, 'self_modeling_output': x_test_flat}),
         epochs=10,
         batch_size=64,
-        callbacks=[early_stopping, reduce_lr]
+        callbacks=[early_stopping, reduce_lr, dynamic_reservoir_callback]
     )
 
     # Evaluate the model
-    evaluation_results = dstsmgser.model.evaluate(
-        x_test,
-        {'classification_output': y_test, 'self_modeling_output': x_test_flat},
-        verbose=2
-    )
+    evaluation_results = dstsmgser.model.evaluate(x_test, {'classification_output': y_test, 'self_modeling_output': x_test_flat}, verbose=2)
     classification_acc = evaluation_results[1]
-    print(f"Test classification accuracy: {classification_acc:.4f}")
+    print(f"Test accuracy: {classification_acc:.4f}")
 
     # Plot Training History
     plt.figure(figsize=(12, 5))
