@@ -19,7 +19,7 @@ setup(
     py_modules=['gpbacay_arcane'],
     entry_points={
         'console_scripts': [
-            'gpbacay-arcane-about = gpbacay_arcane:about',
+            'gpbacay-arcane-about = gpbacay_arcane.cli_commands:about',
         ],
     },
     classifiers=[

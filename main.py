@@ -6,8 +6,8 @@ from tensorflow.keras.utils import to_categorical
 import matplotlib.pyplot as plt
 import os
 
-from gpbacay_arcane import DSTSMGSER
-from gpbacay_arcane import DynamicSelfModelingReservoirCallback
+from gpbacay_arcane.models import DSTSMGSER
+from gpbacay_arcane.callbacks import DynamicSelfModelingReservoirCallback
 
 def main():
     # Load and preprocess MNIST dataset
@@ -23,11 +23,11 @@ def main():
 
     # Hyperparameters
     input_shape = (28, 28, 1)
-    reservoir_dim = 1024
+    reservoir_dim = 512
     spectral_radius = 2.0
     leak_rate = 0.2
     spike_threshold = 0.5
-    max_dynamic_reservoir_dim = 8192
+    max_dynamic_reservoir_dim = 4096
     output_dim = 10
 
     # Initialize the model
@@ -107,4 +107,8 @@ if __name__ == "__main__":
 # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
 # with Multihead Linear Self Attention Aggregation Mechanism and Dynamic Self Modeling Reservoir Callback
 # python main.py
-# Test Accuracy: 0.9738
+# Test Accuracy: 0.9764
+# Confidence: 100%
+
+
+# Note: Try ST-Summary Mixing Mechanism in main.py

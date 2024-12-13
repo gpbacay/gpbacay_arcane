@@ -1,27 +1,83 @@
 import tensorflow as tf
 import numpy as np
-from tensorflow.keras.layers import RNN, Input, BatchNormalization, Flatten, Dense, Dropout, LayerNormalization
-from tensorflow.keras.callbacks import Callback
+from tensorflow.keras.layers import Layer, Dense, Dropout, LayerNormalization
 
-
-
-
-def about():
-    print("""
-        The `gpbacay_arcane` is a Python library for my custom neuromimetic artificial neural network mechanisms built on top of TensorFlow and Keras.
-        This library provides specialized layers and mechanisms for the A.R.C.A.N.E 
-        (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) project, 
-        enabling the creation of adaptive, biologically-inspired neural networks. 
-        It includes features like dynamic reservoirs, spiking neurons, Hebbian learning, and more, 
-        all built on top of TensorFlow and Keras.
-
+class FourierLinearFusionLayer(Layer):
+    def __init__(self, output_dim, dp_ratio=0.5, activation='gelu', **kwargs):
         """
-    )
+        Fourier-Linear Fusion Layer: A novel layer that combines Fourier projections (sine and cosine) with linear projections 
+        to capture both periodic and non-linear relationships in the data. This layer enhances the representational 
+        capacity of neural networks by leveraging the properties of Fourier transformations, which are particularly useful 
+        for modeling periodic patterns, signals, and complex data interactions. It splits the output space into Fourier and 
+        linear components, allowing for a more diverse feature extraction and improving learning in tasks involving time-series 
+        or signal data.
+
+        Args:
+            output_dim (int): Number of output dimensions for the layer.
+            dp_ratio (float): Ratio to split dimensions between Fourier and standard projections.
+            activation (str): Activation function to apply to the linear projection.
+        """
+        super(FourierLinearFusionLayer, self).__init__(**kwargs)
+        self.output_dim = output_dim
+        self.dp = int(dp_ratio * output_dim)  # Fourier projection dimensions
+        self.dp_linear = output_dim - self.dp  # Linear projection dimensions
+        self.activation = tf.keras.activations.get(activation)
     
+    def build(self, input_shape):
+        input_dim = input_shape[-1]
+        
+        # Fourier projection weights (for sine and cosine projections)
+        self.W_p = self.add_weight(
+            shape=(input_dim, self.dp),
+            initializer="glorot_uniform",
+            trainable=True,
+            name="W_p"
+        )
+        
+        # Linear projection weights
+        self.W_p_linear = self.add_weight(
+            shape=(input_dim, self.dp_linear),
+            initializer="glorot_uniform",
+            trainable=True,
+            name="W_p_linear"
+        )
+        self.B_p_linear = self.add_weight(
+            shape=(self.dp_linear,),
+            initializer="zeros",
+            trainable=True,
+            name="B_p_linear"
+        )
+        super(FourierLinearFusionLayer, self).build(input_shape)
     
+    def call(self, inputs):
+        # Fourier projections using sine and cosine
+        cosine_proj = tf.math.cos(tf.matmul(inputs, self.W_p))
+        sine_proj = tf.math.sin(tf.matmul(inputs, self.W_p))
+        
+        # Linear projections
+        linear_proj = self.activation(tf.matmul(inputs, self.W_p_linear) + self.B_p_linear)
+        
+        # Concatenate Fourier and linear projections
+        return tf.concat([cosine_proj, sine_proj, linear_proj], axis=-1)
     
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], self.output_dim)
     
-class ExpandDimensionLayer(tf.keras.layers.Layer):
+    def get_config(self):
+        """Returns the configuration of the layer for serialization."""
+        config = super(FourierLinearFusionLayer, self).get_config()
+        config.update({
+            'output_dim': self.output_dim,
+            'dp_ratio': self.dp / self.output_dim,  # Store dp_ratio instead of dp
+            'activation': tf.keras.activations.serialize(self.activation),
+        })
+        return config
+
+
+
+
+
+class ExpandDimensionLayer(Layer):
     """
     A custom layer that expands the dimensions of the input tensor along a specified axis.
     This layer is useful for adding a new axis to the input tensor, which can be necessary 
@@ -32,31 +88,13 @@ class ExpandDimensionLayer(tf.keras.layers.Layer):
     """
     
     def __init__(self, axis=1, **kwargs):
-        """
-        Initializes the layer with a specified axis along which to expand the input tensor's dimensions.
-        
-        Args:
-            axis (int): The axis along which to expand the input tensor's dimensions (default is 1).
-        """
         super(ExpandDimensionLayer, self).__init__(**kwargs)
         self.axis = axis
 
     def call(self, inputs):
-        """
-        Expands the dimensions of the input tensor along the specified axis.
-        
-        Args:
-            inputs (Tensor): The input tensor to which an additional dimension will be added.
-            
-        Returns:
-            Tensor: The input tensor with an additional dimension added at the specified axis.
-        """
         return tf.expand_dims(inputs, axis=self.axis)
 
     def get_config(self):
-        """
-        Returns the configuration of the layer, including the axis parameter used for dimension expansion.
-        """
         config = super().get_config()
         config.update({
             'axis': self.axis
@@ -66,135 +104,7 @@ class ExpandDimensionLayer(tf.keras.layers.Layer):
 
 
 
-class DenseReservoirLayer(tf.keras.layers.Layer):
-    """
-    A dynamic, dense reservoir layer that integrates input weights, reservoir weights,
-    and gating mechanisms for adaptive state updating and memory retention. The DenseReservoirLayer supports spiking
-    behavior through a spike threshold, allowing for the dynamic adjustment of the reservoir's state. 
-    It includes an internal dense layer for final output transformation, making it suitable for 
-    tasks involving complex, time-varying representations such as spatiotemporal pattern recognition.
-
-    Attributes:
-        units (int): Number of units (neurons) in the reservoir.
-        input_dim (int): Dimension of the input data.
-        spectral_radius (float): Spectral radius of the reservoir weight matrix, influencing stability.
-        leak_rate (float): Rate at which the state of the reservoir decays over time.
-        spike_threshold (float): Threshold above which a spike occurs in the reservoir neurons.
-        max_dynamic_units (int): Maximum dynamic size for the reservoir.
-        activation (function): Activation function to be applied after the state transformation.
-        kernel_initializer (function): Initializer for the input and reservoir weight matrices.
-        bias_initializer (function): Initializer for the bias terms.
-        kernel_regularizer (function): Regularizer for the kernel weights.
-        bias_regularizer (function): Regularizer for the bias weights.
-    """
-    
-    def __init__(self, units, input_dim=None, spectral_radius=None, leak_rate=None, spike_threshold=None, 
-                 max_dynamic_units=None, activation='relu', kernel_initializer='glorot_uniform', 
-                 bias_initializer='zeros', kernel_regularizer=None, bias_regularizer=None, name=None, **kwargs):
-        super(DenseReservoirLayer, self).__init__(name=name, **kwargs)
-        
-        self.units = units
-        self.input_dim = input_dim
-        self.spectral_radius = spectral_radius
-        self.leak_rate = leak_rate
-        self.spike_threshold = spike_threshold
-        self.max_dynamic_units = max_dynamic_units
-        self.activation = tf.keras.activations.get(activation)
-        self.kernel_initializer = tf.keras.initializers.get(kernel_initializer)
-        self.bias_initializer = tf.keras.initializers.get(bias_initializer)
-        self.kernel_regularizer = tf.keras.regularizers.get(kernel_regularizer)
-        self.bias_regularizer = tf.keras.regularizers.get(bias_regularizer)
-
-    def build(self, input_shape):
-        # Initialize input weights with kernel_initializer
-        self.input_weights = self.add_weight(
-            shape=(self.input_dim, self.units),
-            initializer=self.kernel_initializer,
-            regularizer=self.kernel_regularizer,
-            trainable=True,
-            name='input_weights'
-        )
-        
-        # Initialize reservoir weights (non-trainable)
-        self.reservoir_weights = self.add_weight(
-            shape=(self.input_dim, self.units),
-            initializer=self.kernel_initializer,
-            trainable=False,
-            name='reservoir_weights'
-        )
-        
-        # Initialize gate weights with kernel_initializer
-        self.gate_weights = self.add_weight(
-            shape=(3 * self.units, self.input_dim),
-            initializer=self.kernel_initializer,
-            regularizer=self.kernel_regularizer,
-            trainable=True,
-            name='gate_weights'
-        )
-        
-        # Initialize biases for gates
-        self.gate_bias = self.add_weight(
-            shape=(3 * self.units,),
-            initializer=self.bias_initializer,
-            regularizer=self.bias_regularizer,
-            trainable=True,
-            name='gate_bias'
-        )
-        
-        # Internal dense layer for output adjustment with kernel and bias initializers
-        self.dense = tf.keras.layers.Dense(
-            self.units,
-            activation=self.activation,
-            kernel_initializer=self.kernel_initializer,
-            bias_initializer=self.bias_initializer,
-            kernel_regularizer=self.kernel_regularizer,
-            bias_regularizer=self.bias_regularizer,
-            name="output_dense"
-        )
-
-    def call(self, inputs):
-        # Compute input, reservoir, and gate components
-        input_part = tf.matmul(inputs, self.input_weights)
-        reservoir_part = tf.matmul(inputs, self.reservoir_weights)
-        gate_part = tf.matmul(inputs, self.gate_weights, transpose_b=True) + self.gate_bias
-
-        # Split gates
-        i_gate, f_gate, o_gate = tf.split(tf.sigmoid(gate_part), 3, axis=-1)
-
-        # Compute state update
-        state = (1 - self.leak_rate) * (f_gate * reservoir_part) + self.leak_rate * tf.tanh(i_gate * (input_part + reservoir_part))
-        state = o_gate * state
-
-        # Apply spike threshold
-        spikes = tf.cast(tf.greater(state, self.spike_threshold), dtype=tf.float32)
-        state = tf.where(spikes > 0, state - self.spike_threshold, state)
-
-        # Apply Dense layer for final transformation
-        state = self.dense(state)
-
-        return state
-
-    def get_config(self):
-        config = super().get_config()
-        config.update({
-            'units': self.units,
-            'input_dim': self.input_dim,
-            'spectral_radius': self.spectral_radius,
-            'leak_rate': self.leak_rate,
-            'spike_threshold': self.spike_threshold,
-            'max_dynamic_units': self.max_dynamic_units,
-            'activation': tf.keras.activations.serialize(self.activation),
-            'kernel_initializer': tf.keras.initializers.serialize(self.kernel_initializer),
-            'bias_initializer': tf.keras.initializers.serialize(self.bias_initializer),
-            'kernel_regularizer': tf.keras.regularizers.serialize(self.kernel_regularizer),
-            'bias_regularizer': tf.keras.regularizers.serialize(self.bias_regularizer),
-        })
-        return config
-
-
-
-
-class GatedSpikingElasticReservoirLayer(tf.keras.layers.Layer):
+class GSER(Layer):
     """
     The Gated Spiking Elastic Reservoir (GSER) Layer is an innovative neural network layer that combines dynamic reservoir sizing, 
     spiking neuron behavior, and adaptive gating mechanisms to enhance temporal sequence processing. 
@@ -269,7 +179,7 @@ class GatedSpikingElasticReservoirLayer(tf.keras.layers.Layer):
             new_row_block = tf.zeros([self.spatiotemporal_reservoir_weights.shape[0], new_neurons_count])
             new_col_block = tf.zeros([new_neurons_count, self.spatiotemporal_reservoir_weights.shape[1] + new_neurons_count])
             
-            self.spatiotemporal_reservoir_weights = tf.concat([
+            self.spatiotemporal_reservoir_weights = tf.concat([ 
                 tf.concat([self.spatiotemporal_reservoir_weights, new_row_block], axis=1),
                 new_col_block
             ], axis=0)
@@ -354,8 +264,154 @@ class GatedSpikingElasticReservoirLayer(tf.keras.layers.Layer):
 
 
 
+class DenseGSER(Layer):
+    """
+    A dynamic, dense reservoir layer that integrates custom mechanisms for adaptive state updating 
+    and memory retention. It combines traditional dense layer functionality with advanced features 
+    like gated memory, leak-based state evolution, and spike thresholding. By leveraging input weights, 
+    reservoir weights, and gating mechanisms (input, forget, and output gates), it facilitates more 
+    complex, temporally-aware learning processes, making it particularly suitable for tasks involving 
+    sequential data or long-term dependencies. This layer provides a novel approach by incorporating 
+    spiking behaviors and dynamic state updating, offering an advantage over conventional dense layers 
+    in memory-intensive or adaptive models.
 
-class HebbianHomeostaticLayer(tf.keras.Layer):
+    Attributes:
+    - units: Number of units (neurons) in the layer.
+    - input_dim: Dimensionality of the input (optional, inferred from input shape if not provided).
+    - spectral_radius: Controls the stability of the reservoir by adjusting the spectral radius of the reservoir weights.
+    - leak_rate: Rate at which past states decay, balancing the influence of previous states and new inputs.
+    - spike_threshold: Threshold for triggering spikes in the state, enabling spiking behavior.
+    - max_dynamic_units: Optional maximum limit for dynamic unit expansion, allowing for adaptive layer size (currently unused).
+    - activation: Activation function applied to the output (e.g., 'gelu', 'relu').
+    - kernel_initializer: Initializer for the input and reservoir weight matrices.
+    - bias_initializer: Initializer for the bias vectors.
+    - kernel_regularizer: Regularizer applied to the input and reservoir weight matrices.
+    - bias_regularizer: Regularizer applied to the bias vectors.
+    """
+
+    def __init__(self, units, input_dim=None, spectral_radius=0.9, leak_rate=0.1, spike_threshold=0.5, 
+                 max_dynamic_units=None, activation='gelu', kernel_initializer='glorot_uniform', 
+                 bias_initializer='zeros', kernel_regularizer=None, bias_regularizer=None, name=None, **kwargs):
+        super(DenseGSER, self).__init__(name=name, **kwargs)
+        
+        # Parameters for custom mechanisms
+        self.units = units
+        self.input_dim = input_dim
+        self.spectral_radius = spectral_radius
+        self.leak_rate = leak_rate
+        self.spike_threshold = spike_threshold
+        self.max_dynamic_units = max_dynamic_units
+        self.activation = tf.keras.activations.get(activation)
+        self.kernel_initializer = tf.keras.initializers.get(kernel_initializer)
+        self.bias_initializer = tf.keras.initializers.get(bias_initializer)
+        self.kernel_regularizer = tf.keras.regularizers.get(kernel_regularizer)
+        self.bias_regularizer = tf.keras.regularizers.get(bias_regularizer)
+
+    def build(self, input_shape):
+        # Ensure that input_dim matches the expected input shape dimension
+        self.input_dim = input_shape[-1] if self.input_dim is None else self.input_dim
+        
+        # Initialize the input, reservoir, and gate weights, and biases
+        self.input_weights = self.add_weight(
+            shape=(self.input_dim, self.units),
+            initializer=self.kernel_initializer,
+            regularizer=self.kernel_regularizer,
+            trainable=True,
+            name='input_weights'
+        )
+        
+        self.reservoir_weights = self.add_weight(
+            shape=(self.input_dim, self.units),
+            initializer=self.kernel_initializer,
+            trainable=False,
+            name='reservoir_weights'
+        )
+        
+        self.gate_weights = self.add_weight(
+            shape=(self.input_dim, 3 * self.units),  # Corrected shape
+            initializer=self.kernel_initializer,
+            regularizer=self.kernel_regularizer,
+            trainable=True,
+            name='gate_weights'
+        )
+        
+        self.gate_bias = self.add_weight(
+            shape=(3 * self.units,),
+            initializer=self.bias_initializer,
+            regularizer=self.bias_regularizer,
+            trainable=True,
+            name='gate_bias'
+        )
+
+        # Weight matrix for final transformation
+        self.output_weights = self.add_weight(
+            shape=(self.units, self.units),  # New weight matrix
+            initializer=self.kernel_initializer,
+            regularizer=self.kernel_regularizer,
+            trainable=True,
+            name='output_weights'
+        )
+
+        # Bias for the output layer
+        self.output_bias = self.add_weight(
+            shape=(self.units,),
+            initializer=self.bias_initializer,
+            regularizer=self.bias_regularizer,
+            trainable=True,
+            name='output_bias'
+        )
+
+        self.built = True
+
+    def call(self, inputs):
+        # Ensure that input is of the expected shape
+        input_part = tf.matmul(inputs, self.input_weights)
+        reservoir_part = tf.matmul(inputs, self.reservoir_weights)
+        gate_part = tf.matmul(inputs, self.gate_weights) + self.gate_bias
+
+        # Split the gates into input, forget, and output gates
+        i_gate, f_gate, o_gate = tf.split(tf.sigmoid(gate_part), 3, axis=-1)
+
+        # Compute the state update using the gates and leak rate
+        state = (1 - self.leak_rate) * (f_gate * reservoir_part) + self.leak_rate * tf.tanh(i_gate * (input_part + reservoir_part))
+        state = o_gate * state
+
+        # Apply spike thresholding
+        spikes = tf.cast(tf.greater(state, self.spike_threshold), dtype=tf.float32)
+        state = tf.where(spikes > 0, state - self.spike_threshold, state)
+
+        # Final transformation using output weights and bias
+        output = tf.matmul(state, self.output_weights) + self.output_bias
+
+        # Apply the activation function
+        output = self.activation(output)
+
+        return output
+
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], self.units)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'units': self.units,
+            'input_dim': self.input_dim,
+            'spectral_radius': self.spectral_radius,
+            'leak_rate': self.leak_rate,
+            'spike_threshold': self.spike_threshold,
+            'max_dynamic_units': self.max_dynamic_units,
+            'activation': tf.keras.activations.serialize(self.activation),
+            'kernel_initializer': tf.keras.initializers.serialize(self.kernel_initializer),
+            'bias_initializer': tf.keras.initializers.serialize(self.bias_initializer),
+            'kernel_regularizer': tf.keras.regularizers.serialize(self.kernel_regularizer),
+            'bias_regularizer': tf.keras.regularizers.serialize(self.bias_regularizer),
+        })
+        return config
+
+
+
+
+class HebbianHomeostaticLayer(Layer):
     """
     The HebbianHomeostaticLayer integrates Hebbian learning with homeostatic scaling to stabilize neural activity.
     It adapts the synaptic weights based on local neuron correlations, while dynamically adjusting the activity level
@@ -470,7 +526,7 @@ class HebbianHomeostaticLayer(tf.keras.Layer):
 
 
 
-class SpatioTemporalSummaryMixingLayer(tf.keras.Layer):
+class SpatioTemporalSummaryMixingLayer(Layer):
     """
     The SpatioTemporalSummaryMixingLayer enhances the processing of spatio-temporal data by integrating local and global context, 
     making it ideal for tasks like video processing and time-series forecasting. It addresses the challenge of efficiently 
@@ -563,90 +619,7 @@ class SpatioTemporalSummaryMixingLayer(tf.keras.Layer):
 
 
 
-class LinearSummaryAttentionLayer(tf.keras.Layer):
-    def __init__(self, d_model, dropout_rate=0.1, use_weighted_summary=False, **kwargs):
-        super(LinearSummaryAttentionLayer, self).__init__(**kwargs)
-        self.d_model = d_model
-        self.dropout_rate = dropout_rate
-        self.use_weighted_summary = use_weighted_summary
-
-    def build(self, input_shape):
-        # Query, Key, and Value projection layers
-        self.query_dense = Dense(self.d_model)
-        self.key_dense = Dense(self.d_model)
-        self.value_dense = Dense(self.d_model)
-
-        # Output projection layer
-        self.output_dense = Dense(self.d_model)
-
-        # Dropout layer
-        self.dropout = Dropout(self.dropout_rate)
-
-        # Learnable weights for weighted summaries (optional)
-        if self.use_weighted_summary:
-            self.summary_weights = Dense(1, activation='softmax')
-
-        # Layer normalization
-        self.layer_norm = LayerNormalization(epsilon=1e-6)
-
-        super(LinearSummaryAttentionLayer, self).build(input_shape)
-
-    def call(self, inputs, training=False):
-        # Step 1: Project inputs to query, key, and value
-        queries = self.query_dense(inputs)  # Shape: (batch_size, seq_len, d_model)
-        keys = self.key_dense(inputs)      # Shape: (batch_size, seq_len, d_model)
-        values = self.value_dense(inputs)  # Shape: (batch_size, seq_len, d_model)
-
-        # Step 2: Apply kernel trick for linear attention
-        queries = tf.nn.elu(queries) + 1  # Positive activation for kernel trick
-        keys = tf.nn.elu(keys) + 1
-
-        # Compute similarity scores using the kernel approximation
-        scores = tf.matmul(queries, keys, transpose_b=True)  # Shape: (batch_size, seq_len, seq_len)
-
-        # Normalize scores row-wise (scaled attention mechanism)
-        scores = scores / tf.reduce_sum(scores, axis=-1, keepdims=True)
-
-        # Step 3: Compute attention output
-        attention_output = tf.matmul(scores, values)  # Shape: (batch_size, seq_len, d_model)
-
-        # Step 4: Optional weighted summary extraction
-        if self.use_weighted_summary:
-            weights = self.summary_weights(attention_output)  # Shape: (batch_size, seq_len, 1)
-            weighted_summary = tf.reduce_sum(attention_output * weights, axis=1, keepdims=True)
-        else:
-            weighted_summary = tf.reduce_mean(attention_output, axis=1, keepdims=True)
-
-        # Expand summary to match sequence length
-        weighted_summary = tf.tile(weighted_summary, [1, tf.shape(inputs)[1], 1])
-
-        # Step 5: Combine attention output with weighted summary
-        combined_output = tf.concat([attention_output, weighted_summary], axis=-1)  # Combine features
-
-        # Step 6: Apply output projection and dropout
-        combined_output = self.output_dense(combined_output)
-        combined_output = self.dropout(combined_output, training=training)
-
-        # Step 7: Ensure input dimensions match before adding
-        # Apply Dense layer to match dimensions of 'inputs' and 'combined_output'
-        inputs_projected = self.query_dense(inputs)  # Project 'inputs' to match the output dimension of combined_output
-
-        # Step 8: Add residual connection and layer normalization
-        return self.layer_norm(inputs_projected + combined_output)
-
-    def get_config(self):
-        config = super().get_config()
-        config.update({
-            'd_model': self.d_model,
-            'dropout_rate': self.dropout_rate,
-            'use_weighted_summary': self.use_weighted_summary,
-        })
-        return config
-
-
-
-
-class MultiheadLinearSelfAttentionKernalizationLayer(tf.keras.layers.Layer):
+class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
     """
     A multi-head linear self-attention layer with kernel approximation, the MultiheadLinearSelfAttentionKernalizationLayer,
     replaces the quadratic QK^T computation of traditional mechanisms with positive activations and key normalization. 
@@ -764,7 +737,134 @@ class MultiheadLinearSelfAttentionKernalizationLayer(tf.keras.layers.Layer):
 
 
 
-class PositionalEncodingLayer(tf.keras.layers.Layer):
+class GatedMultiheadLinearSelfAttentionKernalization(Layer):
+    """
+    A gated multi-head linear self-attention layer with kernel approximation. This layer extends the traditional
+    attention mechanism by introducing a gating mechanism that dynamically modulates the flow of information
+    through the attention outputs and weighted summary. By combining kernel approximation with gating,
+    the layer achieves linear time complexity O(n), making it efficient for long sequences while enhancing
+    its adaptability and robustness.
+
+    Attributes:
+        d_model (int): The dimension of the model (input and output space).
+        num_heads (int): The number of attention heads in the multi-head attention mechanism.
+        dropout_rate (float): The rate of dropout to apply to the output of the attention mechanism to prevent overfitting.
+        use_weighted_summary (bool): Whether to use a weighted summary of the attention output or simply the mean.
+        eps (float): A small constant added to the denominator during attention score computation to prevent division by zero.
+    """
+
+    def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
+        super(GatedMultiheadLinearSelfAttentionKernalization, self).__init__(**kwargs)
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.dropout_rate = dropout_rate
+        self.use_weighted_summary = use_weighted_summary
+        self.eps = eps
+
+        # Ensure d_model is divisible by the number of heads
+        assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
+        self.depth = d_model // num_heads
+
+    def build(self, input_shape):
+        # Query, Key, and Value projection layers for multi-head attention
+        self.query_dense = Dense(self.d_model)
+        self.key_dense = Dense(self.d_model)
+        self.value_dense = Dense(self.d_model)
+
+        # Output projection layer
+        self.output_dense = Dense(self.d_model)
+
+        # Dropout layer
+        self.dropout = Dropout(self.dropout_rate)
+
+        # Optional weighted summary
+        if self.use_weighted_summary:
+            self.summary_weights = Dense(1, activation="softmax")
+
+        # Gating mechanisms
+        self.gate_attention_dense = Dense(self.d_model)
+        self.gate_summary_dense = Dense(self.d_model)
+
+        # Layer normalization
+        self.layer_norm = LayerNormalization(epsilon=self.eps)
+
+        super(GatedMultiheadLinearSelfAttentionKernalization, self).build(input_shape)
+
+    def split_heads(self, x, batch_size):
+        """
+        Split the last dimension into (num_heads, depth) and transpose for parallel processing.
+        """
+        x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
+        return tf.transpose(x, perm=[0, 2, 1, 3])  # Shape: (batch_size, num_heads, seq_len, depth)
+
+    def call(self, inputs, training=False):
+        batch_size = tf.shape(inputs)[0]
+
+        # Project inputs to query, key, and value spaces
+        queries = self.query_dense(inputs)
+        keys = self.key_dense(inputs)
+        values = self.value_dense(inputs)
+
+        # Split into multiple heads
+        queries = self.split_heads(queries, batch_size)
+        keys = self.split_heads(keys, batch_size)
+        values = self.split_heads(values, batch_size)
+
+        # Apply kernel trick for linear attention
+        queries = tf.nn.elu(queries) + 1
+        keys = tf.nn.elu(keys) + 1
+
+        # Compute linear attention
+        key_sum = tf.reduce_sum(keys, axis=2, keepdims=True)
+        scores = tf.einsum("bhqd,bhkd->bhqk", queries, keys) / (key_sum + self.eps)
+        attention_output = tf.einsum("bhqk,bhvd->bhqd", scores, values)
+
+        # Merge heads back
+        attention_output = tf.transpose(attention_output, perm=[0, 2, 1, 3])
+        attention_output = tf.reshape(attention_output, (batch_size, -1, self.d_model))
+
+        # Optionally extract a weighted summary
+        if self.use_weighted_summary:
+            weights = self.summary_weights(attention_output)
+            weighted_summary = tf.reduce_sum(attention_output * weights, axis=1, keepdims=True)
+        else:
+            weighted_summary = tf.reduce_mean(attention_output, axis=1, keepdims=True)
+
+        # Expand summary to match sequence length
+        weighted_summary = tf.tile(weighted_summary, [1, tf.shape(inputs)[1], 1])
+
+        # Apply gating mechanism
+        gate_attention = tf.sigmoid(self.gate_attention_dense(inputs))
+        gated_output = gate_attention * attention_output
+
+        gate_summary = tf.sigmoid(self.gate_summary_dense(inputs))
+        gated_summary = gate_summary * weighted_summary
+
+        # Combine gated outputs
+        combined_output = tf.concat([gated_output, gated_summary], axis=-1)
+        combined_output = self.output_dense(combined_output)
+        combined_output = self.dropout(combined_output, training=training)
+
+        # Residual connection and layer normalization
+        inputs_projected = self.query_dense(inputs)
+        return self.layer_norm(inputs_projected + combined_output)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "d_model": self.d_model,
+            "num_heads": self.num_heads,
+            "dropout_rate": self.dropout_rate,
+            "use_weighted_summary": self.use_weighted_summary,
+            "eps": self.eps,
+        })
+        return config
+
+
+
+
+
+class PositionalEncodingLayer(Layer):
     def __init__(self, max_position, d_model, **kwargs):
         super(PositionalEncodingLayer, self).__init__(**kwargs)
         self.max_position = max_position
@@ -802,163 +902,3 @@ class PositionalEncodingLayer(tf.keras.layers.Layer):
     @classmethod
     def from_config(cls, config):
         return cls(config['max_position'], config['d_model'])
-
-
-
-
-class DynamicSelfModelingReservoirCallback(Callback):
-    def __init__(self, reservoir_layer, performance_metric='accuracy', target_metric=0.95,
-                 growth_rate=10, prune_rate=0.05, performance_threshold=0.01, 
-                 growth_phase_length=10, pruning_phase_length=5):
-        super().__init__()
-        self.reservoir_layer = reservoir_layer
-        self.performance_metric = performance_metric
-        self.target_metric = target_metric
-        self.growth_rate = growth_rate
-        self.prune_rate = prune_rate
-        self.performance_threshold = performance_threshold
-        self.growth_phase_length = growth_phase_length
-        self.pruning_phase_length = pruning_phase_length
-        self.performance_history = []
-        self.previous_loss = float('inf')
-
-    def on_epoch_end(self, epoch, logs=None):
-        current_metric = logs.get(self.performance_metric, 0)
-        self.performance_history.append(current_metric)
-
-        # Calculate the rate of change in performance over the last 5 epochs
-        if len(self.performance_history) > 5:
-            improvement_rate = (current_metric - self.performance_history[-5]) / 5
-        else:
-            improvement_rate = 0
-
-        # If performance improvement is below the threshold, trigger growth
-        if improvement_rate > self.performance_threshold:
-            self.reservoir_layer.add_neurons(self.growth_rate)
-            print(f" - Growing reservoir by {self.growth_rate} neurons.")
-
-        # Trigger pruning if needed based on the prune rate
-        if improvement_rate < self.performance_threshold:
-            self.reservoir_layer.prune_connections(self.prune_rate)
-            print(f" - Pruned connections by {self.prune_rate * 100}%.")
-        
-        # If the current metric has reached the target, allow for reservoir growth or pruning
-        if current_metric >= self.target_metric:
-            print(f" - Performance metric {self.performance_metric} reached target {self.target_metric}.")
-            if improvement_rate > self.performance_threshold:
-                self.reservoir_layer.add_neurons(self.growth_rate)
-            elif improvement_rate < self.performance_threshold:
-                self.reservoir_layer.prune_connections(self.prune_rate)
-
-        # Optionally print or log the training progress
-        if epoch % 10 == 0:
-            print(f"Epoch {epoch}: {self.performance_metric} = {current_metric}")
-
-    def reset(self):
-        """Resets the monitoring mechanism for a new training session."""
-        self.previous_loss = float('inf')
-
-    def get_config(self):
-        """Returns the configuration of the callback."""
-        config = {
-            'reservoir_layer': self.reservoir_layer,
-            'performance_metric': self.performance_metric,
-            'target_metric': self.target_metric,
-            'growth_rate': self.growth_rate,
-            'prune_rate': self.prune_rate,
-            'performance_threshold': self.performance_threshold,
-            'growth_phase_length': self.growth_phase_length,
-            'pruning_phase_length': self.pruning_phase_length
-        }
-        return config
-
-
-
-
-class DSTSMGSER:
-    def __init__(self, input_shape, reservoir_dim, spectral_radius, leak_rate, spike_threshold, max_dynamic_reservoir_dim, output_dim, use_weighted_summary=False):
-        self.input_shape = input_shape
-        self.reservoir_dim = reservoir_dim
-        self.spectral_radius = spectral_radius
-        self.leak_rate = leak_rate
-        self.spike_threshold = spike_threshold
-        self.max_dynamic_reservoir_dim = max_dynamic_reservoir_dim
-        self.output_dim = output_dim
-        self.use_weighted_summary = use_weighted_summary
-        self.model = None
-        self.reservoir_layer = None
-
-    def build_model(self):
-        inputs = Input(shape=self.input_shape)
-
-        # Preprocessing
-        x = BatchNormalization()(inputs)
-        x = Flatten()(x)
-        x = LayerNormalization()(x)
-        x = Dropout(0.2)(x)
-
-        # Attention Layer
-        linear_attention_layer = MultiheadLinearSelfAttentionKernalizationLayer(
-            d_model=128, num_heads=8, use_weighted_summary=self.use_weighted_summary)
-        x = ExpandDimensionLayer()(x)
-        x = linear_attention_layer(x)
-
-        # Reservoir layer
-        self.reservoir_layer = GatedSpikingElasticReservoirLayer(
-            initial_reservoir_size=self.reservoir_dim,
-            input_dim=x.shape[-1],
-            spectral_radius=self.spectral_radius,
-            leak_rate=self.leak_rate,
-            spike_threshold=self.spike_threshold,
-            max_dynamic_reservoir_dim=self.max_dynamic_reservoir_dim
-        )
-        lnn_layer = RNN(self.reservoir_layer, return_sequences=True)
-        lnn_output = lnn_layer(x)
-
-        # Hebbian homeostatic layer
-        hebbian_homeostatic_layer = HebbianHomeostaticLayer(units=self.reservoir_dim, name='hebbian_homeostatic_layer')
-        x = hebbian_homeostatic_layer(lnn_output)
-
-        # Classification output
-        clf_out = DenseReservoirLayer(
-            units=self.output_dim,
-            input_dim=x.shape[-1],
-            spectral_radius=self.spectral_radius,
-            leak_rate=self.leak_rate,
-            spike_threshold=self.spike_threshold,
-            max_dynamic_units=self.max_dynamic_reservoir_dim,
-            activation='softmax',
-            name='clf_out'
-        )(Flatten()(x))
-
-        # Self-modeling output
-        sm_out = DenseReservoirLayer(
-            units=np.prod(self.input_shape),
-            input_dim=x.shape[-1],
-            spectral_radius=self.spectral_radius,
-            leak_rate=self.leak_rate,
-            spike_threshold=self.spike_threshold,
-            max_dynamic_units=self.max_dynamic_reservoir_dim,
-            activation='sigmoid',
-            name='sm_out'
-        )(Flatten()(x))
-
-        # Compile the model
-        self.model = tf.keras.Model(inputs=inputs, outputs=[clf_out, sm_out])
-
-    def compile_model(self):
-        self.model.compile(
-            optimizer='adam',
-            loss={
-                'clf_out': 'categorical_crossentropy',
-                'sm_out': 'mse'
-            },
-            loss_weights={
-                'clf_out': 1.0,
-                'sm_out': 0.5
-            },
-            metrics={
-                'clf_out': 'accuracy',
-                'sm_out': 'mse'
-            }
-        )
