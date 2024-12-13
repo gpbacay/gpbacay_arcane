@@ -1,2 +1,2 @@
 [console_scripts]
-gpbacay-arcane-about = gpbacay_arcane:about
+gpbacay-arcane-about = gpbacay_arcane.cli_commands:about
