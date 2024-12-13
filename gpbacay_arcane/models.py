@@ -8,6 +8,7 @@ from gpbacay_arcane.layers import HebbianHomeostaticLayer
 from gpbacay_arcane.layers import DenseGSER
 from gpbacay_arcane.layers import SpatioTemporalSummaryMixingLayer
 from gpbacay_arcane.layers import GatedMultiheadLinearSelfAttentionKernalization
+from gpbacay_arcane.layers import SpatioTemporalSummarization
 
 
 class DSTSMGSER:
@@ -32,11 +33,15 @@ class DSTSMGSER:
         x = LayerNormalization()(x)
         x = Dropout(0.2)(x)
         
-        # Attention Layer
-        gated_linear_attention_layer = GatedMultiheadLinearSelfAttentionKernalization(
-            d_model=128, num_heads=8, use_weighted_summary=self.use_weighted_summary)
+        summarization_layer = SpatioTemporalSummarization(d_model=128, use_weighted_summary=self.use_weighted_summary)
         x = ExpandDimensionLayer()(x)
-        x = gated_linear_attention_layer(x)
+        x = summarization_layer(x)
+        
+        # Attention Layer
+        # gated_linear_attention_layer = GatedMultiheadLinearSelfAttentionKernalization(
+        #     d_model=128, num_heads=8, use_weighted_summary=self.use_weighted_summary)
+        # x = ExpandDimensionLayer()(x)
+        # x = gated_linear_attention_layer(x)
 
         # Reservoir layer
         self.reservoir_layer = GSER(
@@ -104,6 +109,9 @@ class DSTSMGSER:
 
 
 
+
+# with Spatio Temporal Summarization mechanism, denseGSER, and GSER
+# 313/313 - 8s - 26ms/step - clf_out_accuracy: 0.9779 - clf_out_loss: 0.0997 - loss: 0.1259 - sm_out_loss: 0.0522 - sm_out_mse: 0.0522
 
 # with Spatiotemporal Summary Mixing mechanism, denseGSER, and GSER
 # 313/313 - 29s - 92ms/step - clf_out_accuracy: 0.9824 - clf_out_loss: 0.0773 - loss: 0.1038 - sm_out_loss: 0.0527 - sm_out_mse: 0.0527

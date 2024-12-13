@@ -619,6 +619,91 @@ class SpatioTemporalSummaryMixingLayer(Layer):
 
 
 
+class SpatioTemporalSummarization(Layer):
+    """
+    The SpatioTemporalSummarization layer enhances the processing of spatio-temporal data by integrating local and 
+    global context, making it ideal for tasks like video processing and time-series forecasting. It addresses the challenge 
+    of efficiently capturing long-range dependencies by combining GLU and GELU activations, enabling both local interactions 
+    and high-level summaries. The optional weighted summary mechanism dynamically adjusts token importance, improving 
+    flexibility and performance. This layer improves computational efficiency while maintaining the ability to process 
+    complex sequences, offering a scalable solution for real-time applications.
+
+    Attributes:
+        d_model: Dimensionality of the model (output size).
+        dropout_rate: Rate for dropout regularization.
+        use_weighted_summary: Boolean to control the use of learnable summary weights.
+    """
+    
+    def __init__(self, d_model, dropout_rate=0.1, use_weighted_summary=False, **kwargs):
+        super(SpatioTemporalSummarization, self).__init__(**kwargs)
+        self.d_model = d_model
+        self.dropout_rate = dropout_rate
+        self.use_weighted_summary = use_weighted_summary
+
+    def build(self, input_shape):
+        # Local processing with DenseGSER (replaces GLU)
+        self.local_dense = DenseGSER(self.d_model)
+        self.local_dropout = Dropout(self.dropout_rate)
+
+        # Summary processing with DenseGSER (replaces GELU)
+        self.summary_dense = DenseGSER(self.d_model)
+        self.summary_dropout = Dropout(self.dropout_rate)
+
+        if self.use_weighted_summary:
+            self.summary_weights = Dense(self.d_model, activation='softmax')  # Learnable weights
+
+        # Combining layers with DenseGSER
+        self.combiner_dense = DenseGSER(self.d_model)
+        self.combiner_dropout = Dropout(self.dropout_rate)
+
+        # Dynamic dense layer with DenseGSER
+        self.dynamic_dense = DenseGSER(self.d_model)
+        
+        # Layer normalization
+        self.layer_norm = LayerNormalization(epsilon=1e-6)
+
+        super(SpatioTemporalSummarization, self).build(input_shape)
+
+    def call(self, inputs, training=False):
+        # Apply DenseGSER for local processing
+        local_output = self.local_dense(inputs)
+        local_output = self.local_dropout(local_output, training=training)
+        
+        # Summary processing with DenseGSER
+        summary = self.summary_dense(inputs)
+        summary = self.summary_dropout(summary, training=training)
+
+        if self.use_weighted_summary:
+            weights = self.summary_weights(summary)  # Learnable token weights
+            weighted_summary = tf.reduce_sum(summary * weights, axis=1, keepdims=True)
+        else:
+            weighted_summary = tf.reduce_mean(summary, axis=1, keepdims=True)
+
+        weighted_summary = tf.tile(weighted_summary, [1, tf.shape(inputs)[1], 1])
+        
+        # Combine local output and weighted summary
+        combined = tf.concat([local_output, weighted_summary], axis=-1)
+        combined_output = self.combiner_dense(combined)
+        combined_output = self.combiner_dropout(combined_output, training=training)
+
+        # Apply DenseGSER for dynamic transformation
+        inputs = self.dynamic_dense(inputs)
+
+        # Return the final output with layer normalization
+        return self.layer_norm(inputs + combined_output)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'd_model': self.d_model,
+            'dropout_rate': self.dropout_rate,
+            'use_weighted_summary': self.use_weighted_summary,
+        })
+        return config
+
+
+
+
 class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
     """
     A multi-head linear self-attention layer with kernel approximation, the MultiheadLinearSelfAttentionKernalizationLayer,

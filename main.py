@@ -23,11 +23,11 @@ def main():
 
     # Hyperparameters
     input_shape = (28, 28, 1)
-    reservoir_dim = 1024
+    reservoir_dim = 512
     spectral_radius = 2.0
     leak_rate = 0.2
     spike_threshold = 0.5
-    max_dynamic_reservoir_dim = 8192
+    max_dynamic_reservoir_dim = 4096
     output_dim = 10
 
     # Initialize the model
