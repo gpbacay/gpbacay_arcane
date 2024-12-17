@@ -338,6 +338,110 @@ class DenseGSER(Layer):
 
 
 
+class ConceptRelationshipModeling(Layer):
+    """
+    The ConceptRelationshipModeling mechanism effectively captures and models hierarchical relationships among 
+    conceptual representations in sequential or structured data by integrating multi-head self-attention with 
+    spiking-inspired DenseGSER layers. It addresses the challenge of efficiently summarizing token-level interactions while 
+    refining high-level concept relationships through attention-based extraction, dynamic concept pooling, and interaction modeling. 
+    This mechanism enhances the ability to process complex spatio-temporal and hierarchical data, improving both 
+    computational efficiency and the expressiveness of conceptual representations. 
+    It is designed for tasks such as reasoning, relationship extraction, and structured data understanding, 
+    offering a scalable solution for handling large or structured input sequences.
+    
+    Attributes:
+        d_model (int): Dimensionality of input and output features.
+        num_heads (int): Number of attention heads for multi-head attention.
+        dropout_rate (float): Dropout rate for regularization.
+        use_weighted_summary (bool): Flag to enable learnable summary weighting.
+        eps (float): Small constant for numerical stability.
+    """
+    def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
+        super(ConceptRelationshipModeling, self).__init__(**kwargs)  # Handle extra arguments
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.dropout_rate = dropout_rate
+        self.use_weighted_summary = use_weighted_summary
+        self.eps = eps
+        
+        # Attention mechanism to model token-level relationships
+        self.attention_layer = MultiheadLinearSelfAttentionKernalizationLayer(
+            d_model=d_model,
+            num_heads=num_heads,
+            dropout_rate=dropout_rate,
+            use_weighted_summary=use_weighted_summary,
+            eps=eps
+        )
+        
+        # Replace Dense with DenseGSER for pooling concept representations
+        self.concept_pooling = DenseGSER(
+            units=d_model,
+            spectral_radius=0.9,
+            leak_rate=0.1,
+            spike_threshold=0.5,
+            activation="relu"
+        )
+        
+        # Interaction attention layer to model the relationships between pooled concepts
+        self.interaction_attention = MultiheadLinearSelfAttentionKernalizationLayer(
+            d_model=d_model,
+            num_heads=num_heads,
+            dropout_rate=dropout_rate,
+            use_weighted_summary=use_weighted_summary,
+            eps=eps
+        )
+        
+        # Output projection to map concepts into final output space
+        self.output_projection = DenseGSER(
+            units=d_model,
+            spectral_radius=0.9,
+            leak_rate=0.1,
+            spike_threshold=0.5,
+            activation=None  # No activation for the projection layer
+        )
+
+    def call(self, inputs, training=False):
+        # Step 1: Extract token-level relationships using attention
+        token_relations = self.attention_layer(inputs, training=training)
+        
+        # Step 2: Pool concepts by averaging token relations and applying DenseGSER
+        pooled_concepts = tf.reduce_mean(token_relations, axis=1, keepdims=True)
+        pooled_concepts = self.concept_pooling(pooled_concepts)
+        
+        # Step 3: Model interactions between pooled concepts using attention
+        refined_concepts = self.interaction_attention(pooled_concepts, training=training)
+        
+        # Step 4: Project concepts to the output space for further tasks
+        output = self.output_projection(refined_concepts)
+        return output
+
+    def get_config(self):
+        # Return configuration to recreate the model
+        config = super(ConceptRelationshipModeling, self).get_config()
+        config.update({
+            "d_model": self.d_model,
+            "num_heads": self.num_heads,
+            "dropout_rate": self.dropout_rate,
+            "use_weighted_summary": self.use_weighted_summary,
+            "eps": self.eps
+        })
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        # Extract the necessary arguments for instantiation
+        d_model = config['d_model']
+        num_heads = config['num_heads']
+        dropout_rate = config['dropout_rate']
+        use_weighted_summary = config['use_weighted_summary']
+        eps = config['eps']
+        
+        # Instantiate and return the class with the deserialized parameters
+        return cls(d_model=d_model, num_heads=num_heads, dropout_rate=dropout_rate, use_weighted_summary=use_weighted_summary, eps=eps)
+
+
+
+
 class HebbianHomeostaticLayer(Layer):
     """
     The HebbianHomeostaticLayer integrates Hebbian learning with homeostatic scaling to stabilize neural activity.
