@@ -74,7 +74,6 @@ class DSTSMGSER:
         self.concept_modeling_layer = ConceptModeling(
             d_model=self.d_model,
             num_heads=self.num_heads,
-            dropout_rate=0.1,
             use_weighted_summary=self.use_weighted_summary,
             name='concept_modeling_layer'
         )
