@@ -338,9 +338,9 @@ class DenseGSER(Layer):
 
 
 
-class HierarchicalRelationshipAttentionConceptModeling(Layer):
+class ConceptModeling(Layer):
     """
-    The HierarchicalRelationshipAttentionConceptModeling mechanism effectively captures and models hierarchical relationships among 
+    The Concept Modeling (CM) mechanism effectively captures and models hierarchical relationships among 
     conceptual representations in sequential or structured data by integrating multi-head self-attention with 
     spiking-inspired DenseGSER layers. It addresses the challenge of efficiently summarizing token-level interactions while 
     refining high-level concept relationships through attention-based extraction, dynamic concept pooling, and interaction modeling. 
@@ -357,7 +357,7 @@ class HierarchicalRelationshipAttentionConceptModeling(Layer):
         eps (float): Small constant for numerical stability.
     """
     def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
-        super(HierarchicalRelationshipAttentionConceptModeling, self).__init__(**kwargs)  # Handle extra arguments
+        super(ConceptModeling, self).__init__(**kwargs)  # Handle extra arguments
         self.d_model = d_model
         self.num_heads = num_heads
         self.dropout_rate = dropout_rate
@@ -417,7 +417,7 @@ class HierarchicalRelationshipAttentionConceptModeling(Layer):
 
     def get_config(self):
         # Return configuration to recreate the model
-        config = super(HierarchicalRelationshipAttentionConceptModeling, self).get_config()
+        config = super(ConceptModeling, self).get_config()
         config.update({
             "d_model": self.d_model,
             "num_heads": self.num_heads,
@@ -430,9 +430,9 @@ class HierarchicalRelationshipAttentionConceptModeling(Layer):
 
 
 
-class HebbianHomeostaticLayer(Layer):
+class HebbianHomeostaticNeuroplasticity(Layer):
     """
-    The HebbianHomeostaticLayer integrates Hebbian learning with homeostatic scaling to stabilize neural activity.
+    The HebbianHomeostaticNeuroplasticity integrates Hebbian learning with homeostatic scaling to stabilize neural activity.
     It adapts the synaptic weights based on local neuron correlations, while dynamically adjusting the activity level
     to maintain balance in high-dimensional or temporal input scenarios. This approach provides self-regulating
     neural networks that do not rely on reward-based mechanisms, enhancing unsupervised learning and efficiency.
@@ -446,7 +446,7 @@ class HebbianHomeostaticLayer(Layer):
     """
     
     def __init__(self, units, learning_rate=0.00001, target_avg=0.1, homeostatic_rate=0.00001, activation='gelu', **kwargs):
-        super(HebbianHomeostaticLayer, self).__init__(**kwargs)
+        super(HebbianHomeostaticNeuroplasticity, self).__init__(**kwargs)
         self.units = units
         self.learning_rate = learning_rate
         self.target_avg = target_avg

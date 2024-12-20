@@ -4,12 +4,12 @@ from tensorflow.keras.layers import RNN, Input, BatchNormalization, Flatten, Dro
 from gpbacay_arcane.layers import MultiheadLinearSelfAttentionKernalizationLayer
 from gpbacay_arcane.layers import ExpandDimensionLayer
 from gpbacay_arcane.layers import GSER
-from gpbacay_arcane.layers import HebbianHomeostaticLayer
+from gpbacay_arcane.layers import HebbianHomeostaticNeuroplasticity
 from gpbacay_arcane.layers import DenseGSER
 from gpbacay_arcane.layers import SpatioTemporalSummaryMixingLayer
 from gpbacay_arcane.layers import GatedMultiheadLinearSelfAttentionKernalization
 from gpbacay_arcane.layers import SpatioTemporalSummarization
-from gpbacay_arcane.layers import HierarchicalRelationshipAttentionConceptModeling
+from gpbacay_arcane.layers import ConceptModeling
 
 
 
@@ -42,7 +42,7 @@ class DSTSMGSER:
         num_heads (int): Number of attention heads in the concept modeling mechanism.
     """
     def __init__(self, input_shape, reservoir_dim, spectral_radius, leak_rate, spike_threshold, 
-                 max_dynamic_reservoir_dim, output_dim, use_weighted_summary=False, d_model=128, num_heads=8):
+                 max_dynamic_reservoir_dim, output_dim, use_weighted_summary=True, d_model=128, num_heads=8):
         self.input_shape = input_shape
         self.reservoir_dim = reservoir_dim
         self.spectral_radius = spectral_radius
@@ -56,7 +56,8 @@ class DSTSMGSER:
         
         self.model = None
         self.reservoir_layer = None
-        self.concept_modeling = None
+        self.concept_modeling_layer = None
+        self.hebbian_homeostatic_layer = None
 
     def build_model(self):
         inputs = Input(shape=self.input_shape)
@@ -67,14 +68,15 @@ class DSTSMGSER:
         x = LayerNormalization()(x)
         x = Dropout(0.2)(x)
         
-        self.concept_modeling = HierarchicalRelationshipAttentionConceptModeling(
+        # Concept Modeling Layer
+        self.concept_modeling_layer = ConceptModeling(
             d_model=self.d_model,
             num_heads=self.num_heads,
             dropout_rate=0.1,
             use_weighted_summary=self.use_weighted_summary
         )
         x = ExpandDimensionLayer()(x)
-        x = self.concept_modeling(x)
+        x = self.concept_modeling_layer(x)
         
         # Reservoir layer
         self.reservoir_layer = GSER(
@@ -89,8 +91,11 @@ class DSTSMGSER:
         lnn_output = lnn_layer(x)
 
         # Hebbian homeostatic layer
-        hebbian_homeostatic_layer = HebbianHomeostaticLayer(units=self.reservoir_dim, name='hebbian_homeostatic_layer')
-        x = hebbian_homeostatic_layer(lnn_output)
+        self.hebbian_homeostatic_layer = HebbianHomeostaticNeuroplasticity(
+            units=self.reservoir_dim, 
+            name='hebbian_homeostatic_layer'
+        )
+        x = self.hebbian_homeostatic_layer(lnn_output)
 
         # Classification output
         clf_out = DenseGSER(
@@ -150,6 +155,24 @@ class DSTSMGSER:
             'num_heads': self.num_heads
         }
         return config
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -281,7 +304,7 @@ class DSTSMGSER_test2:
         lnn_output = lnn_layer(x)
 
         # Hebbian homeostatic layer
-        hebbian_homeostatic_layer = HebbianHomeostaticLayer(units=self.reservoir_dim, name='hebbian_homeostatic_layer')
+        hebbian_homeostatic_layer = HebbianHomeostaticNeuroplasticity(units=self.reservoir_dim, name='hebbian_homeostatic_layer')
         x = hebbian_homeostatic_layer(lnn_output)
 
         # Classification output
@@ -423,7 +446,7 @@ class DSTSMGSER_test1:
         lnn_output = lnn_layer(x)
 
         # Hebbian homeostatic layer
-        hebbian_homeostatic_layer = HebbianHomeostaticLayer(units=self.reservoir_dim, name='hebbian_homeostatic_layer')
+        hebbian_homeostatic_layer = HebbianHomeostaticNeuroplasticity(units=self.reservoir_dim, name='hebbian_homeostatic_layer')
         x = hebbian_homeostatic_layer(lnn_output)
 
         # Classification output
