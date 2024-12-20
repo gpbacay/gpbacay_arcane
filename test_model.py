@@ -66,7 +66,7 @@ def display_image_and_prediction(image_path, predicted_digit, confidence):
 
 if __name__ == "__main__":
     # Example usage
-    test_image_path = 'Test/img_5.png'  # Replace with your image path
+    test_image_path = 'Test/img_4.png'  # Replace with your image path
     result = predict(test_image_path)
     if result is not None:
         predicted_digit, confidence = result
@@ -78,4 +78,4 @@ if __name__ == "__main__":
 
 # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
 # python test_model.py
-# Remarks: 
+# Test Accuracy: 0.9702, Loss: 0.1692

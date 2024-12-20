@@ -9,38 +9,40 @@ from gpbacay_arcane.layers import DenseGSER
 from gpbacay_arcane.layers import SpatioTemporalSummaryMixingLayer
 from gpbacay_arcane.layers import GatedMultiheadLinearSelfAttentionKernalization
 from gpbacay_arcane.layers import SpatioTemporalSummarization
-from gpbacay_arcane.layers import ConceptRelationshipModeling
+from gpbacay_arcane.layers import HierarchicalRelationshipAttentionConceptModeling
 
 
 
 
+# 313/313 - 9s - 30ms/step - clf_out_accuracy: 0.9702 - clf_out_loss: 0.1426 - loss: 0.1692 - sm_out_loss: 0.0528 - sm_out_mse: 0.0528
+# Test Accuracy: 0.9702, Loss: 0.1692
 
-# with Spatio Temporal Summarization mechanism, denseGSER, and GSER
-# 313/313 - 8s - 26ms/step - clf_out_accuracy: 0.9754 - clf_out_loss: 0.1550 - loss: 0.1817 - sm_out_loss: 0.0530 - sm_out_mse: 0.0530
-# Test Accuracy: 0.9754, Loss: 0.1817
 class DSTSMGSER:
     """
-    The Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DSTSMGSER) integrated 
-    with Concept Relationship Modeling, enhancing its ability to model complex spatio-temporal data.
+    The Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DSTSMGSER) 
+    is an advanced neuromorphic architecture designed to process complex spatio-temporal patterns 
+    with high adaptability and efficiency. It integrates hierarchical attention modeling, dynamic 
+    reservoir growth, spiking neuron dynamics, and Hebbian learning with homeostatic neuroplasticity 
+    mechanisms.  Hebbian learning enhances associative memory by strengthening frequently used connections, 
+    while homeostatic neuroplasticity ensures the network maintains stability and optimal responsiveness. 
+    These features, combined with self-modeling capabilities and elastic reservoir scalability, 
+    make DSTSMGSER ideal for tasks such as time-series forecasting, adaptive control systems, 
+    and AI-driven dynamic concept generation in changing environments.
+    
+    Attributes:
+        input_shape (tuple): Shape of the input data.
+        reservoir_dim (int): Initial size of the reservoir.
+        spectral_radius (float): Controls the stability of the reservoir weight matrix.
+        leak_rate (float): Governs the decay rate of reservoir states over time.
+        spike_threshold (float): Activation threshold for spiking neurons.
+        max_dynamic_reservoir_dim (int): Maximum size the reservoir can dynamically grow to.
+        output_dim (int): Number of output units or classes.
+        use_weighted_summary (bool): Indicates whether a weighted summary mechanism is used in concept modeling.
+        d_model (int): Dimensionality of the attention-based concept modeling layer.
+        num_heads (int): Number of attention heads in the concept modeling mechanism.
     """
-
     def __init__(self, input_shape, reservoir_dim, spectral_radius, leak_rate, spike_threshold, 
                  max_dynamic_reservoir_dim, output_dim, use_weighted_summary=False, d_model=128, num_heads=8):
-        """
-        Initializes the DSTSMGSERWithConceptRelationship model with the given parameters.
-
-        Parameters:
-            input_shape (tuple): The shape of the input data.
-            reservoir_dim (int): The dimensionality of the reservoir layer.
-            spectral_radius (float): The spectral radius of the reservoir weight matrix.
-            leak_rate (float): The leak rate for the reservoir layer.
-            spike_threshold (float): The spike threshold for reservoir neurons.
-            max_dynamic_reservoir_dim (int): Maximum size of the dynamically growing reservoir.
-            output_dim (int): The output dimension for classification.
-            use_weighted_summary (bool, optional): Flag to use weighted summarization in spatio-temporal summarization.
-            d_model (int, optional): The model dimensionality for the ConceptRelationshipModeling (default 128).
-            num_heads (int, optional): The number of attention heads for the ConceptRelationshipModeling (default 8).
-        """
         self.input_shape = input_shape
         self.reservoir_dim = reservoir_dim
         self.spectral_radius = spectral_radius
@@ -54,14 +56,9 @@ class DSTSMGSER:
         
         self.model = None
         self.reservoir_layer = None
-        self.concept_relationship_modeling = None
+        self.concept_modeling = None
 
     def build_model(self):
-        """
-        Builds the full DSTSMGSER model with Concept Relationship Modeling, including the input preprocessing, 
-        spatio-temporal summarization, dynamic reservoir layer, Hebbian learning, and output layers for classification 
-        and self-modeling.
-        """
         inputs = Input(shape=self.input_shape)
 
         # Preprocessing
@@ -70,19 +67,14 @@ class DSTSMGSER:
         x = LayerNormalization()(x)
         x = Dropout(0.2)(x)
         
-        # Contextualization and Concept Relationship Modeling
-        summarization_layer = SpatioTemporalSummarization(d_model=128, use_weighted_summary=self.use_weighted_summary)
-        x = ExpandDimensionLayer()(x)
-        x = summarization_layer(x)
-        
-        # Add Concept Relationship Modeling to model token-level relationships and pool concepts
-        self.concept_relationship_modeling = ConceptRelationshipModeling(
+        self.concept_modeling = HierarchicalRelationshipAttentionConceptModeling(
             d_model=self.d_model,
             num_heads=self.num_heads,
             dropout_rate=0.1,
             use_weighted_summary=self.use_weighted_summary
         )
-        x = self.concept_relationship_modeling(x)
+        x = ExpandDimensionLayer()(x)
+        x = self.concept_modeling(x)
         
         # Reservoir layer
         self.reservoir_layer = GSER(
@@ -128,10 +120,6 @@ class DSTSMGSER:
         self.model = tf.keras.Model(inputs=inputs, outputs=[clf_out, sm_out])
 
     def compile_model(self):
-        """
-        Compiles the DSTSMGSER model with Concept Relationship Modeling by specifying the optimizer, loss functions, 
-        loss weights, and evaluation metrics for both classification and self-modeling outputs.
-        """
         self.model.compile(
             optimizer='adam',
             loss={
@@ -149,12 +137,6 @@ class DSTSMGSER:
         )
     
     def get_config(self):
-        """
-        Returns the configuration of the DSTSMGSER model, including its parameters.
-
-        Returns:
-            dict: Configuration dictionary containing the model parameters.
-        """
         config = {
             'input_shape': self.input_shape,
             'reservoir_dim': self.reservoir_dim,
@@ -168,6 +150,23 @@ class DSTSMGSER:
             'num_heads': self.num_heads
         }
         return config
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -259,6 +258,15 @@ class DSTSMGSER_test2:
         summarization_layer = SpatioTemporalSummarization(d_model=128, use_weighted_summary=self.use_weighted_summary)
         x = ExpandDimensionLayer()(x)
         x = summarization_layer(x)
+        
+         # summary_mixing_layer = SpatioTemporalSummaryMixingLayer(d_model=128, use_weighted_summary=self.use_weighted_summary)
+        # x = ExpandDimensionLayer()(x)
+        # x = summary_mixing_layer(x)
+        
+        # gated_linear_attention_layer = GatedMultiheadLinearSelfAttentionKernalization(
+        #     d_model=128, num_heads=8, use_weighted_summary=self.use_weighted_summary)
+        # x = ExpandDimensionLayer()(x)
+        # x = gated_linear_attention_layer(x)
         
         # Reservoir layer
         self.reservoir_layer = GSER(

@@ -338,9 +338,9 @@ class DenseGSER(Layer):
 
 
 
-class ConceptRelationshipModeling(Layer):
+class HierarchicalRelationshipAttentionConceptModeling(Layer):
     """
-    The ConceptRelationshipModeling mechanism effectively captures and models hierarchical relationships among 
+    The HierarchicalRelationshipAttentionConceptModeling mechanism effectively captures and models hierarchical relationships among 
     conceptual representations in sequential or structured data by integrating multi-head self-attention with 
     spiking-inspired DenseGSER layers. It addresses the challenge of efficiently summarizing token-level interactions while 
     refining high-level concept relationships through attention-based extraction, dynamic concept pooling, and interaction modeling. 
@@ -357,7 +357,7 @@ class ConceptRelationshipModeling(Layer):
         eps (float): Small constant for numerical stability.
     """
     def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
-        super(ConceptRelationshipModeling, self).__init__(**kwargs)  # Handle extra arguments
+        super(HierarchicalRelationshipAttentionConceptModeling, self).__init__(**kwargs)  # Handle extra arguments
         self.d_model = d_model
         self.num_heads = num_heads
         self.dropout_rate = dropout_rate
@@ -417,7 +417,7 @@ class ConceptRelationshipModeling(Layer):
 
     def get_config(self):
         # Return configuration to recreate the model
-        config = super(ConceptRelationshipModeling, self).get_config()
+        config = super(HierarchicalRelationshipAttentionConceptModeling, self).get_config()
         config.update({
             "d_model": self.d_model,
             "num_heads": self.num_heads,
@@ -426,18 +426,6 @@ class ConceptRelationshipModeling(Layer):
             "eps": self.eps
         })
         return config
-
-    @classmethod
-    def from_config(cls, config):
-        # Extract the necessary arguments for instantiation
-        d_model = config['d_model']
-        num_heads = config['num_heads']
-        dropout_rate = config['dropout_rate']
-        use_weighted_summary = config['use_weighted_summary']
-        eps = config['eps']
-        
-        # Instantiate and return the class with the deserialized parameters
-        return cls(d_model=d_model, num_heads=num_heads, dropout_rate=dropout_rate, use_weighted_summary=use_weighted_summary, eps=eps)
 
 
 
@@ -860,13 +848,6 @@ class GatedMultiheadLinearSelfAttentionKernalization(Layer):
     through the attention outputs and weighted summary. By combining kernel approximation with gating,
     the layer achieves linear time complexity O(n), making it efficient for long sequences while enhancing
     its adaptability and robustness.
-
-    Attributes:
-        d_model (int): The dimension of the model (input and output space).
-        num_heads (int): The number of attention heads in the multi-head attention mechanism.
-        dropout_rate (float): The rate of dropout to apply to the output of the attention mechanism to prevent overfitting.
-        use_weighted_summary (bool): Whether to use a weighted summary of the attention output or simply the mean.
-        eps (float): A small constant added to the denominator during attention score computation to prevent division by zero.
     """
 
     def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
@@ -877,29 +858,28 @@ class GatedMultiheadLinearSelfAttentionKernalization(Layer):
         self.use_weighted_summary = use_weighted_summary
         self.eps = eps
 
-        # Ensure d_model is divisible by the number of heads
         assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
         self.depth = d_model // num_heads
 
     def build(self, input_shape):
         # Query, Key, and Value projection layers for multi-head attention
-        self.query_dense = Dense(self.d_model)
-        self.key_dense = Dense(self.d_model)
-        self.value_dense = Dense(self.d_model)
+        self.query_dense = DenseGSER(self.d_model)
+        self.key_dense = DenseGSER(self.d_model)
+        self.value_dense = DenseGSER(self.d_model)
 
         # Output projection layer
-        self.output_dense = Dense(self.d_model)
+        self.output_dense = DenseGSER(self.d_model)
 
         # Dropout layer
         self.dropout = Dropout(self.dropout_rate)
 
         # Optional weighted summary
         if self.use_weighted_summary:
-            self.summary_weights = Dense(1, activation="softmax")
+            self.summary_weights = DenseGSER(1, activation="softmax")
 
         # Gating mechanisms
-        self.gate_attention_dense = Dense(self.d_model)
-        self.gate_summary_dense = Dense(self.d_model)
+        self.gate_attention_dense = DenseGSER(self.d_model)
+        self.gate_summary_dense = DenseGSER(self.d_model)
 
         # Layer normalization
         self.layer_norm = LayerNormalization(epsilon=self.eps)
@@ -975,7 +955,6 @@ class GatedMultiheadLinearSelfAttentionKernalization(Layer):
             "eps": self.eps,
         })
         return config
-
 
 
 
