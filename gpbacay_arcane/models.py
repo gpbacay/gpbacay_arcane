@@ -14,8 +14,8 @@ from gpbacay_arcane.layers import ConceptModeling
 
 
 
-# 313/313 - 9s - 30ms/step - clf_out_accuracy: 0.9702 - clf_out_loss: 0.1426 - loss: 0.1692 - sm_out_loss: 0.0528 - sm_out_mse: 0.0528
-# Test Accuracy: 0.9702, Loss: 0.1692
+# 313/313 - 8s - 27ms/step - clf_out_accuracy: 0.9773 - clf_out_loss: 0.1139 - loss: 0.1404 - sm_out_loss: 0.0527 - sm_out_mse: 0.0527
+# Test Accuracy: 0.9773, Loss: 0.1404
 
 class DSTSMGSER:
     """
@@ -54,10 +54,12 @@ class DSTSMGSER:
         self.d_model = d_model
         self.num_heads = num_heads
         
-        self.model = None
-        self.reservoir_layer = None
         self.concept_modeling_layer = None
+        self.reservoir_layer = None
         self.hebbian_homeostatic_layer = None
+        self.clf_out = None
+        self.sm_out = None
+        self.model = None
 
     def build_model(self):
         inputs = Input(shape=self.input_shape)
@@ -73,7 +75,8 @@ class DSTSMGSER:
             d_model=self.d_model,
             num_heads=self.num_heads,
             dropout_rate=0.1,
-            use_weighted_summary=self.use_weighted_summary
+            use_weighted_summary=self.use_weighted_summary,
+            name='concept_modeling_layer'
         )
         x = ExpandDimensionLayer()(x)
         x = self.concept_modeling_layer(x)
@@ -85,9 +88,10 @@ class DSTSMGSER:
             spectral_radius=self.spectral_radius,
             leak_rate=self.leak_rate,
             spike_threshold=self.spike_threshold,
-            max_dynamic_reservoir_dim=self.max_dynamic_reservoir_dim
+            max_dynamic_reservoir_dim=self.max_dynamic_reservoir_dim,
+            name='reservoir_layer'
         )
-        lnn_layer = RNN(self.reservoir_layer, return_sequences=True)
+        lnn_layer = RNN(self.reservoir_layer)
         lnn_output = lnn_layer(x)
 
         # Hebbian homeostatic layer
@@ -98,7 +102,7 @@ class DSTSMGSER:
         x = self.hebbian_homeostatic_layer(lnn_output)
 
         # Classification output
-        clf_out = DenseGSER(
+        self.clf_out = DenseGSER(
             units=self.output_dim,
             input_dim=x.shape[-1],
             spectral_radius=self.spectral_radius,
@@ -110,7 +114,7 @@ class DSTSMGSER:
         )(Flatten()(x))
 
         # Self-modeling output
-        sm_out = DenseGSER(
+        self.sm_out = DenseGSER(
             units=np.prod(self.input_shape),
             input_dim=x.shape[-1],
             spectral_radius=self.spectral_radius,
@@ -122,7 +126,10 @@ class DSTSMGSER:
         )(Flatten()(x))
 
         # Compile the model
-        self.model = tf.keras.Model(inputs=inputs, outputs=[clf_out, sm_out])
+        self.model = tf.keras.Model(
+            inputs=inputs, 
+            outputs=[self.clf_out, self.sm_out]
+        )
 
     def compile_model(self):
         self.model.compile(
