@@ -338,9 +338,9 @@ class DenseGSER(Layer):
 
 
 
-class ConceptModeling(Layer):
+class RelationalConceptModeling(Layer):
     """
-    The Concept Modeling (CM) mechanism effectively captures and models hierarchical relationships among 
+    The Relational Concept Modeling (RCM) mechanism effectively captures and models hierarchical relationships among 
     conceptual representations in sequential or structured data by integrating multi-head self-attention with 
     spiking-inspired DenseGSER layers. It addresses the challenge of efficiently summarizing token-level interactions while 
     refining high-level concept relationships through attention-based extraction, dynamic concept pooling, and interaction modeling. 
@@ -357,7 +357,7 @@ class ConceptModeling(Layer):
         eps (float): Small constant for numerical stability.
     """
     def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
-        super(ConceptModeling, self).__init__(**kwargs)  # Handle extra arguments
+        super(RelationalConceptModeling, self).__init__(**kwargs)
         self.d_model = d_model
         self.num_heads = num_heads
         self.dropout_rate = dropout_rate
@@ -417,7 +417,7 @@ class ConceptModeling(Layer):
 
     def get_config(self):
         # Return configuration to recreate the model
-        config = super(ConceptModeling, self).get_config()
+        config = super(RelationalConceptModeling, self).get_config()
         config.update({
             "d_model": self.d_model,
             "num_heads": self.num_heads,
@@ -725,7 +725,7 @@ class SpatioTemporalSummarization(Layer):
 
 class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
     """
-    A multi-head linear self-attention layer with kernel approximation, the MultiheadLinearSelfAttentionKernalizationLayer,
+    A multi-head linear self-attention layer with kernel approximation. The MultiheadLinearSelfAttentionKernalizationLayer (MLSAK)
     replaces the quadratic QK^T computation of traditional mechanisms with positive activations and key normalization. 
     This approach achieves linear complexity O(n), addressing the inefficiencies of standard attention for long sequences 
     and enabling scalable, real-time processing without compromising performance.
@@ -734,10 +734,9 @@ class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
         d_model (int): The dimension of the model (input and output space).
         num_heads (int): The number of attention heads in the multi-head attention mechanism.
         dropout_rate (float): The rate of dropout to apply to the output of the attention mechanism to prevent overfitting.
-        use_weighted_summary (bool): Whether to use a weighted summary of the attention output or simply the mean.
-        eps (float): A small constant added to the denominator during attention score computation to prevent division by zero.
+        use_weighted_summary (bool): Whether to use a weighted summary of the attention output.
+        eps (float): A small constant added for numerical stability.
     """
-    
     def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
         super(MultiheadLinearSelfAttentionKernalizationLayer, self).__init__(**kwargs)
         self.d_model = d_model
@@ -751,81 +750,140 @@ class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
         self.depth = d_model // num_heads
 
     def build(self, input_shape):
-        # Query, Key, and Value projection layers for multi-head attention
-        self.query_dense = Dense(self.d_model)
-        self.key_dense = Dense(self.d_model)
-        self.value_dense = Dense(self.d_model)
+        d_model = self.d_model
+        
+        # Initialize weights for Q, K, V projections
+        self.query_weight = self.add_weight(
+            name='query_weight',
+            shape=(d_model, d_model),
+            initializer='glorot_uniform',
+            trainable=True
+        )
+        self.query_bias = self.add_weight(
+            name='query_bias',
+            shape=(d_model,),
+            initializer='zeros',
+            trainable=True
+        )
+        
+        self.key_weight = self.add_weight(
+            name='key_weight',
+            shape=(d_model, d_model),
+            initializer='glorot_uniform',
+            trainable=True
+        )
+        self.key_bias = self.add_weight(
+            name='key_bias',
+            shape=(d_model,),
+            initializer='zeros',
+            trainable=True
+        )
+        
+        self.value_weight = self.add_weight(
+            name='value_weight',
+            shape=(d_model, d_model),
+            initializer='glorot_uniform',
+            trainable=True
+        )
+        self.value_bias = self.add_weight(
+            name='value_bias',
+            shape=(d_model,),
+            initializer='zeros',
+            trainable=True
+        )
+        
+        self.output_weight = self.add_weight(
+            name='output_weight',
+            shape=(d_model, d_model),
+            initializer='glorot_uniform',
+            trainable=True
+        )
+        self.output_bias = self.add_weight(
+            name='output_bias',
+            shape=(d_model,),
+            initializer='zeros',
+            trainable=True
+        )
 
-        # Output projection layer
-        self.output_dense = Dense(self.d_model)
+        if self.use_weighted_summary:
+            self.summary_weight = self.add_weight(
+                name='summary_weight',
+                shape=(d_model, 1),
+                initializer='glorot_uniform',
+                trainable=True
+            )
+            self.summary_bias = self.add_weight(
+                name='summary_bias',
+                shape=(1,),
+                initializer='zeros',
+                trainable=True
+            )
 
+        # Layer normalization parameters
+        self.layer_norm = LayerNormalization(epsilon=self.eps)
+        
         # Dropout layer
         self.dropout = Dropout(self.dropout_rate)
-
-        # Optional weighted summary
-        if self.use_weighted_summary:
-            self.summary_weights = Dense(1, activation="softmax")
-
-        # Layer normalization
-        self.layer_norm = LayerNormalization(epsilon=self.eps)
 
         super(MultiheadLinearSelfAttentionKernalizationLayer, self).build(input_shape)
 
     def split_heads(self, x, batch_size):
         """
         Split the last dimension into (num_heads, depth) and transpose for parallel processing.
+        Args:
+            x: tensor with shape [batch_size, seq_len, d_model]
+            batch_size: integer representing the batch size
+        Returns:
+            A tensor with shape [batch_size, num_heads, seq_len, depth]
         """
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
-        return tf.transpose(x, perm=[0, 2, 1, 3])  # Shape: (batch_size, num_heads, seq_len, depth)
+        return tf.transpose(x, perm=[0, 2, 1, 3])
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
 
     def call(self, inputs, training=False):
         batch_size = tf.shape(inputs)[0]
-
-        # Project inputs to query, key, and value spaces
-        queries = self.query_dense(inputs)  # Shape: (batch_size, seq_len, d_model)
-        keys = self.key_dense(inputs)
-        values = self.value_dense(inputs)
-
-        # Split into multiple heads
-        queries = self.split_heads(queries, batch_size)  # Shape: (batch_size, num_heads, seq_len, depth)
+        
+        # Linear projections
+        queries = tf.matmul(inputs, self.query_weight) + self.query_bias
+        keys = tf.matmul(inputs, self.key_weight) + self.key_bias
+        values = tf.matmul(inputs, self.value_weight) + self.value_bias
+        
+        # Split heads
+        queries = self.split_heads(queries, batch_size)  # (batch_size, num_heads, seq_len, depth)
         keys = self.split_heads(keys, batch_size)
         values = self.split_heads(values, batch_size)
-
-        # Apply kernel trick for linear attention (e.g., positive activation)
-        queries = tf.nn.elu(queries) + 1
-        keys = tf.nn.elu(keys) + 1
-
-        # Compute linear attention using kernelized queries and keys
-        key_sum = tf.reduce_sum(keys, axis=2, keepdims=True)  # Shape: (batch_size, num_heads, 1, depth)
-        scores = tf.einsum("bhqd,bhkd->bhqk", queries, keys) / (key_sum + self.eps)  # Shape: (batch_size, num_heads, seq_len, seq_len)
-
-        # Compute weighted sum of values
-        attention_output = tf.einsum("bhqk,bhvd->bhqd", scores, values)  # Shape: (batch_size, num_heads, seq_len, depth)
-
+        
+        # Apply kernel trick with ELU activation
+        queries = tf.nn.elu(queries) + 1.0
+        keys = tf.nn.elu(keys) + 1.0
+        
+        # Normalize keys
+        key_norm = tf.sqrt(tf.reduce_sum(tf.square(keys), axis=-1, keepdims=True) + self.eps)
+        keys = keys / key_norm
+        
+        # Compute attention scores
+        scores = tf.einsum("bhqd,bhkd->bhqk", queries, keys)
+        
+        # Apply attention to values
+        attention_output = tf.einsum("bhqk,bhvd->bhqd", scores, values)
+        
         # Merge heads back
-        attention_output = tf.transpose(attention_output, perm=[0, 2, 1, 3])  # Shape: (batch_size, seq_len, num_heads, depth)
-        attention_output = tf.reshape(attention_output, (batch_size, -1, self.d_model))  # Shape: (batch_size, seq_len, d_model)
-
-        # Optionally extract a weighted summary
+        attention_output = tf.transpose(attention_output, perm=[0, 2, 1, 3])
+        attention_output = tf.reshape(attention_output, (batch_size, -1, self.d_model))
+        
+        # Optional weighted summary
         if self.use_weighted_summary:
-            weights = self.summary_weights(attention_output)  # Shape: (batch_size, seq_len, 1)
-            weighted_summary = tf.reduce_sum(attention_output * weights, axis=1, keepdims=True)
-        else:
-            weighted_summary = tf.reduce_mean(attention_output, axis=1, keepdims=True)
-
-        # Expand summary to match sequence length
-        weighted_summary = tf.tile(weighted_summary, [1, tf.shape(inputs)[1], 1])  # Shape: (batch_size, seq_len, d_model)
-
-        # Combine attention output with weighted summary
-        combined_output = tf.concat([attention_output, weighted_summary], axis=-1)  # Shape: (batch_size, seq_len, 2 * d_model)
-
-        # Apply output projection and dropout
-        combined_output = self.output_dense(combined_output)
-        combined_output = self.dropout(combined_output, training=training)
-
-        # Residual connection and layer normalization
-        inputs_projected = self.query_dense(inputs)  # Project inputs to match combined_output
-        return self.layer_norm(inputs_projected + combined_output)
+            weights = tf.nn.sigmoid(tf.matmul(attention_output, self.summary_weight) + self.summary_bias)
+            attention_output = attention_output * weights
+        
+        # Final linear projection
+        output = tf.matmul(attention_output, self.output_weight) + self.output_bias
+        output = self.dropout(output, training=training)
+        
+        # Residual connection and normalization
+        return self.layer_norm(inputs + output)
 
     def get_config(self):
         config = super().get_config()

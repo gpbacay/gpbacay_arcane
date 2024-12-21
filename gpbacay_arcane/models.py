@@ -9,37 +9,19 @@ from gpbacay_arcane.layers import DenseGSER
 from gpbacay_arcane.layers import SpatioTemporalSummaryMixingLayer
 from gpbacay_arcane.layers import GatedMultiheadLinearSelfAttentionKernalization
 from gpbacay_arcane.layers import SpatioTemporalSummarization
-from gpbacay_arcane.layers import ConceptModeling
+from gpbacay_arcane.layers import RelationalConceptModeling
 
 
 
 
-# 313/313 - 8s - 27ms/step - clf_out_accuracy: 0.9773 - clf_out_loss: 0.1139 - loss: 0.1404 - sm_out_loss: 0.0527 - sm_out_mse: 0.0527
-# Test Accuracy: 0.9773, Loss: 0.1404
+
+# Test Accuracy: 0.9713, Loss: 0.1833
 
 class DSTSMGSER:
     """
     The Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DSTSMGSER) 
     is an advanced neuromorphic architecture designed to process complex spatio-temporal patterns 
-    with high adaptability and efficiency. It integrates hierarchical attention modeling, dynamic 
-    reservoir growth, spiking neuron dynamics, and Hebbian learning with homeostatic neuroplasticity 
-    mechanisms.  Hebbian learning enhances associative memory by strengthening frequently used connections, 
-    while homeostatic neuroplasticity ensures the network maintains stability and optimal responsiveness. 
-    These features, combined with self-modeling capabilities and elastic reservoir scalability, 
-    make DSTSMGSER ideal for tasks such as time-series forecasting, adaptive control systems, 
-    and AI-driven dynamic concept generation in changing environments.
-    
-    Attributes:
-        input_shape (tuple): Shape of the input data.
-        reservoir_dim (int): Initial size of the reservoir.
-        spectral_radius (float): Controls the stability of the reservoir weight matrix.
-        leak_rate (float): Governs the decay rate of reservoir states over time.
-        spike_threshold (float): Activation threshold for spiking neurons.
-        max_dynamic_reservoir_dim (int): Maximum size the reservoir can dynamically grow to.
-        output_dim (int): Number of output units or classes.
-        use_weighted_summary (bool): Indicates whether a weighted summary mechanism is used in concept modeling.
-        d_model (int): Dimensionality of the attention-based concept modeling layer.
-        num_heads (int): Number of attention heads in the concept modeling mechanism.
+    with high adaptability and efficiency.
     """
     def __init__(self, input_shape, reservoir_dim, spectral_radius, leak_rate, spike_threshold, 
                  max_dynamic_reservoir_dim, output_dim, use_weighted_summary=True, d_model=128, num_heads=8):
@@ -67,23 +49,32 @@ class DSTSMGSER:
         # Preprocessing
         x = BatchNormalization()(inputs)
         x = Flatten()(x)
+        x = DenseGSER(
+            units=self.d_model,
+            input_dim=np.prod(self.input_shape),
+            spectral_radius=self.spectral_radius,
+            leak_rate=self.leak_rate,
+            spike_threshold=self.spike_threshold,
+            activation='gelu',
+            name='preprocessing_layer'
+        )(x)
         x = LayerNormalization()(x)
         x = Dropout(0.2)(x)
         
         # Concept Modeling Layer
-        self.concept_modeling_layer = ConceptModeling(
+        self.concept_modeling_layer = RelationalConceptModeling(
             d_model=self.d_model,
             num_heads=self.num_heads,
             use_weighted_summary=self.use_weighted_summary,
             name='concept_modeling_layer'
         )
-        x = ExpandDimensionLayer()(x)
+        x = ExpandDimensionLayer()(x)  # Shape: (batch_size, 1, d_model)
         x = self.concept_modeling_layer(x)
         
         # Reservoir layer
         self.reservoir_layer = GSER(
             initial_reservoir_size=self.reservoir_dim,
-            input_dim=x.shape[-1],
+            input_dim=self.d_model,  # Changed from x.shape[-1] to d_model
             spectral_radius=self.spectral_radius,
             leak_rate=self.leak_rate,
             spike_threshold=self.spike_threshold,
@@ -103,7 +94,7 @@ class DSTSMGSER:
         # Classification output
         self.clf_out = DenseGSER(
             units=self.output_dim,
-            input_dim=x.shape[-1],
+            input_dim=self.reservoir_dim,  # Changed from x.shape[-1]
             spectral_radius=self.spectral_radius,
             leak_rate=self.leak_rate,
             spike_threshold=self.spike_threshold,
@@ -115,7 +106,7 @@ class DSTSMGSER:
         # Self-modeling output
         self.sm_out = DenseGSER(
             units=np.prod(self.input_shape),
-            input_dim=x.shape[-1],
+            input_dim=self.reservoir_dim,  # Changed from x.shape[-1]
             spectral_radius=self.spectral_radius,
             leak_rate=self.leak_rate,
             spike_threshold=self.spike_threshold,

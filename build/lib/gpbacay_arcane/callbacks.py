@@ -46,7 +46,7 @@ class DynamicSelfModelingReservoirCallback(Callback):
 
         # Optionally print or log the training progress
         if epoch % 10 == 0:
-            print(f"Epoch {epoch}: {self.performance_metric} = {current_metric:.4f}")
+            print(f"Epoch {epoch+1}: {self.performance_metric} = {current_metric:.4f}")
 
     def reset(self):
         """Resets the monitoring mechanism for a new training session."""

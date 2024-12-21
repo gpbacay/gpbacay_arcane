@@ -2,79 +2,6 @@ import tensorflow as tf
 import numpy as np
 from tensorflow.keras.layers import Layer, Dense, Dropout, LayerNormalization
 
-class FourierLinearFusionLayer(Layer):
-    def __init__(self, output_dim, dp_ratio=0.5, activation='gelu', **kwargs):
-        """
-        Fourier-Linear Fusion Layer: A novel layer that combines Fourier projections (sine and cosine) with linear projections 
-        to capture both periodic and non-linear relationships in the data. This layer enhances the representational 
-        capacity of neural networks by leveraging the properties of Fourier transformations, which are particularly useful 
-        for modeling periodic patterns, signals, and complex data interactions. It splits the output space into Fourier and 
-        linear components, allowing for a more diverse feature extraction and improving learning in tasks involving time-series 
-        or signal data.
-
-        Args:
-            output_dim (int): Number of output dimensions for the layer.
-            dp_ratio (float): Ratio to split dimensions between Fourier and standard projections.
-            activation (str): Activation function to apply to the linear projection.
-        """
-        super(FourierLinearFusionLayer, self).__init__(**kwargs)
-        self.output_dim = output_dim
-        self.dp = int(dp_ratio * output_dim)  # Fourier projection dimensions
-        self.dp_linear = output_dim - self.dp  # Linear projection dimensions
-        self.activation = tf.keras.activations.get(activation)
-    
-    def build(self, input_shape):
-        input_dim = input_shape[-1]
-        
-        # Fourier projection weights (for sine and cosine projections)
-        self.W_p = self.add_weight(
-            shape=(input_dim, self.dp),
-            initializer="glorot_uniform",
-            trainable=True,
-            name="W_p"
-        )
-        
-        # Linear projection weights
-        self.W_p_linear = self.add_weight(
-            shape=(input_dim, self.dp_linear),
-            initializer="glorot_uniform",
-            trainable=True,
-            name="W_p_linear"
-        )
-        self.B_p_linear = self.add_weight(
-            shape=(self.dp_linear,),
-            initializer="zeros",
-            trainable=True,
-            name="B_p_linear"
-        )
-        super(FourierLinearFusionLayer, self).build(input_shape)
-    
-    def call(self, inputs):
-        # Fourier projections using sine and cosine
-        cosine_proj = tf.math.cos(tf.matmul(inputs, self.W_p))
-        sine_proj = tf.math.sin(tf.matmul(inputs, self.W_p))
-        
-        # Linear projections
-        linear_proj = self.activation(tf.matmul(inputs, self.W_p_linear) + self.B_p_linear)
-        
-        # Concatenate Fourier and linear projections
-        return tf.concat([cosine_proj, sine_proj, linear_proj], axis=-1)
-    
-    def compute_output_shape(self, input_shape):
-        return (input_shape[0], self.output_dim)
-    
-    def get_config(self):
-        """Returns the configuration of the layer for serialization."""
-        config = super(FourierLinearFusionLayer, self).get_config()
-        config.update({
-            'output_dim': self.output_dim,
-            'dp_ratio': self.dp / self.output_dim,  # Store dp_ratio instead of dp
-            'activation': tf.keras.activations.serialize(self.activation),
-        })
-        return config
-
-
-
 
 
 class ExpandDimensionLayer(Layer):
@@ -411,9 +338,101 @@ class DenseGSER(Layer):
 
 
 
-class HebbianHomeostaticLayer(Layer):
+class ConceptModeling(Layer):
     """
-    The HebbianHomeostaticLayer integrates Hebbian learning with homeostatic scaling to stabilize neural activity.
+    The Concept Modeling (CM) mechanism effectively captures and models hierarchical relationships among 
+    conceptual representations in sequential or structured data by integrating multi-head self-attention with 
+    spiking-inspired DenseGSER layers. It addresses the challenge of efficiently summarizing token-level interactions while 
+    refining high-level concept relationships through attention-based extraction, dynamic concept pooling, and interaction modeling. 
+    This mechanism enhances the ability to process complex spatio-temporal and hierarchical data, improving both 
+    computational efficiency and the expressiveness of conceptual representations. 
+    It is designed for tasks such as reasoning, relationship extraction, and structured data understanding, 
+    offering a scalable solution for handling large or structured input sequences.
+    
+    Attributes:
+        d_model (int): Dimensionality of input and output features.
+        num_heads (int): Number of attention heads for multi-head attention.
+        dropout_rate (float): Dropout rate for regularization.
+        use_weighted_summary (bool): Flag to enable learnable summary weighting.
+        eps (float): Small constant for numerical stability.
+    """
+    def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
+        super(ConceptModeling, self).__init__(**kwargs)  # Handle extra arguments
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.dropout_rate = dropout_rate
+        self.use_weighted_summary = use_weighted_summary
+        self.eps = eps
+        
+        # Attention mechanism to model token-level relationships
+        self.attention_layer = MultiheadLinearSelfAttentionKernalizationLayer(
+            d_model=d_model,
+            num_heads=num_heads,
+            dropout_rate=dropout_rate,
+            use_weighted_summary=use_weighted_summary,
+            eps=eps
+        )
+        
+        # Replace Dense with DenseGSER for pooling concept representations
+        self.concept_pooling = DenseGSER(
+            units=d_model,
+            spectral_radius=0.9,
+            leak_rate=0.1,
+            spike_threshold=0.5,
+            activation="relu"
+        )
+        
+        # Interaction attention layer to model the relationships between pooled concepts
+        self.interaction_attention = MultiheadLinearSelfAttentionKernalizationLayer(
+            d_model=d_model,
+            num_heads=num_heads,
+            dropout_rate=dropout_rate,
+            use_weighted_summary=use_weighted_summary,
+            eps=eps
+        )
+        
+        # Output projection to map concepts into final output space
+        self.output_projection = DenseGSER(
+            units=d_model,
+            spectral_radius=0.9,
+            leak_rate=0.1,
+            spike_threshold=0.5,
+            activation=None  # No activation for the projection layer
+        )
+
+    def call(self, inputs, training=False):
+        # Step 1: Extract token-level relationships using attention
+        token_relations = self.attention_layer(inputs, training=training)
+        
+        # Step 2: Pool concepts by averaging token relations and applying DenseGSER
+        pooled_concepts = tf.reduce_mean(token_relations, axis=1, keepdims=True)
+        pooled_concepts = self.concept_pooling(pooled_concepts)
+        
+        # Step 3: Model interactions between pooled concepts using attention
+        refined_concepts = self.interaction_attention(pooled_concepts, training=training)
+        
+        # Step 4: Project concepts to the output space for further tasks
+        output = self.output_projection(refined_concepts)
+        return output
+
+    def get_config(self):
+        # Return configuration to recreate the model
+        config = super(ConceptModeling, self).get_config()
+        config.update({
+            "d_model": self.d_model,
+            "num_heads": self.num_heads,
+            "dropout_rate": self.dropout_rate,
+            "use_weighted_summary": self.use_weighted_summary,
+            "eps": self.eps
+        })
+        return config
+
+
+
+
+class HebbianHomeostaticNeuroplasticity(Layer):
+    """
+    The HebbianHomeostaticNeuroplasticity integrates Hebbian learning with homeostatic scaling to stabilize neural activity.
     It adapts the synaptic weights based on local neuron correlations, while dynamically adjusting the activity level
     to maintain balance in high-dimensional or temporal input scenarios. This approach provides self-regulating
     neural networks that do not rely on reward-based mechanisms, enhancing unsupervised learning and efficiency.
@@ -427,7 +446,7 @@ class HebbianHomeostaticLayer(Layer):
     """
     
     def __init__(self, units, learning_rate=0.00001, target_avg=0.1, homeostatic_rate=0.00001, activation='gelu', **kwargs):
-        super(HebbianHomeostaticLayer, self).__init__(**kwargs)
+        super(HebbianHomeostaticNeuroplasticity, self).__init__(**kwargs)
         self.units = units
         self.learning_rate = learning_rate
         self.target_avg = target_avg
@@ -619,6 +638,91 @@ class SpatioTemporalSummaryMixingLayer(Layer):
 
 
 
+class SpatioTemporalSummarization(Layer):
+    """
+    The SpatioTemporalSummarization layer enhances the processing of spatio-temporal data by integrating local and 
+    global context, making it ideal for tasks like video processing and time-series forecasting. It addresses the challenge 
+    of efficiently capturing long-range dependencies by combining GLU and GELU activations, enabling both local interactions 
+    and high-level summaries. The optional weighted summary mechanism dynamically adjusts token importance, improving 
+    flexibility and performance. This layer improves computational efficiency while maintaining the ability to process 
+    complex sequences, offering a scalable solution for real-time applications.
+
+    Attributes:
+        d_model: Dimensionality of the model (output size).
+        dropout_rate: Rate for dropout regularization.
+        use_weighted_summary: Boolean to control the use of learnable summary weights.
+    """
+    
+    def __init__(self, d_model, dropout_rate=0.1, use_weighted_summary=False, **kwargs):
+        super(SpatioTemporalSummarization, self).__init__(**kwargs)
+        self.d_model = d_model
+        self.dropout_rate = dropout_rate
+        self.use_weighted_summary = use_weighted_summary
+
+    def build(self, input_shape):
+        # Local processing with DenseGSER (replaces GLU)
+        self.local_dense = DenseGSER(self.d_model)
+        self.local_dropout = Dropout(self.dropout_rate)
+
+        # Summary processing with DenseGSER (replaces GELU)
+        self.summary_dense = DenseGSER(self.d_model)
+        self.summary_dropout = Dropout(self.dropout_rate)
+
+        if self.use_weighted_summary:
+            self.summary_weights = Dense(self.d_model, activation='softmax')  # Learnable weights
+
+        # Combining layers with DenseGSER
+        self.combiner_dense = DenseGSER(self.d_model)
+        self.combiner_dropout = Dropout(self.dropout_rate)
+
+        # Dynamic dense layer with DenseGSER
+        self.dynamic_dense = DenseGSER(self.d_model)
+        
+        # Layer normalization
+        self.layer_norm = LayerNormalization(epsilon=1e-6)
+
+        super(SpatioTemporalSummarization, self).build(input_shape)
+
+    def call(self, inputs, training=False):
+        # Apply DenseGSER for local processing
+        local_output = self.local_dense(inputs)
+        local_output = self.local_dropout(local_output, training=training)
+        
+        # Summary processing with DenseGSER
+        summary = self.summary_dense(inputs)
+        summary = self.summary_dropout(summary, training=training)
+
+        if self.use_weighted_summary:
+            weights = self.summary_weights(summary)  # Learnable token weights
+            weighted_summary = tf.reduce_sum(summary * weights, axis=1, keepdims=True)
+        else:
+            weighted_summary = tf.reduce_mean(summary, axis=1, keepdims=True)
+
+        weighted_summary = tf.tile(weighted_summary, [1, tf.shape(inputs)[1], 1])
+        
+        # Combine local output and weighted summary
+        combined = tf.concat([local_output, weighted_summary], axis=-1)
+        combined_output = self.combiner_dense(combined)
+        combined_output = self.combiner_dropout(combined_output, training=training)
+
+        # Apply DenseGSER for dynamic transformation
+        inputs = self.dynamic_dense(inputs)
+
+        # Return the final output with layer normalization
+        return self.layer_norm(inputs + combined_output)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'd_model': self.d_model,
+            'dropout_rate': self.dropout_rate,
+            'use_weighted_summary': self.use_weighted_summary,
+        })
+        return config
+
+
+
+
 class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
     """
     A multi-head linear self-attention layer with kernel approximation, the MultiheadLinearSelfAttentionKernalizationLayer,
@@ -744,13 +848,6 @@ class GatedMultiheadLinearSelfAttentionKernalization(Layer):
     through the attention outputs and weighted summary. By combining kernel approximation with gating,
     the layer achieves linear time complexity O(n), making it efficient for long sequences while enhancing
     its adaptability and robustness.
-
-    Attributes:
-        d_model (int): The dimension of the model (input and output space).
-        num_heads (int): The number of attention heads in the multi-head attention mechanism.
-        dropout_rate (float): The rate of dropout to apply to the output of the attention mechanism to prevent overfitting.
-        use_weighted_summary (bool): Whether to use a weighted summary of the attention output or simply the mean.
-        eps (float): A small constant added to the denominator during attention score computation to prevent division by zero.
     """
 
     def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
@@ -761,29 +858,28 @@ class GatedMultiheadLinearSelfAttentionKernalization(Layer):
         self.use_weighted_summary = use_weighted_summary
         self.eps = eps
 
-        # Ensure d_model is divisible by the number of heads
         assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
         self.depth = d_model // num_heads
 
     def build(self, input_shape):
         # Query, Key, and Value projection layers for multi-head attention
-        self.query_dense = Dense(self.d_model)
-        self.key_dense = Dense(self.d_model)
-        self.value_dense = Dense(self.d_model)
+        self.query_dense = DenseGSER(self.d_model)
+        self.key_dense = DenseGSER(self.d_model)
+        self.value_dense = DenseGSER(self.d_model)
 
         # Output projection layer
-        self.output_dense = Dense(self.d_model)
+        self.output_dense = DenseGSER(self.d_model)
 
         # Dropout layer
         self.dropout = Dropout(self.dropout_rate)
 
         # Optional weighted summary
         if self.use_weighted_summary:
-            self.summary_weights = Dense(1, activation="softmax")
+            self.summary_weights = DenseGSER(1, activation="softmax")
 
         # Gating mechanisms
-        self.gate_attention_dense = Dense(self.d_model)
-        self.gate_summary_dense = Dense(self.d_model)
+        self.gate_attention_dense = DenseGSER(self.d_model)
+        self.gate_summary_dense = DenseGSER(self.d_model)
 
         # Layer normalization
         self.layer_norm = LayerNormalization(epsilon=self.eps)
@@ -859,7 +955,6 @@ class GatedMultiheadLinearSelfAttentionKernalization(Layer):
             "eps": self.eps,
         })
         return config
-
 
 
 
