@@ -15,7 +15,7 @@ from gpbacay_arcane.layers import RelationalConceptModeling
 
 
 
-# Test Accuracy: 0.9713, Loss: 0.1833
+# Test Accuracy: 0.9713, Loss: 0.1722
 
 class DSTSMGSER:
     """

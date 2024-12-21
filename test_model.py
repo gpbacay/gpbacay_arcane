@@ -76,6 +76,5 @@ if __name__ == "__main__":
     else:
         print("Prediction failed.")
 
-# Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
+
 # python test_model.py
-# Test Accuracy: 0.9702, Loss: 0.1692
