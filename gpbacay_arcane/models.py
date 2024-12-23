@@ -49,15 +49,15 @@ class DSTSMGSER:
         # Preprocessing
         x = BatchNormalization()(inputs)
         x = Flatten()(x)
-        x = DenseGSER(
-            units=self.d_model,
-            input_dim=np.prod(self.input_shape),
-            spectral_radius=self.spectral_radius,
-            leak_rate=self.leak_rate,
-            spike_threshold=self.spike_threshold,
-            activation='gelu',
-            name='preprocessing_layer'
-        )(x)
+        x = LayerNormalization()(x)
+        x = Dropout(0.2)(x)
+        
+        # Summary Mixing Layer
+        summary_mixing_layer = SpatioTemporalSummaryMixingLayer(d_model=128, use_weighted_summary=self.use_weighted_summary)
+        x = ExpandDimensionLayer()(x)
+        x = summary_mixing_layer(x)
+        x = BatchNormalization()(x)
+        x = Flatten()(x)
         x = LayerNormalization()(x)
         x = Dropout(0.2)(x)
         
