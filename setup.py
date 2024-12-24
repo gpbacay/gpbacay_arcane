@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='gpbacay-arcane',
-    version='0.2.1',
+    version='0.2.2',
     author='Gianne P. Bacay',
     author_email='giannebacay2004@gmail.com',
     description='A Python library for custom neuromorphic neural network mechanisms built on top of TensorFlow and Keras',
