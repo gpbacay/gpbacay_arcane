@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 # Load the trained model
 try:
-    MODEL_FILEPATH = 'Models/dstsmgser_model.keras'
+    MODEL_FILEPATH = 'Models/dstsmgser_retrained_model.keras'
     model = tf.keras.models.load_model(MODEL_FILEPATH)
     print("Model loaded successfully.")
 except FileNotFoundError:
