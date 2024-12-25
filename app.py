@@ -28,7 +28,7 @@ CORS(app)  # Enable CORS for all routes
 
 # Load the model
 try:
-    MODEL_FILEPATH = 'Models/dstsmgser_model.keras'
+    MODEL_FILEPATH = 'Models/dstsmgser_retrained_model.keras'
     model = tf.keras.models.load_model(MODEL_FILEPATH)
     logger.info("Model loaded successfully.")
 except Exception as e:

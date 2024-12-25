@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 # Load the trained model
 try:
-    MODEL_FILEPATH = 'Models/dstsmgser_retrained_model.keras'
+    MODEL_FILEPATH = 'Models/dstsmgser_model.keras'
     model = tf.keras.models.load_model(MODEL_FILEPATH)
     print("Model loaded successfully.")
 except FileNotFoundError:
@@ -66,7 +66,7 @@ def display_image_and_prediction(image_path, predicted_digit, confidence):
 
 if __name__ == "__main__":
     # Example usage
-    test_image_path = 'Test/img_5.png'  # Replace with your image path
+    test_image_path = 'Test/img_4.png'  # Replace with your image path
     result = predict(test_image_path)
     if result is not None:
         predicted_digit, confidence = result

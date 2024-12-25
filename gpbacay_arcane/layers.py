@@ -335,6 +335,15 @@ class DenseGSER(Layer):
         })
         return config
 
+    @classmethod
+    def from_config(cls, config):
+        config['activation'] = tf.keras.activations.deserialize(config['activation'])
+        config['kernel_initializer'] = tf.keras.initializers.deserialize(config['kernel_initializer'])
+        config['bias_initializer'] = tf.keras.initializers.deserialize(config['bias_initializer'])
+        config['kernel_regularizer'] = tf.keras.regularizers.deserialize(config['kernel_regularizer'])
+        config['bias_regularizer'] = tf.keras.regularizers.deserialize(config['bias_regularizer'])
+        return cls(**config)
+
 
 
 
@@ -426,6 +435,96 @@ class RelationalConceptModeling(Layer):
             "eps": self.eps
         })
         return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(
+            d_model=config["d_model"],
+            num_heads=config["num_heads"],
+            dropout_rate=config["dropout_rate"],
+            use_weighted_summary=config["use_weighted_summary"],
+            eps=config["eps"],
+            **{key: value for key, value in config.items() if key not in ['d_model', 'num_heads', 'dropout_rate', 'use_weighted_summary', 'eps']}
+        )
+
+
+
+
+
+class RelationalDeepLearning(Layer):
+    """
+    RDL: Processes graph-based relationships (output of RCM) using GNN-inspired methods.
+    """
+    def __init__(self, d_model, num_heads, num_classes, **kwargs):
+        super(RelationalDeepLearning, self).__init__(**kwargs)
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.num_classes = num_classes
+
+        # Relational Entity Graph message passing layer (GNN-like operation)
+        self.message_passing_layer = MultiheadLinearSelfAttentionKernalizationLayer(
+            d_model=d_model,
+            num_heads=num_heads,
+            dropout_rate=0.1
+        )
+
+        # Output layer for task-specific predictions
+        self.output_layer = DenseGSER(
+            units=num_classes,
+            spectral_radius=0.9,
+            leak_rate=0.1,
+            spike_threshold=0.5,
+            activation="softmax"
+        )
+
+    def build(self, input_shape):
+        """
+        Build the internal components of the layer.
+        """
+        # Call the build methods of child layers to ensure all variables are initialized
+        self.message_passing_layer.build(input_shape)
+        message_passing_output_shape = (input_shape[0], self.d_model)
+        self.output_layer.build(message_passing_output_shape)
+        super(RelationalDeepLearning, self).build(input_shape)
+
+    def call(self, inputs, training=None):
+        """
+        Forward pass of the layer.
+        """
+        # Step 1: Perform message passing on relational graph using the output from RCM
+        graph_relations = self.message_passing_layer(inputs, training=training)
+
+        # Step 2: Produce task-specific predictions
+        output = self.output_layer(graph_relations)
+        return output
+
+    def compute_output_shape(self, input_shape):
+        """
+        Compute the output shape of the layer.
+        """
+        return (input_shape[0], self.num_classes)
+
+    def get_config(self):
+        """
+        Return the configuration of the layer for serialization.
+        """
+        config = super(RelationalDeepLearning, self).get_config()
+        config.update({
+            "d_model": self.d_model,
+            "num_heads": self.num_heads,
+            "num_classes": self.num_classes
+        })
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(
+            d_model=config["d_model"],
+            num_heads=config["num_heads"],
+            num_classes=config["num_classes"],
+            **{key: value for key, value in config.items() if key not in ['d_model', 'num_heads', 'num_classes']}
+        )
+
 
 
 
@@ -635,6 +734,15 @@ class SpatioTemporalSummaryMixingLayer(Layer):
         })
         return config
 
+    @classmethod
+    def from_config(cls, config):
+        return cls(
+            d_model=config['d_model'],
+            dropout_rate=config['dropout_rate'],
+            use_weighted_summary=config['use_weighted_summary'],
+            **{key: value for key, value in config.items() if key not in ['d_model', 'dropout_rate', 'use_weighted_summary']}
+        )
+
 
 
 
@@ -749,9 +857,12 @@ class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
         assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
         self.depth = d_model // num_heads
 
+        self.layer_norm = LayerNormalization(epsilon=eps)
+        self.dropout = Dropout(self.dropout_rate)
+
     def build(self, input_shape):
         d_model = self.d_model
-        
+
         # Initialize weights for Q, K, V projections
         self.query_weight = self.add_weight(
             name='query_weight',
@@ -765,7 +876,7 @@ class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
             initializer='zeros',
             trainable=True
         )
-        
+
         self.key_weight = self.add_weight(
             name='key_weight',
             shape=(d_model, d_model),
@@ -778,7 +889,7 @@ class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
             initializer='zeros',
             trainable=True
         )
-        
+
         self.value_weight = self.add_weight(
             name='value_weight',
             shape=(d_model, d_model),
@@ -791,7 +902,7 @@ class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
             initializer='zeros',
             trainable=True
         )
-        
+
         self.output_weight = self.add_weight(
             name='output_weight',
             shape=(d_model, d_model),
@@ -819,74 +930,59 @@ class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
                 trainable=True
             )
 
-        # Layer normalization parameters
-        self.layer_norm = LayerNormalization(epsilon=self.eps)
-        
-        # Dropout layer
-        self.dropout = Dropout(self.dropout_rate)
-
+        # Explicitly build LayerNormalization
+        self.layer_norm.build(input_shape)
         super(MultiheadLinearSelfAttentionKernalizationLayer, self).build(input_shape)
 
     def split_heads(self, x, batch_size):
-        """
-        Split the last dimension into (num_heads, depth) and transpose for parallel processing.
-        Args:
-            x: tensor with shape [batch_size, seq_len, d_model]
-            batch_size: integer representing the batch size
-        Returns:
-            A tensor with shape [batch_size, num_heads, seq_len, depth]
-        """
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
         return tf.transpose(x, perm=[0, 2, 1, 3])
 
-    def compute_output_shape(self, input_shape):
-        return input_shape
-
     def call(self, inputs, training=False):
         batch_size = tf.shape(inputs)[0]
-        
+
         # Linear projections
         queries = tf.matmul(inputs, self.query_weight) + self.query_bias
         keys = tf.matmul(inputs, self.key_weight) + self.key_bias
         values = tf.matmul(inputs, self.value_weight) + self.value_bias
-        
+
         # Split heads
-        queries = self.split_heads(queries, batch_size)  # (batch_size, num_heads, seq_len, depth)
+        queries = self.split_heads(queries, batch_size)
         keys = self.split_heads(keys, batch_size)
         values = self.split_heads(values, batch_size)
-        
+
         # Apply kernel trick with ELU activation
         queries = tf.nn.elu(queries) + 1.0
         keys = tf.nn.elu(keys) + 1.0
-        
+
         # Normalize keys
         key_norm = tf.sqrt(tf.reduce_sum(tf.square(keys), axis=-1, keepdims=True) + self.eps)
         keys = keys / key_norm
-        
+
         # Compute attention scores
         scores = tf.einsum("bhqd,bhkd->bhqk", queries, keys)
-        
+
         # Apply attention to values
         attention_output = tf.einsum("bhqk,bhvd->bhqd", scores, values)
-        
+
         # Merge heads back
         attention_output = tf.transpose(attention_output, perm=[0, 2, 1, 3])
         attention_output = tf.reshape(attention_output, (batch_size, -1, self.d_model))
-        
+
         # Optional weighted summary
         if self.use_weighted_summary:
             weights = tf.nn.sigmoid(tf.matmul(attention_output, self.summary_weight) + self.summary_bias)
             attention_output = attention_output * weights
-        
+
         # Final linear projection
         output = tf.matmul(attention_output, self.output_weight) + self.output_bias
         output = self.dropout(output, training=training)
-        
+
         # Residual connection and normalization
         return self.layer_norm(inputs + output)
 
     def get_config(self):
-        config = super().get_config()
+        config = super(MultiheadLinearSelfAttentionKernalizationLayer, self).get_config()
         config.update({
             "d_model": self.d_model,
             "num_heads": self.num_heads,
@@ -895,6 +991,10 @@ class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
             "eps": self.eps,
         })
         return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
 
 
@@ -906,6 +1006,14 @@ class GatedMultiheadLinearSelfAttentionKernalization(Layer):
     through the attention outputs and weighted summary. By combining kernel approximation with gating,
     the layer achieves linear time complexity O(n), making it efficient for long sequences while enhancing
     its adaptability and robustness.
+    
+    MLSAK vs. GMLSAK:
+    MLSAK is simpler and more direct, focusing on optimizing attention for long sequences with kernel approximations 
+    and key normalization. It is a more efficient approach when scalability is prioritized.
+    
+    GMLSAK, on the other hand, enhances adaptability and robustness with the introduction of gating mechanisms. 
+    This layer may be more appropriate when the model requires dynamic control over attention outputs and summaries, 
+    making it more flexible but computationally more complex.
     """
 
     def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
