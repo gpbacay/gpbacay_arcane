@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: gpbacay-arcane
-Version: 0.2.2
+Version: 0.2.3
 Summary: A Python library for custom neuromorphic neural network mechanisms built on top of TensorFlow and Keras
 Home-page: https://github.com/gpbacay/gpbacay_arcane
 Author: Gianne P. Bacay
