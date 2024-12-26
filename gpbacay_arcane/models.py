@@ -1,6 +1,8 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import RNN, Input, BatchNormalization, Flatten, Dropout, LayerNormalization
+from tensorflow.keras.layers import Dense, RNN, Input, BatchNormalization, Flatten, Dropout, LayerNormalization
+from tensorflow.keras import Model
+
 from gpbacay_arcane.layers import MultiheadLinearSelfAttentionKernalizationLayer
 from gpbacay_arcane.layers import ExpandDimensionLayer
 from gpbacay_arcane.layers import GSER
@@ -10,20 +12,17 @@ from gpbacay_arcane.layers import SpatioTemporalSummaryMixingLayer
 from gpbacay_arcane.layers import GatedMultiheadLinearSelfAttentionKernalization
 from gpbacay_arcane.layers import SpatioTemporalSummarization
 from gpbacay_arcane.layers import RelationalConceptModeling
-from gpbacay_arcane.layers import RelationalDeepLearning
+from gpbacay_arcane.layers import RelationalGraphAttentionReasoning
 
 
 
-
-
-# Test Accuracy: 0.9732, Loss: 0.1637
-
-class DSTSMGSER:
+class DSTSMGSER(Model):
     """
     The Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DSTSMGSER) 
     is an advanced neuromorphic architecture designed to process complex spatio-temporal patterns 
     with high adaptability and efficiency.
     """
+
     def __init__(self, input_shape, reservoir_dim, spectral_radius, leak_rate, spike_threshold, 
                  max_dynamic_reservoir_dim, output_dim, use_weighted_summary=True, d_model=128, num_heads=8):
         self.input_shape = input_shape
@@ -37,52 +36,29 @@ class DSTSMGSER:
         self.d_model = d_model
         self.num_heads = num_heads
         
-        self.rcm_layer = None
-        self.rdl_layer = None
         self.reservoir_layer = None
-        self.summary_mixing_layer = None
-        self.hebbian_homeostatic_layer = None
-        self.clf_out = None
-        self.sm_out = None
         self.model = None
 
     def build_model(self):
         inputs = Input(shape=self.input_shape)
 
         # Preprocessing
-        x = BatchNormalization()(inputs)
-        x = Flatten()(x)
-        x = LayerNormalization()(x)
-        x = Dropout(0.2)(x)
-        x = ExpandDimensionLayer()(x)
-        
-        # Summary Mixing
-        self.summary_mixing_layer = SpatioTemporalSummaryMixingLayer(d_model=128, use_weighted_summary=self.use_weighted_summary)
-        x = self.summary_mixing_layer(x)
-        x = BatchNormalization()(x)
-        x = Flatten()(x)
-        x = LayerNormalization()(x)
-        x = Dropout(0.2)(x)
-        x = ExpandDimensionLayer()(x)
+        x = Flatten()(inputs)
+        x = DenseGSER(self.d_model)(x)
 
         # Relational Concept Modeling (RCM)
-        self.rcm_layer = RelationalConceptModeling(
-            d_model=self.d_model,
-            num_heads=self.num_heads,
-            use_weighted_summary=self.use_weighted_summary
+        rcm_layer = RelationalConceptModeling(
+            d_model=self.d_model, num_heads=self.num_heads, use_weighted_summary=self.use_weighted_summary
         )
-        x = self.rcm_layer(x)
+        x = rcm_layer(x)
         x = BatchNormalization()(x)
-        rcm_layer_output = LayerNormalization()(x)
+        x = LayerNormalization()(x)
 
         # Relational Deep Learning (RDL)
-        self.rdl_layer = RelationalDeepLearning(
-            d_model=self.d_model,
-            num_heads=self.num_heads,
-            num_classes=self.d_model,
-            name='relational_deep_learning'
+        rdl_layer = RelationalGraphAttentionReasoning(
+            d_model=self.d_model, num_heads=self.num_heads, num_classes=self.d_model
         )
-        rdl_layer_output = self.rdl_layer(rcm_layer_output)
+        x = rdl_layer(x)
 
         # Liquid Neural Network
         self.reservoir_layer = GSER(
@@ -91,21 +67,18 @@ class DSTSMGSER:
             spectral_radius=self.spectral_radius,
             leak_rate=self.leak_rate,
             spike_threshold=self.spike_threshold,
-            max_dynamic_reservoir_dim=self.max_dynamic_reservoir_dim,
-            name='reservoir_layer'
+            max_dynamic_reservoir_dim=self.max_dynamic_reservoir_dim
         )
-        lnn_layer = RNN(self.reservoir_layer)
-        lnn_output = lnn_layer(rdl_layer_output)
+        x = RNN(self.reservoir_layer)(x)
 
         # Hebbian Learning and Homeostatic Neuroplasticity
-        self.hebbian_homeostatic_layer = HebbianHomeostaticNeuroplasticity(
-            units=self.reservoir_dim, 
-            name='hebbian_homeostatic_layer'
+        hebbian_homeostatic_layer = HebbianHomeostaticNeuroplasticity(
+            units=self.reservoir_dim
         )
-        hebbian_homeostatic_layer_output = self.hebbian_homeostatic_layer(lnn_output)
+        x = hebbian_homeostatic_layer(x)
 
-        # Classification output
-        self.clf_out = DenseGSER(
+        # Classification main task
+        clf_out = DenseGSER(
             units=self.output_dim,
             input_dim=self.reservoir_dim,
             spectral_radius=self.spectral_radius,
@@ -114,10 +87,10 @@ class DSTSMGSER:
             max_dynamic_units=self.max_dynamic_reservoir_dim,
             activation='softmax',
             name='clf_out'
-        )(Flatten()(hebbian_homeostatic_layer_output))
+        )(x)
 
-        # Self-modeling output
-        self.sm_out = DenseGSER(
+        # Self-modeling auxiliary task
+        sm_out = DenseGSER(
             units=np.prod(self.input_shape),
             input_dim=self.reservoir_dim,
             spectral_radius=self.spectral_radius,
@@ -126,13 +99,10 @@ class DSTSMGSER:
             max_dynamic_units=self.max_dynamic_reservoir_dim,
             activation='sigmoid',
             name='sm_out'
-        )(Flatten()(hebbian_homeostatic_layer_output))
+        )(x)
 
         # Model Compilation
-        self.model = tf.keras.Model(
-            inputs=inputs, 
-            outputs=[self.clf_out, self.sm_out]
-        )
+        self.model = tf.keras.Model(inputs=inputs, outputs=[clf_out, sm_out])
 
     def compile_model(self):
         self.model.compile(
@@ -150,9 +120,9 @@ class DSTSMGSER:
                 'sm_out': 'mse'
             }
         )
-    
+
     def get_config(self):
-        config = {
+        return {
             'input_shape': self.input_shape,
             'reservoir_dim': self.reservoir_dim,
             'spectral_radius': self.spectral_radius,
@@ -164,7 +134,6 @@ class DSTSMGSER:
             'd_model': self.d_model,
             'num_heads': self.num_heads
         }
-        return config
 
     @classmethod
     def from_config(cls, config):

@@ -388,7 +388,7 @@ class RelationalConceptModeling(Layer):
             spectral_radius=0.9,
             leak_rate=0.1,
             spike_threshold=0.5,
-            activation="relu"
+            activation="gelu"
         )
         
         # Interaction attention layer to model the relationships between pooled concepts
@@ -444,19 +444,26 @@ class RelationalConceptModeling(Layer):
             dropout_rate=config["dropout_rate"],
             use_weighted_summary=config["use_weighted_summary"],
             eps=config["eps"],
-            **{key: value for key, value in config.items() if key not in ['d_model', 'num_heads', 'dropout_rate', 'use_weighted_summary', 'eps']}
         )
 
 
 
 
 
-class RelationalDeepLearning(Layer):
+class RelationalGraphAttentionReasoning(Layer):
     """
-    RDL: Processes graph-based relationships (output of RCM) using GNN-inspired methods.
+    RelationalGraphAttentionReasoning (RGAR) is a custom Keras layer designed to address the challenges of relational reasoning 
+    in graph-based data by leveraging attention mechanisms for efficient message passing and task-specific predictions. 
+    It combines the benefits of graph neural networks (GNNs) and multi-head attention to process relational embeddings 
+    derived from prior layers, such as RelationalConceptModeling (RCM). 
+    Unlike traditional GNNs that rely on fixed aggregation functions, RGAR introduces dynamic, 
+    attention-driven reasoning to enhance expressiveness and adaptability. 
+    Its novelty lies in the integration of DenseGSER, a spiking-inspired dense layer, 
+    for precise, low-latency output generation, offering improved performance and efficiency for 
+    relational reasoning tasks in neuromorphic and attention-driven architectures.
     """
     def __init__(self, d_model, num_heads, num_classes, **kwargs):
-        super(RelationalDeepLearning, self).__init__(**kwargs)
+        super(RelationalGraphAttentionReasoning, self).__init__(**kwargs)
         self.d_model = d_model
         self.num_heads = num_heads
         self.num_classes = num_classes
@@ -474,22 +481,21 @@ class RelationalDeepLearning(Layer):
             spectral_radius=0.9,
             leak_rate=0.1,
             spike_threshold=0.5,
-            activation="softmax"
+            activation="gelu"
         )
 
     def build(self, input_shape):
         """
-        Build the internal components of the layer.
+        Build the internal components of the model.
         """
         # Call the build methods of child layers to ensure all variables are initialized
         self.message_passing_layer.build(input_shape)
         message_passing_output_shape = (input_shape[0], self.d_model)
         self.output_layer.build(message_passing_output_shape)
-        super(RelationalDeepLearning, self).build(input_shape)
 
     def call(self, inputs, training=None):
         """
-        Forward pass of the layer.
+        Forward pass of the model.
         """
         # Step 1: Perform message passing on relational graph using the output from RCM
         graph_relations = self.message_passing_layer(inputs, training=training)
@@ -500,20 +506,19 @@ class RelationalDeepLearning(Layer):
 
     def compute_output_shape(self, input_shape):
         """
-        Compute the output shape of the layer.
+        Compute the output shape of the model.
         """
         return (input_shape[0], self.num_classes)
 
     def get_config(self):
         """
-        Return the configuration of the layer for serialization.
+        Return the configuration of the model for serialization.
         """
-        config = super(RelationalDeepLearning, self).get_config()
-        config.update({
+        config = {
             "d_model": self.d_model,
             "num_heads": self.num_heads,
             "num_classes": self.num_classes
-        })
+        }
         return config
 
     @classmethod
@@ -521,8 +526,7 @@ class RelationalDeepLearning(Layer):
         return cls(
             d_model=config["d_model"],
             num_heads=config["num_heads"],
-            num_classes=config["num_classes"],
-            **{key: value for key, value in config.items() if key not in ['d_model', 'num_heads', 'num_classes']}
+            num_classes=config["num_classes"]
         )
 
 
