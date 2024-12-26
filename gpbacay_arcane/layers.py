@@ -52,14 +52,14 @@ class GSER(Layer):
         output_size (int): Size of the output of the reservoir layer.
     """
 
-    def __init__(self, initial_reservoir_size, input_dim, spectral_radius, leak_rate, spike_threshold, max_dynamic_reservoir_dim, neurogenesis_rate=0.05, pruning_rate=0.1, **kwargs):
+    def __init__(self, input_dim, initial_reservoir_size, max_dynamic_reservoir_dim, spectral_radius, leak_rate, spike_threshold, neurogenesis_rate=0.05, pruning_rate=0.1, **kwargs):
         super().__init__(**kwargs)
-        self.initial_reservoir_size = initial_reservoir_size
         self.input_dim = input_dim
+        self.initial_reservoir_size = initial_reservoir_size
+        self.max_dynamic_reservoir_dim = max_dynamic_reservoir_dim
         self.spectral_radius = spectral_radius
         self.leak_rate = leak_rate
         self.spike_threshold = spike_threshold
-        self.max_dynamic_reservoir_dim = max_dynamic_reservoir_dim
         self.neurogenesis_rate = neurogenesis_rate  # Rate of new neurons added
         self.pruning_rate = pruning_rate  # Rate of pruning connections
         

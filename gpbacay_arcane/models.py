@@ -62,12 +62,12 @@ class DSTSMGSER(Model):
 
         # Liquid Neural Network
         self.reservoir_layer = GSER(
-            initial_reservoir_size=self.reservoir_dim,
             input_dim=self.d_model,
+            initial_reservoir_size=self.reservoir_dim,
+            max_dynamic_reservoir_dim=self.max_dynamic_reservoir_dim,
             spectral_radius=self.spectral_radius,
             leak_rate=self.leak_rate,
-            spike_threshold=self.spike_threshold,
-            max_dynamic_reservoir_dim=self.max_dynamic_reservoir_dim
+            spike_threshold=self.spike_threshold
         )
         x = RNN(self.reservoir_layer)(x)
 
