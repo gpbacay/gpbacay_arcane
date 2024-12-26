@@ -54,7 +54,7 @@ class DSTSMGSER(Model):
         x = BatchNormalization()(x)
         x = LayerNormalization()(x)
 
-        # Relational Deep Learning (RDL)
+        # Relational Graph Attention Reasoning (RGAR)
         rdl_layer = RelationalGraphAttentionReasoning(
             d_model=self.d_model, num_heads=self.num_heads, num_classes=self.d_model
         )

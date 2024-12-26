@@ -66,7 +66,7 @@ def display_image_and_prediction(image_path, predicted_digit, confidence):
 
 if __name__ == "__main__":
     # Example usage
-    test_image_path = 'Test/img_5.png'  # Replace with your image path
+    test_image_path = 'Test/img_4.png'  # Replace with your image path
     result = predict(test_image_path)
     if result is not None:
         predicted_digit, confidence = result
