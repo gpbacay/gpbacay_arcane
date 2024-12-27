@@ -19,7 +19,10 @@ class DSTSMGSER(Model):
     """
 
     def __init__(self, input_shape, reservoir_dim, spectral_radius, leak_rate, spike_threshold, 
-                 max_dynamic_reservoir_dim, output_dim, use_weighted_summary=True, d_model=128, num_heads=8):
+                 max_dynamic_reservoir_dim, output_dim, use_weighted_summary=True, d_model=128, num_heads=8,
+                 activation='gelu', momentum=0.9, learning_rate=1e-5, target_avg=0.1, homeostatic_rate=1e-5,
+                 min_scale=0.1, max_scale=2.0, **kwargs):
+        super().__init__(**kwargs)
         self.input_shape = input_shape
         self.reservoir_dim = reservoir_dim
         self.spectral_radius = spectral_radius
@@ -30,6 +33,13 @@ class DSTSMGSER(Model):
         self.use_weighted_summary = use_weighted_summary
         self.d_model = d_model
         self.num_heads = num_heads
+        self.activation = tf.keras.activations.get(activation)
+        self.momentum = momentum
+        self.learning_rate = learning_rate
+        self.target_avg = target_avg
+        self.homeostatic_rate = homeostatic_rate
+        self.min_scale = min_scale
+        self.max_scale = max_scale
         
         self.reservoir_layer = None
         self.model = None
@@ -70,13 +80,13 @@ class DSTSMGSER(Model):
         # Hebbian Learning and Homeostatic Neuroplasticity
         hebbian_homeostatic_layer = HebbianHomeostaticNeuroplasticity(
             units=self.reservoir_dim,
-            learning_rate=1e-5,
-            target_avg=0.1,
-            homeostatic_rate=1e-5,
-            activation='gelu',
-            min_scale=0.1,
-            max_scale=2.0,
-            momentum=0.9
+            learning_rate=self.learning_rate,
+            target_avg=self.target_avg,
+            homeostatic_rate=self.homeostatic_rate,
+            activation=self.activation,
+            min_scale=self.min_scale,
+            max_scale=self.max_scale,
+            momentum=self.momentum
         )
         x = hebbian_homeostatic_layer(x)
 
