@@ -54,6 +54,7 @@ class DSTSMGSER(Model):
             d_model=self.d_model, num_heads=self.num_heads, num_classes=self.d_model
         )
         x = rdl_layer(x)
+        x = LayerNormalization()(x)
 
         # Liquid Neural Network
         self.reservoir_layer = GSER(
@@ -68,7 +69,14 @@ class DSTSMGSER(Model):
 
         # Hebbian Learning and Homeostatic Neuroplasticity
         hebbian_homeostatic_layer = HebbianHomeostaticNeuroplasticity(
-            units=self.reservoir_dim
+            units=self.reservoir_dim,
+            learning_rate=1e-5,
+            target_avg=0.1,
+            homeostatic_rate=1e-5,
+            activation='gelu',
+            min_scale=0.1,
+            max_scale=2.0,
+            momentum=0.9
         )
         x = hebbian_homeostatic_layer(x)
 
@@ -97,7 +105,7 @@ class DSTSMGSER(Model):
         )(x)
 
         # Model Compilation
-        self.model = tf.keras.Model(inputs=inputs, outputs=[clf_out, sm_out])
+        self.model = Model(inputs=inputs, outputs=[clf_out, sm_out])
 
     def compile_model(self):
         self.model.compile(

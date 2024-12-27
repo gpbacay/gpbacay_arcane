@@ -107,4 +107,4 @@ if __name__ == "__main__":
 # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DST-SM-GSER)
 # with Multihead Linear Self Attention Aggregation Mechanism and Dynamic Self Modeling Reservoir Callback
 # python main.py
-# Test Accuracy: 0.9716, Loss: 0.2149
+

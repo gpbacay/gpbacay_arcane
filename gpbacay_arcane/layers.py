@@ -532,107 +532,115 @@ class RelationalGraphAttentionReasoning(Layer):
 
 
 
-
-class HebbianHomeostaticNeuroplasticity(Layer):
+class HebbianHomeostaticNeuroplasticity(tf.keras.layers.Layer):
     """
-    The HebbianHomeostaticNeuroplasticity integrates Hebbian learning with homeostatic scaling to stabilize neural activity.
-    It adapts the synaptic weights based on local neuron correlations, while dynamically adjusting the activity level
-    to maintain balance in high-dimensional or temporal input scenarios. This approach provides self-regulating
-    neural networks that do not rely on reward-based mechanisms, enhancing unsupervised learning and efficiency.
+    This layer integrates Hebbian learning with homeostatic scaling to stabilize neural activity.
+    It adapts synaptic weights based on local neuron correlations while dynamically adjusting
+    activity levels to maintain balance in high-dimensional or temporal input scenarios.
 
     Attributes:
-        units (int): The number of units (neurons) in the layer.
-        learning_rate (float): The learning rate for the Hebbian weight update.
+        units (int): The number of neurons in the layer.
+        learning_rate (float): The learning rate for Hebbian weight updates.
         target_avg (float): The target average activity level for homeostatic scaling.
-        homeostatic_rate (float): The rate at which activity scaling is adjusted.
-        activation (str or function): The activation function to apply to the output.
+        homeostatic_rate (float): The rate for adjusting activity scaling.
+        activation (str or callable): The activation function for the layer output.
+        min_scale (float): Minimum value for activity scaling.
+        max_scale (float): Maximum value for activity scaling.
     """
-    
-    def __init__(self, units, learning_rate=0.00001, target_avg=0.1, homeostatic_rate=0.00001, activation='gelu', **kwargs):
-        super(HebbianHomeostaticNeuroplasticity, self).__init__(**kwargs)
+
+    def __init__(self, units, learning_rate=1e-5, target_avg=0.1, homeostatic_rate=1e-5,
+                 activation='gelu', min_scale=0.1, max_scale=2.0, momentum=0.9, **kwargs):
+        super().__init__(**kwargs)
         self.units = units
         self.learning_rate = learning_rate
         self.target_avg = target_avg
         self.homeostatic_rate = homeostatic_rate
         self.activation = tf.keras.activations.get(activation)
+        self.min_scale = min_scale
+        self.max_scale = max_scale
+        self.momentum = momentum
+        self.ema_alpha = 0.1  # EMA smoothing factor for avg_activity
 
     def build(self, input_shape):
-        # Handle input shape properly
-        if len(input_shape) == 3:  # (batch, timesteps, features)
-            feature_dim = input_shape[-1]
-        else:  # (batch, features)
-            feature_dim = input_shape[-1]
-
+        feature_dim = input_shape[-1]
         initializer = tf.keras.initializers.RandomNormal(mean=0., stddev=0.001)
+
         self.kernel = self.add_weight(
             shape=(feature_dim, self.units),
             initializer=initializer,
             trainable=True,
             name='kernel'
         )
+
         self.activity_scale = self.add_weight(
             shape=(self.units,),
             initializer=tf.keras.initializers.Ones(),
-            trainable=False,  # Homeostatic scaling is not trainable by gradients
+            trainable=False,
             name='activity_scale'
         )
-        self.built = True
+
+        # Initialize EMA for average activity
+        self.avg_activity = self.add_weight(
+            shape=(self.units,),
+            initializer=tf.keras.initializers.Zeros(),
+            trainable=False,
+            name='avg_activity'
+        )
 
     def call(self, inputs):
-        # Handle input shape
         original_shape = tf.shape(inputs)
         if len(inputs.shape) == 3:
-            # Reshape (batch, timesteps, features) to (batch * timesteps, features)
             inputs = tf.reshape(inputs, [-1, inputs.shape[-1]])
 
-        # Normalize inputs
+        # Normalize inputs and weights
         inputs = tf.nn.l2_normalize(inputs, axis=-1)
-
-        # Normalize weights
         normalized_kernel = tf.nn.l2_normalize(self.kernel, axis=0)
 
-        # Compute outputs
+        # Compute raw outputs and apply homeostatic scaling
         raw_outputs = tf.matmul(inputs, normalized_kernel)
+        scaled_outputs = raw_outputs * self.activity_scale
 
-        # Apply homeostatic scaling
-        outputs = raw_outputs * self.activity_scale
+        # Apply activation
+        outputs = self.activation(scaled_outputs) if self.activation else scaled_outputs
 
-        # Apply optional activation
-        if self.activation is not None:
-            outputs = self.activation(outputs)
-
-        # Hebbian update
+        # Hebbian weight update
         if self.learning_rate > 0:
-            # Compute hebbian update
             delta_weights = tf.matmul(
-                tf.transpose(inputs), 
+                tf.transpose(inputs),
                 raw_outputs
             ) * self.learning_rate / tf.cast(tf.shape(inputs)[0], tf.float32)
-            
-            # Update weights with normalization
+
+            # Momentum smoothing for weight updates
+            delta_weights = self.momentum * delta_weights + (1 - self.momentum) * delta_weights
+
+            # Update and normalize weights
             new_kernel = self.kernel + delta_weights
             self.kernel.assign(tf.clip_by_norm(new_kernel, 1.0))
 
-        # Homeostatic update
-        avg_activity = tf.reduce_mean(raw_outputs, axis=0)
-        scale_adjustment = self.homeostatic_rate * (self.target_avg - avg_activity)
+        # Homeostatic scaling update
+        batch_avg_activity = tf.reduce_mean(raw_outputs, axis=0)
+        self.avg_activity.assign(
+            self.ema_alpha * batch_avg_activity + (1 - self.ema_alpha) * self.avg_activity
+        )
+
+        scale_adjustment = self.homeostatic_rate * (self.target_avg - self.avg_activity)
         new_scale = tf.clip_by_value(
             self.activity_scale + scale_adjustment,
-            0.1,
-            2.0
+            self.min_scale,
+            self.max_scale
         )
         self.activity_scale.assign(new_scale)
 
-        # Reshape output back to original shape if necessary
+        # Reshape outputs back if inputs were reshaped
         if len(inputs.shape) == 3:
             outputs = tf.reshape(outputs, [original_shape[0], original_shape[1], self.units])
 
         return outputs
 
     def compute_output_shape(self, input_shape):
-        if len(input_shape) == 3:  # (batch, timesteps, features)
+        if len(input_shape) == 3:
             return (input_shape[0], input_shape[1], self.units)
-        return (input_shape[0], self.units)  # (batch, units)
+        return (input_shape[0], self.units)
 
     def get_config(self):
         config = super().get_config()
@@ -642,8 +650,17 @@ class HebbianHomeostaticNeuroplasticity(Layer):
             'target_avg': self.target_avg,
             'homeostatic_rate': self.homeostatic_rate,
             'activation': tf.keras.activations.serialize(self.activation),
+            'min_scale': self.min_scale,
+            'max_scale': self.max_scale,
+            'momentum': self.momentum
         })
         return config
+
+    @classmethod
+    def from_config(cls, config):
+        config['activation'] = tf.keras.activations.deserialize(config['activation'])
+        return cls(**config)
+
 
 
 
