@@ -1,16 +1,11 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import Dense, RNN, Input, BatchNormalization, Flatten, Dropout, LayerNormalization
+from tensorflow.keras.layers import RNN, Input, BatchNormalization, Flatten, Dropout, LayerNormalization
 from tensorflow.keras import Model
 
-from gpbacay_arcane.layers import MultiheadLinearSelfAttentionKernalizationLayer
-from gpbacay_arcane.layers import ExpandDimensionLayer
 from gpbacay_arcane.layers import GSER
 from gpbacay_arcane.layers import HebbianHomeostaticNeuroplasticity
 from gpbacay_arcane.layers import DenseGSER
-from gpbacay_arcane.layers import SpatioTemporalSummaryMixingLayer
-from gpbacay_arcane.layers import GatedMultiheadLinearSelfAttentionKernalization
-from gpbacay_arcane.layers import SpatioTemporalSummarization
 from gpbacay_arcane.layers import RelationalConceptModeling
 from gpbacay_arcane.layers import RelationalGraphAttentionReasoning
 
