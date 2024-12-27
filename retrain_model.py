@@ -6,12 +6,10 @@ from tensorflow.keras.utils import to_categorical
 import os
 import matplotlib.pyplot as plt
 
-from gpbacay_arcane.callbacks import DynamicSelfModelingReservoirCallback
-
 
 def retrain_model():
     # Load the saved model
-    model_path = os.path.join('Models', 'dstsmgser_retrained_model.keras')
+    model_path = os.path.join('Models', 'dstsmgser_model.keras')
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Saved model not found at {model_path}")
 

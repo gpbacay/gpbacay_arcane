@@ -374,7 +374,7 @@ class RelationalConceptModeling(Layer):
         self.eps = eps
         
         # Attention mechanism to model token-level relationships
-        self.attention_layer = MultiheadLinearSelfAttentionKernalizationLayer(
+        self.attention_layer = MultiheadLinearSelfAttentionKernalization(
             d_model=d_model,
             num_heads=num_heads,
             dropout_rate=dropout_rate,
@@ -392,7 +392,7 @@ class RelationalConceptModeling(Layer):
         )
         
         # Interaction attention layer to model the relationships between pooled concepts
-        self.interaction_attention = MultiheadLinearSelfAttentionKernalizationLayer(
+        self.interaction_attention = MultiheadLinearSelfAttentionKernalization(
             d_model=d_model,
             num_heads=num_heads,
             dropout_rate=dropout_rate,
@@ -469,7 +469,7 @@ class RelationalGraphAttentionReasoning(Layer):
         self.num_classes = num_classes
 
         # Relational Entity Graph message passing layer (GNN-like operation)
-        self.message_passing_layer = MultiheadLinearSelfAttentionKernalizationLayer(
+        self.message_passing_layer = MultiheadLinearSelfAttentionKernalization(
             d_model=d_model,
             num_heads=num_heads,
             dropout_rate=0.1
@@ -852,9 +852,9 @@ class SpatioTemporalSummarization(Layer):
 
 
 
-class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
+class MultiheadLinearSelfAttentionKernalization(Layer):
     """
-    A multi-head linear self-attention layer with kernel approximation. The MultiheadLinearSelfAttentionKernalizationLayer (MLSAK)
+    A multi-head linear self-attention layer with kernel approximation. The MultiheadLinearSelfAttentionKernalization (MLSAK)
     replaces the quadratic QK^T computation of traditional mechanisms with positive activations and key normalization. 
     This approach achieves linear complexity O(n), addressing the inefficiencies of standard attention for long sequences 
     and enabling scalable, real-time processing without compromising performance.
@@ -867,7 +867,7 @@ class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
         eps (float): A small constant added for numerical stability.
     """
     def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
-        super(MultiheadLinearSelfAttentionKernalizationLayer, self).__init__(**kwargs)
+        super(MultiheadLinearSelfAttentionKernalization, self).__init__(**kwargs)
         self.d_model = d_model
         self.num_heads = num_heads
         self.dropout_rate = dropout_rate
@@ -953,7 +953,7 @@ class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
 
         # Explicitly build LayerNormalization
         self.layer_norm.build(input_shape)
-        super(MultiheadLinearSelfAttentionKernalizationLayer, self).build(input_shape)
+        super(MultiheadLinearSelfAttentionKernalization, self).build(input_shape)
 
     def split_heads(self, x, batch_size):
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
@@ -1003,7 +1003,7 @@ class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
         return self.layer_norm(inputs + output)
 
     def get_config(self):
-        config = super(MultiheadLinearSelfAttentionKernalizationLayer, self).get_config()
+        config = super(MultiheadLinearSelfAttentionKernalization, self).get_config()
         config.update({
             "d_model": self.d_model,
             "num_heads": self.num_heads,
@@ -1017,131 +1017,6 @@ class MultiheadLinearSelfAttentionKernalizationLayer(Layer):
     def from_config(cls, config):
         return cls(**config)
 
-
-
-
-class GatedMultiheadLinearSelfAttentionKernalization(Layer):
-    """
-    A gated multi-head linear self-attention layer with kernel approximation. This layer extends the traditional
-    attention mechanism by introducing a gating mechanism that dynamically modulates the flow of information
-    through the attention outputs and weighted summary. By combining kernel approximation with gating,
-    the layer achieves linear time complexity O(n), making it efficient for long sequences while enhancing
-    its adaptability and robustness.
-    
-    MLSAK vs. GMLSAK:
-    MLSAK is simpler and more direct, focusing on optimizing attention for long sequences with kernel approximations 
-    and key normalization. It is a more efficient approach when scalability is prioritized.
-    
-    GMLSAK, on the other hand, enhances adaptability and robustness with the introduction of gating mechanisms. 
-    This layer may be more appropriate when the model requires dynamic control over attention outputs and summaries, 
-    making it more flexible but computationally more complex.
-    """
-
-    def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
-        super(GatedMultiheadLinearSelfAttentionKernalization, self).__init__(**kwargs)
-        self.d_model = d_model
-        self.num_heads = num_heads
-        self.dropout_rate = dropout_rate
-        self.use_weighted_summary = use_weighted_summary
-        self.eps = eps
-
-        assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
-        self.depth = d_model // num_heads
-
-    def build(self, input_shape):
-        # Query, Key, and Value projection layers for multi-head attention
-        self.query_dense = DenseGSER(self.d_model)
-        self.key_dense = DenseGSER(self.d_model)
-        self.value_dense = DenseGSER(self.d_model)
-
-        # Output projection layer
-        self.output_dense = DenseGSER(self.d_model)
-
-        # Dropout layer
-        self.dropout = Dropout(self.dropout_rate)
-
-        # Optional weighted summary
-        if self.use_weighted_summary:
-            self.summary_weights = DenseGSER(1, activation="softmax")
-
-        # Gating mechanisms
-        self.gate_attention_dense = DenseGSER(self.d_model)
-        self.gate_summary_dense = DenseGSER(self.d_model)
-
-        # Layer normalization
-        self.layer_norm = LayerNormalization(epsilon=self.eps)
-
-        super(GatedMultiheadLinearSelfAttentionKernalization, self).build(input_shape)
-
-    def split_heads(self, x, batch_size):
-        """
-        Split the last dimension into (num_heads, depth) and transpose for parallel processing.
-        """
-        x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
-        return tf.transpose(x, perm=[0, 2, 1, 3])  # Shape: (batch_size, num_heads, seq_len, depth)
-
-    def call(self, inputs, training=False):
-        batch_size = tf.shape(inputs)[0]
-
-        # Project inputs to query, key, and value spaces
-        queries = self.query_dense(inputs)
-        keys = self.key_dense(inputs)
-        values = self.value_dense(inputs)
-
-        # Split into multiple heads
-        queries = self.split_heads(queries, batch_size)
-        keys = self.split_heads(keys, batch_size)
-        values = self.split_heads(values, batch_size)
-
-        # Apply kernel trick for linear attention
-        queries = tf.nn.elu(queries) + 1
-        keys = tf.nn.elu(keys) + 1
-
-        # Compute linear attention
-        key_sum = tf.reduce_sum(keys, axis=2, keepdims=True)
-        scores = tf.einsum("bhqd,bhkd->bhqk", queries, keys) / (key_sum + self.eps)
-        attention_output = tf.einsum("bhqk,bhvd->bhqd", scores, values)
-
-        # Merge heads back
-        attention_output = tf.transpose(attention_output, perm=[0, 2, 1, 3])
-        attention_output = tf.reshape(attention_output, (batch_size, -1, self.d_model))
-
-        # Optionally extract a weighted summary
-        if self.use_weighted_summary:
-            weights = self.summary_weights(attention_output)
-            weighted_summary = tf.reduce_sum(attention_output * weights, axis=1, keepdims=True)
-        else:
-            weighted_summary = tf.reduce_mean(attention_output, axis=1, keepdims=True)
-
-        # Expand summary to match sequence length
-        weighted_summary = tf.tile(weighted_summary, [1, tf.shape(inputs)[1], 1])
-
-        # Apply gating mechanism
-        gate_attention = tf.sigmoid(self.gate_attention_dense(inputs))
-        gated_output = gate_attention * attention_output
-
-        gate_summary = tf.sigmoid(self.gate_summary_dense(inputs))
-        gated_summary = gate_summary * weighted_summary
-
-        # Combine gated outputs
-        combined_output = tf.concat([gated_output, gated_summary], axis=-1)
-        combined_output = self.output_dense(combined_output)
-        combined_output = self.dropout(combined_output, training=training)
-
-        # Residual connection and layer normalization
-        inputs_projected = self.query_dense(inputs)
-        return self.layer_norm(inputs_projected + combined_output)
-
-    def get_config(self):
-        config = super().get_config()
-        config.update({
-            "d_model": self.d_model,
-            "num_heads": self.num_heads,
-            "dropout_rate": self.dropout_rate,
-            "use_weighted_summary": self.use_weighted_summary,
-            "eps": self.eps,
-        })
-        return config
 
 
 

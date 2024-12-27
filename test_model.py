@@ -79,3 +79,4 @@ if __name__ == "__main__":
 
 # python test_model.py
 # Test Accuracy: 0.9695, Loss: 0.1832
+# Retrained Model Test Accuracy: 0.9736, Loss: 0.1852
