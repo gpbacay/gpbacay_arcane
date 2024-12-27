@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import RNN, Input, BatchNormalization, Flatten, Dropout, LayerNormalization
+from tensorflow.keras.layers import RNN, Input, BatchNormalization, Flatten, LayerNormalization
 from tensorflow.keras import Model
 
 from gpbacay_arcane.layers import GSER
