@@ -532,7 +532,7 @@ class RelationalGraphAttentionReasoning(Layer):
 
 
 
-class HebbianHomeostaticNeuroplasticity(tf.keras.layers.Layer):
+class HebbianHomeostaticNeuroplasticity(Layer):
     """
     This layer integrates Hebbian learning with homeostatic scaling to stabilize neural activity.
     It adapts synaptic weights based on local neuron correlations while dynamically adjusting
