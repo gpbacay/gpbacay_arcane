@@ -51,7 +51,7 @@ def main():
     history = dstsmgser.model.fit(
         x_train, {'clf_out': y_train, 'sm_out': x_train_flat},
         validation_data=(x_test, {'clf_out': y_test, 'sm_out': x_test_flat}),
-        epochs=10,
+        epochs=100,
         batch_size=64,
         callbacks=[early_stopping, reduce_lr]
     )

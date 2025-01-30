@@ -66,7 +66,7 @@ def display_image_and_prediction(image_path, predicted_digit, confidence):
 
 if __name__ == "__main__":
     # Example usage
-    test_image_path = 'Test/img_5.png'  # Replace with your image path
+    test_image_path = 'Test/img_4.png'  # Replace with your image path
     result = predict(test_image_path)
     if result is not None:
         predicted_digit, confidence = result
@@ -80,3 +80,4 @@ if __name__ == "__main__":
 # python test_model.py
 # Test Accuracy: 0.9695, Loss: 0.1832
 # Retrained Model Test Accuracy: 0.9736, Loss: 0.1852
+# 40 epochs: Test Accuracy: 0.9808, Loss: 0.1511

@@ -4,6 +4,11 @@ keras
 matplotlib
 twine
 
+pandas
+yfinance
+pandas-ta
+scikit-learn
+
 # python setup.py sdist bdist_wheel
 # pip install dist/gpbacay_arcane-0.2.3-py3-none-any.whl
 # twine upload dist/*
