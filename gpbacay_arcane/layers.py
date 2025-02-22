@@ -30,7 +30,6 @@ class ExpandDimensionLayer(Layer):
 
 
 
-
 class GSER(Layer):
     """
     The Gated Spiking Elastic Reservoir (GSER) Layer is an innovative neural network layer that combines dynamic reservoir sizing, 

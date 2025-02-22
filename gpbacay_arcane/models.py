@@ -3,11 +3,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import RNN, Input, BatchNormalization, Flatten, LayerNormalization
 from tensorflow.keras import Model
 
-from gpbacay_arcane.layers import GSER
-from gpbacay_arcane.layers import HebbianHomeostaticNeuroplasticity
-from gpbacay_arcane.layers import DenseGSER
-from gpbacay_arcane.layers import RelationalConceptModeling
-from gpbacay_arcane.layers import RelationalGraphAttentionReasoning
+from gpbacay_arcane.layers import GSER, HebbianHomeostaticNeuroplasticity, DenseGSER, RelationalConceptModeling, RelationalGraphAttentionReasoning
 
 
 
@@ -154,4 +150,87 @@ class DSTSMGSER(Model):
 
 
 
+
+
+
+
+class GSERModel(Model):
+    """
+    A simplified neural network model that uses only GSER and DenseGSER layers.
+    This model is designed for spatio-temporal data processing.
+    """
+
+    def __init__(self, input_shape, reservoir_dim, spectral_radius, leak_rate, spike_threshold, 
+                 max_dynamic_reservoir_dim, output_dim, d_model=128, activation='gelu', **kwargs):
+        super().__init__(**kwargs)
+        self.input_shape = input_shape
+        self.reservoir_dim = reservoir_dim
+        self.spectral_radius = spectral_radius
+        self.leak_rate = leak_rate
+        self.spike_threshold = spike_threshold
+        self.max_dynamic_reservoir_dim = max_dynamic_reservoir_dim
+        self.output_dim = output_dim
+        self.d_model = d_model
+        self.activation = tf.keras.activations.get(activation)
+
+        # Define layers
+        self.flatten = Flatten()
+        self.dense_gser = DenseGSER(self.d_model)
+        self.gser_layer = GSER(
+            input_dim=self.d_model,
+            initial_reservoir_size=self.reservoir_dim,
+            max_dynamic_reservoir_dim=self.max_dynamic_reservoir_dim,
+            spectral_radius=self.spectral_radius,
+            leak_rate=self.leak_rate,
+            spike_threshold=self.spike_threshold
+        )
+        self.output_layer = DenseGSER(
+            units=self.output_dim,
+            input_dim=self.reservoir_dim,
+            spectral_radius=self.spectral_radius,
+            leak_rate=self.leak_rate,
+            spike_threshold=self.spike_threshold,
+            max_dynamic_units=self.max_dynamic_reservoir_dim,
+            activation='softmax'
+        )
+
+    def call(self, inputs):
+        # Preprocessing
+        x = self.flatten(inputs)
+        x = self.dense_gser(x)
+
+        # GSER Layer (Reservoir Computing)
+        x = self.gser_layer(x)
+
+        # Output Layer
+        outputs = self.output_layer(x)
+        return outputs
+
+    def build_model(self):
+        inputs = Input(shape=self.input_shape)
+        outputs = self.call(inputs)
+        self.model = Model(inputs=inputs, outputs=outputs)
+
+    def compile_model(self):
+        self.model.compile(
+            optimizer='adam',
+            loss='categorical_crossentropy',
+            metrics=['accuracy']
+        )
+
+    def get_config(self):
+        return {
+            'input_shape': self.input_shape,
+            'reservoir_dim': self.reservoir_dim,
+            'spectral_radius': self.spectral_radius,
+            'leak_rate': self.leak_rate,
+            'spike_threshold': self.spike_threshold,
+            'max_dynamic_reservoir_dim': self.max_dynamic_reservoir_dim,
+            'output_dim': self.output_dim,
+            'd_model': self.d_model
+        }
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
