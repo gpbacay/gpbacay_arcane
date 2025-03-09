@@ -6,7 +6,7 @@ from tensorflow.keras import Model
 from gpbacay_arcane.layers import GSER, HebbianHomeostaticNeuroplasticity, DenseGSER, RelationalConceptModeling, RelationalGraphAttentionReasoning
 
 
-
+# Test Accuracy: 0.9772, Loss: 0.1321
 class DSTSMGSER(Model):
     """
     The Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir (DSTSMGSER) 
