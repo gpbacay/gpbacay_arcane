@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='gpbacay-arcane',
-    version='0.2.3',
+    version='0.2.4',
     author='Gianne P. Bacay',
     author_email='giannebacay2004@gmail.com',
     description='A Python library for custom neuromorphic neural network mechanisms built on top of TensorFlow and Keras',
@@ -20,6 +20,8 @@ setup(
     entry_points={
         'console_scripts': [
             'gpbacay-arcane-about = gpbacay_arcane.cli_commands:about',
+            'gpbacay-arcane-list-models = gpbacay_arcane.cli_commands:list_models',
+            'gpbacay-arcane-list-layers = gpbacay_arcane.cli_commands:list_layers',
         ],
     },
     classifiers=[
