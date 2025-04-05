@@ -1,11 +1,14 @@
 import argparse
+import pkg_resources
 
+# python cli_commands.py about
 def about():
     print("""
         gpbacay_arcane: A Python library for neuromorphic neural network mechanisms.
         Features include dynamic reservoirs, spiking neurons, Hebbian learning, and more.
     """)
 
+# python cli_commands.py list_models
 def list_models():
     print("""
         Available Models:
@@ -13,6 +16,7 @@ def list_models():
         2. GSERModel - Simplified Gated Spiking Elastic Reservoir Model
     """)
 
+# python cli_commands.py list_layers
 def list_layers():
     print("""
         Available Layers:
@@ -28,12 +32,21 @@ def list_layers():
         10. PositionalEncodingLayer
     """)
 
+# python cli_commands.py version
+def version():
+    try:
+        version = pkg_resources.get_distribution("gpbacay-arcane").version
+        print(f"gpbacay_arcane version: {version}")
+    except pkg_resources.DistributionNotFound:
+        print("gpbacay_arcane is not installed as a package.")
+
+# python cli_commands.py --help
 def cli():
     parser = argparse.ArgumentParser(description="gpbacay_arcane CLI")
     parser.add_argument(
         "command",
-        choices=["about", "list_models", "list_layers"],
-        help="- about: Show information about the library\n- list_models: List available models\n- list_layers: List available layers"
+        choices=["about", "list_models", "list_layers", "version"],
+        help="- about: Show information about the library\n- list_models: List available models\n- list_layers: List available layers\n- version: Show the current version of the library"
     )
 
     args = parser.parse_args()
@@ -44,6 +57,8 @@ def cli():
         list_models()
     elif args.command == "list_layers":
         list_layers()
+    elif args.command == "version":
+        version()
 
 if __name__ == "__main__":
     cli()
