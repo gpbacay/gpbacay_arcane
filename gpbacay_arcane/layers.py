@@ -348,14 +348,10 @@ class DenseGSER(Layer):
 
 class RelationalConceptModeling(Layer):
     """
-    The Relational Concept Modeling (RCM) mechanism effectively captures and models hierarchical relationships among 
-    conceptual representations in sequential or structured data by integrating multi-head self-attention with 
-    spiking-inspired DenseGSER layers. It addresses the challenge of efficiently summarizing token-level interactions while 
-    refining high-level concept relationships through attention-based extraction, dynamic concept pooling, and interaction modeling. 
-    This mechanism enhances the ability to process complex spatio-temporal and hierarchical data, improving both 
-    computational efficiency and the expressiveness of conceptual representations. 
-    It is designed for tasks such as reasoning, relationship extraction, and structured data understanding, 
-    offering a scalable solution for handling large or structured input sequences.
+    Relational Concept Modeling (RCM) is an encoder layer that applies multi-head self-attention to capture token-level relations, 
+    uses spiking-inspired DenseGSER pooling to condense these into compact concept vectors,
+    refines inter-concept interactions via a second attention stage, and projects the result into a final `(batch, 1, d_model)` 
+    embedding for efficient, end-to-end summarization and hierarchical reasoning over sequential or structured data.
     
     Attributes:
         d_model (int): Dimensionality of input and output features.
@@ -451,15 +447,16 @@ class RelationalConceptModeling(Layer):
 
 class RelationalGraphAttentionReasoning(Layer):
     """
-    RelationalGraphAttentionReasoning (RGAR) is a custom Keras layer designed to address the challenges of relational reasoning 
-    in graph-based data by leveraging attention mechanisms for efficient message passing and task-specific predictions. 
-    It combines the benefits of graph neural networks (GNNs) and multi-head attention to process relational embeddings 
-    derived from prior layers, such as RelationalConceptModeling (RCM). 
-    Unlike traditional GNNs that rely on fixed aggregation functions, RGAR introduces dynamic, 
-    attention-driven reasoning to enhance expressiveness and adaptability. 
-    Its novelty lies in the integration of DenseGSER, a spiking-inspired dense layer, 
-    for precise, low-latency output generation, offering improved performance and efficiency for 
-    relational reasoning tasks in neuromorphic and attention-driven architectures.
+    RelationalGraphAttentionReasoning (RGAR) is an encoder layer that processes a set of node or concept embeddings via 
+    multi-head self-attention to perform dynamic message passing, and then produces task-specific graph-level predictions 
+    through a spiking-inspired DenseGSER readout. It accepts an input tensor of shape `(batch_size, N, d_model)`, 
+    refines inter-node relations without fixed aggregation rules, and outputs a `(batch_size, num_classes)` 
+    tensor of class scores for graph-level classification or regression tasks.
+
+    Attributes:
+        d_model (int): Dimensionality of input node embeddings.
+        num_heads (int): Number of attention heads for message passing.
+        num_classes (int): Number of output classes for predictions.
     """
     def __init__(self, d_model, num_heads, num_classes, **kwargs):
         super(RelationalGraphAttentionReasoning, self).__init__(**kwargs)
