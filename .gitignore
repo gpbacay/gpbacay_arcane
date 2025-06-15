@@ -5,4 +5,4 @@ Models/*.keras
 staticfiles/
 
 # Node
-node_modules/
+/arcane_project/node_modules/
