@@ -11,6 +11,26 @@ document.addEventListener('DOMContentLoaded', function() {
     let lastX = 0;
     let lastY = 0;
 
+    function getCanvasCoordinates(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        let clientX, clientY;
+        if (e.touches && e.touches[0]) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+
+        const x = (clientX - rect.left) * scaleX;
+        const y = (clientY - rect.top) * scaleY;
+
+        return { x, y };
+    }
+
     // Canvas Setup
     function initializeCanvas() {
         ctx.fillStyle = 'black';
@@ -26,24 +46,28 @@ document.addEventListener('DOMContentLoaded', function() {
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDrawing);
     canvas.addEventListener('mouseout', stopDrawing);
-    canvas.addEventListener('touchstart', handleTouch);
-    canvas.addEventListener('touchmove', handleTouch);
+    canvas.addEventListener('touchstart', startDrawing);
+    canvas.addEventListener('touchmove', draw);
     canvas.addEventListener('touchend', stopDrawing);
     clearBtn.addEventListener('click', clearCanvas);
 
     // Drawing Handlers
     function startDrawing(e) {
+        e.preventDefault();
         isDrawing = true;
-        [lastX, lastY] = [e.offsetX, e.offsetY];
+        const { x, y } = getCanvasCoordinates(e);
+        [lastX, lastY] = [x, y];
     }
 
     function draw(e) {
         if (!isDrawing) return;
+        e.preventDefault();
+        const { x, y } = getCanvasCoordinates(e);
         ctx.beginPath();
         ctx.moveTo(lastX, lastY);
-        ctx.lineTo(e.offsetX, e.offsetY);
+        ctx.lineTo(x, y);
         ctx.stroke();
-        [lastX, lastY] = [e.offsetX, e.offsetY];
+        [lastX, lastY] = [x, y];
         predictDebounced();
     }
 
@@ -52,26 +76,6 @@ document.addEventListener('DOMContentLoaded', function() {
             predictDebounced();
         }
         isDrawing = false;
-    }
-
-    function handleTouch(e) {
-        e.preventDefault();
-        const touch = e.touches[0];
-        const rect = canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
-
-        if (e.type === 'touchstart') {
-            isDrawing = true;
-            [lastX, lastY] = [x, y];
-        } else if (e.type === 'touchmove' && isDrawing) {
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-            ctx.lineTo(x, y);
-            ctx.stroke();
-            [lastX, lastY] = [x, y];
-            predictDebounced();
-        }
     }
 
     function clearCanvas() {
