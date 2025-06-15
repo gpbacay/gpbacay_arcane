@@ -3,3 +3,6 @@ Models/*.keras
 
 # Django
 staticfiles/
+
+# Node
+node_modules/
