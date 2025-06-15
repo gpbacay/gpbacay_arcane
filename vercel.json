@@ -1,9 +1,11 @@
 {
-    "routes": [
+    "builds": [
         {
-            "src": "/static/(.*)",
-            "dest": "/static/$1"
-        },
+            "src": "arcane_project/arcane_project/wsgi.py",
+            "use": "@vercel/python"
+        }
+    ],
+    "routes": [
         {
             "src": "/(.*)",
             "dest": "arcane_project/arcane_project/wsgi.py"
