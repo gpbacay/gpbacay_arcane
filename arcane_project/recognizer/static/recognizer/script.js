@@ -158,9 +158,14 @@ document.addEventListener('DOMContentLoaded', function() {
     renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
     threeContainer.appendChild(renderer.domElement);
 
+    // Function to get color from CSS variable
+    function getCssVar(varName) {
+        return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    }
+
     const geometry = new THREE.IcosahedronGeometry(1.5, 1);
     const material = new THREE.MeshStandardMaterial({ 
-        color: 0x9d4432, 
+        color: new THREE.Color(getCssVar('--primary')), 
         wireframe: true,
         metalness: 0.5,
         roughness: 0.8
@@ -172,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
-    const pointLight = new THREE.PointLight(0xaf79f5, 0.8); 
+    const pointLight = new THREE.PointLight(new THREE.Color(getCssVar('--primary')), 0.8); 
     pointLight.position.set(5, 5, 5);
     scene.add(pointLight);
 

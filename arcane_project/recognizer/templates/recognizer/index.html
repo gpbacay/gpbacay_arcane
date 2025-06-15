@@ -1,52 +1,63 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>A.R.C.A.N.E. - Digit Recognition</title>
     <link rel="icon" href="{% static 'assets/arcane_logo.ico' %}" type="image/x-icon">
     <link rel="stylesheet" href="{% static 'recognizer/style.css' %}">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
 </head>
-<body>
-    <div class="main-layout">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <h1>A.R.C.A.N.E.</h1>
-            </div>
-            <div class="sidebar-content">
-                <h2>Project Overview</h2>
-                <p>
-                    An advanced neuromorphic architecture designed to process complex spatio-temporal patterns with high adaptability and efficiency.
-                </p>
-                <div class="model-info">
-                    <p>
-                        <b>Model:</b> 
-                        <span>Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir</span>
-                    </p>
-                </div>
-                <div id="three-container"></div>
-            </div>
-        </aside>
+<body class="bg-background text-foreground">
+    <div class="container mx-auto p-4 md:p-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-        <main class="content-area">
-            <div class="container">
-                <h2>Digit Recognition Interface</h2>
-        
-                <div id="canvas-container">
-                    <canvas id="drawing-canvas" width="280" height="280"></canvas>
-                </div>
-                
-                <button id="clear-btn" class="button">Clear Canvas</button>
-        
-                <div id="result-container">
-                    <div class="result-item">Prediction: <span id="prediction">-</span></div>
-                    <div class="result-item">Confidence: <span id="confidence">-</span></div>
-                    <div id="loader">Processing...</div>
+            <!-- Left Column: Recognizer -->
+            <div class="lg:col-span-1">
+                <div class="bg-card p-6 rounded-lg shadow-lg border border-border">
+                    <h2 class="text-2xl font-bold text-center text-primary mb-4">Digit Recognizer</h2>
+            
+                    <div id="canvas-container" class="mb-4 rounded-lg overflow-hidden border-2 border-primary/50 shadow-inner">
+                        <canvas id="drawing-canvas" width="280" height="280" class="w-full h-auto cursor-crosshair bg-input"></canvas>
+                    </div>
+                    
+                    <button id="clear-btn" class="w-full bg-primary text-primary-foreground font-bold py-3 px-4 rounded-lg hover:bg-primary/90 transition-colors duration-300 shadow-md">
+                        Clear Canvas
+                    </button>
+            
+                    <div id="result-container" class="mt-6 p-4 bg-muted rounded-lg border border-border text-center">
+                        <div class="result-item text-lg">Prediction: <span id="prediction" class="font-bold text-primary ml-2">-</span></div>
+                        <div class="result-item text-md text-muted-foreground mt-2">Confidence: <span id="confidence" class="font-bold text-primary ml-2">-</span></div>
+                        <div id="loader" class="text-primary mt-2 hidden">Processing...</div>
+                    </div>
                 </div>
             </div>
-        </main>
+
+            <!-- Right Column: Project Info -->
+            <main class="lg:col-span-2 flex flex-col items-center justify-center">
+                <div class="w-full max-w-3xl text-center">
+                    <div class="mb-8">
+                        <h1 class="text-6xl font-bold text-primary">A.R.C.A.N.E.</h1>
+                        <p class="text-muted-foreground">Advanced Recognition Computer for Abstract Neuromorphic Emulation</p>
+                    </div>
+
+                    <div class="bg-card p-6 rounded-lg shadow-lg border border-border">
+                        <h2 class="text-2xl font-semibold text-secondary-foreground border-b-2 border-secondary inline-block px-4 pb-2 mb-4">Project Overview</h2>
+                        <p class="text-muted-foreground mb-6 text-lg leading-relaxed max-w-2xl mx-auto">
+                            An advanced neuromorphic architecture designed to process complex spatio-temporal patterns with high adaptability and efficiency.
+                        </p>
+                        <div class="model-info bg-muted rounded-lg p-4 border border-border max-w-2xl mx-auto">
+                            <p class="text-md text-foreground">
+                                <b class="font-bold text-primary">Model:</b> 
+                                <span>Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir</span>
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div id="three-container" class="w-full h-80 rounded-lg border border-border shadow-inner bg-card mt-8"></div>
+                </div>
+            </main>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

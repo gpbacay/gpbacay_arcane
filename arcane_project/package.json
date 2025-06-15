@@ -1,0 +1,18 @@
+{
+  "name": "arcane_project",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build:css": ".\\node_modules\\.bin\\tailwindcss -i .\\static\\src\\input.css -o .\\recognizer\\static\\recognizer\\style.css",
+    "watch": ".\\node_modules\\.bin\\tailwindcss -i .\\static\\src\\input.css -o .\\recognizer\\static\\recognizer\\style.css --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4"
+  }
+}

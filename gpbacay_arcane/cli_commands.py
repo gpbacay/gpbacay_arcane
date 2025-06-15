@@ -4,7 +4,9 @@ import pkg_resources
 # python cli_commands.py about
 def about():
     print("""
-        gpbacay_arcane: A Python library for neuromorphic neural network mechanisms.
+        gpbacay_arcane: The A.R.C.A.N.E. Project, which means 
+        Augmented Reconstruction of Consciousness through Artificial Neural Evolution, 
+        Is a Python library for neuromorphic neural network mechanisms.
         Features include dynamic reservoirs, spiking neurons, Hebbian learning, and more.
     """)
 
