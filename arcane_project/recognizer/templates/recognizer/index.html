@@ -1,0 +1,55 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A.R.C.A.N.E. - Digit Recognition</title>
+    <link rel="icon" href="{% static 'assets/arcane_logo.ico' %}" type="image/x-icon">
+    <link rel="stylesheet" href="{% static 'recognizer/style.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="main-layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>A.R.C.A.N.E.</h1>
+            </div>
+            <div class="sidebar-content">
+                <h2>Project Overview</h2>
+                <p>
+                    An advanced neuromorphic architecture designed to process complex spatio-temporal patterns with high adaptability and efficiency.
+                </p>
+                <div class="model-info">
+                    <p>
+                        <b>Model:</b> 
+                        <span>Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir</span>
+                    </p>
+                </div>
+                <div id="three-container"></div>
+            </div>
+        </aside>
+
+        <main class="content-area">
+            <div class="container">
+                <h2>Digit Recognition Interface</h2>
+        
+                <div id="canvas-container">
+                    <canvas id="drawing-canvas" width="280" height="280"></canvas>
+                </div>
+                
+                <button id="clear-btn" class="button">Clear Canvas</button>
+        
+                <div id="result-container">
+                    <div class="result-item">Prediction: <span id="prediction">-</span></div>
+                    <div class="result-item">Confidence: <span id="confidence">-</span></div>
+                    <div id="loader">Processing...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="{% static 'recognizer/script.js' %}"></script>
+</body>
+</html> 
