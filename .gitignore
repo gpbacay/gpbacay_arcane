@@ -1,2 +1,5 @@
 .env
 Models/*.keras
+
+# Django
+staticfiles/
