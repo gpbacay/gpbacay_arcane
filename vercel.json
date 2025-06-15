@@ -1,16 +1,22 @@
 {
-    "version": 2,
     "builds": [
         {
-            "src": "arcane_project/arcane_project/wsgi.py",
-            "use": "@vercel/python",
+            "src": "arcane_project/package.json",
+            "use": "@vercel/static-build",
             "config": {
-                "maxLambdaSize": "15mb",
-                "runtime": "python3.9"
+                "distDir": "arcane_project/staticfiles"
             }
+        },
+        {
+            "src": "arcane_project/arcane_project/wsgi.py",
+            "use": "@vercel/python"
         }
     ],
     "routes": [
+        {
+            "src": "/static/(.*)",
+            "dest": "arcane_project/static/$1"
+        },
         {
             "src": "/(.*)",
             "dest": "arcane_project/arcane_project/wsgi.py"
