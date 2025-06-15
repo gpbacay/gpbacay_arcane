@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const predictionSpan = document.getElementById('prediction');
     const confidenceSpan = document.getElementById('confidence');
     const loader = document.getElementById('loader');
+    const aboutBtn = document.getElementById('about-btn');
+    const closeModalBtn = document.getElementById('close-modal-btn');
+    const aboutModal = document.getElementById('about-modal');
 
     let isDrawing = false;
     let lastX = 0;
@@ -50,6 +53,20 @@ document.addEventListener('DOMContentLoaded', function() {
     canvas.addEventListener('touchmove', draw);
     canvas.addEventListener('touchend', stopDrawing);
     clearBtn.addEventListener('click', clearCanvas);
+    aboutBtn.addEventListener('click', () => {
+        aboutModal.classList.remove('hidden');
+        aboutModal.classList.add('flex');
+    });
+    closeModalBtn.addEventListener('click', () => {
+        aboutModal.classList.add('hidden');
+        aboutModal.classList.remove('flex');
+    });
+    aboutModal.addEventListener('click', (e) => {
+        if (e.target === aboutModal) {
+            aboutModal.classList.add('hidden');
+            aboutModal.classList.remove('flex');
+        }
+    });
 
     // Drawing Handlers
     function startDrawing(e) {

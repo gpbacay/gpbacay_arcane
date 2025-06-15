@@ -8,13 +8,16 @@
     <link rel="icon" href="{% static 'assets/arcane_logo.ico' %}" type="image/x-icon">
     <link rel="stylesheet" href="{% static 'recognizer/style.css' %}">
 </head>
-<body class="bg-background text-foreground">
-    <div class="container mx-auto p-4 md:p-8">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<body class="bg-background text-foreground relative min-h-screen">
+    <button id="about-btn" class="absolute top-4 right-4 z-40 text-primary hover:text-primary/80 p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+    </button>
+    <div class="container mx-auto p-4 md:p-8 min-h-screen flex items-center">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full">
 
             <!-- Left Column: Recognizer -->
             <div class="lg:col-span-1">
-                <div class="bg-card p-6 rounded-lg shadow-lg border border-border">
+                <div class="bg-card p-6 rounded-lg shadow-lg border border-border h-full flex flex-col">
                     <h2 class="text-2xl font-bold text-center text-primary mb-4">Digit Recognizer</h2>
             
                     <div id="canvas-container" class="mb-4 rounded-lg overflow-hidden border-2 border-primary/50 shadow-inner">
@@ -40,23 +43,33 @@
                         <h1 class="text-6xl font-bold text-primary">A.R.C.A.N.E.</h1>
                         <p class="text-muted-foreground">Augmented Reconstruction of Consciousness through Artificial Neural Evolution</p>
                     </div>
-
-                    <div class="bg-card p-6 rounded-lg shadow-lg border border-border">
-                        <h2 class="text-2xl font-semibold text-secondary-foreground border-b-2 border-secondary inline-block px-4 pb-2 mb-4">Project Overview</h2>
-                        <p class="text-muted-foreground mb-6 text-lg leading-relaxed max-w-2xl mx-auto">
-                            An advanced neuromorphic architecture designed to process complex spatio-temporal patterns with high adaptability and efficiency.
-                        </p>
-                        <div class="model-info bg-muted rounded-lg p-4 border border-border max-w-2xl mx-auto">
-                            <p class="text-md text-foreground">
-                                <b class="font-bold text-primary">Model:</b> 
-                                <span>Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir</span>
-                            </p>
-                        </div>
-                    </div>
                     
                     <div id="three-container" class="w-full h-80 rounded-lg border border-border shadow-inner bg-card mt-8"></div>
                 </div>
             </main>
+        </div>
+    </div>
+
+    <!-- About Modal -->
+    <div id="about-modal" class="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 hidden items-center justify-center">
+        <div class="bg-card p-8 rounded-lg shadow-lg border border-border w-full max-w-2xl relative mx-4">
+            <button id="close-modal-btn" class="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+            <div id="modal-content">
+                <div class="bg-card p-6 rounded-lg">
+                    <h2 class="text-2xl font-semibold text-secondary-foreground border-b-2 border-secondary inline-block px-4 pb-2 mb-4">Project Overview</h2>
+                    <p class="text-muted-foreground mb-6 text-lg leading-relaxed max-w-2xl mx-auto">
+                        An advanced neuromorphic architecture designed to process complex spatio-temporal patterns with high adaptability and efficiency.
+                    </p>
+                    <div class="model-info bg-muted rounded-lg p-4 border border-border max-w-2xl mx-auto">
+                        <p class="text-md text-foreground">
+                            <b class="font-bold text-primary">Model:</b> 
+                            <span>Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
