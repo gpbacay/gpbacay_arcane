@@ -5,8 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build:css": "tailwindcss -i ./static/src/input.css -o ./recognizer/static/recognizer/style.css",
-    "watch": "tailwindcss -i ./static/src/input.css -o ./recognizer/static/recognizer/style.css --watch",
-    "vercel-build": "bash build_files.sh"
+    "watch": "tailwindcss -i ./static/src/input.css -o ./recognizer/static/recognizer/style.css --watch"
   },
   "keywords": [],
   "author": "",

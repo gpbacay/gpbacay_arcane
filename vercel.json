@@ -1,21 +1,8 @@
 {
-    "builds": [
-        {
-            "src": "arcane_project/package.json",
-            "use": "@vercel/static-build",
-            "config": {
-                "distDir": "arcane_project/staticfiles"
-            }
-        },
-        {
-            "src": "arcane_project/arcane_project/wsgi.py",
-            "use": "@vercel/python"
-        }
-    ],
     "routes": [
         {
             "src": "/static/(.*)",
-            "dest": "arcane_project/static/$1"
+            "dest": "/static/$1"
         },
         {
             "src": "/(.*)",
