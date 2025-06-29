@@ -44,8 +44,8 @@ class GSER(Layer):
         initial_reservoir_size (int): Initial number of neurons in the reservoir.
         input_dim (int): Dimension of the input data.
         spectral_radius (float): Spectral radius of the reservoir weight matrix, influencing its stability.
-        leak_rate (float): Rate at which the state of the reservoir decays over time.
-        spike_threshold (float): Threshold above which a spike occurs in the reservoir neurons.
+        leak_rate (float): Initial rate at which the state of the reservoir decays over time. Now trainable.
+        spike_threshold (float): Initial threshold for spikes. Now trainable.
         max_dynamic_reservoir_dim (int): Maximum dynamic size of the reservoir.
         state_size (list): Size of the reservoir state.
         output_size (int): Size of the output of the reservoir layer.
@@ -57,78 +57,134 @@ class GSER(Layer):
         self.initial_reservoir_size = initial_reservoir_size
         self.max_dynamic_reservoir_dim = max_dynamic_reservoir_dim
         self.spectral_radius = spectral_radius
-        self.leak_rate = leak_rate
-        self.spike_threshold = spike_threshold
-        self.neurogenesis_rate = neurogenesis_rate  # Rate of new neurons added
-        self.pruning_rate = pruning_rate  # Rate of pruning connections
+        self.initial_leak_rate = leak_rate
+        self.initial_spike_threshold = spike_threshold
+        self.neurogenesis_rate = neurogenesis_rate
+        self.pruning_rate = pruning_rate
         
-        self.state_size = [self.max_dynamic_reservoir_dim]  # Define the size of the state
-        self.output_size = self.max_dynamic_reservoir_dim  # Output size is the dynamic reservoir size
+        # State tracking for elastic reservoir
+        self.current_reservoir_size = tf.Variable(initial_reservoir_size, trainable=False, dtype=tf.int32)
         
-        # Initialize weights and reservoirs
+        self.state_size = [self.max_dynamic_reservoir_dim]
+        self.output_size = self.max_dynamic_reservoir_dim
+        
+        # Initialize weights and reservoirs using pre-allocation
         self.initialize_weights()
 
     def initialize_weights(self):
-        """Initializes the weights for the spatiotemporal reservoir, input weights, and spiking gate weights."""
-        # Initialize reservoir weights (connections between neurons in the reservoir)
+        """Initializes all weights to their max dimension for efficient growth (pre-allocation)."""
+        # Reservoir weights (pre-allocated to max size)
         self.spatiotemporal_reservoir_weights = self.add_weight(
-            shape=(self.initial_reservoir_size, self.initial_reservoir_size),
-            initializer=tf.keras.initializers.RandomNormal(),
+            shape=(self.max_dynamic_reservoir_dim, self.max_dynamic_reservoir_dim),
+            initializer=tf.keras.initializers.RandomNormal(stddev=0.1),
             trainable=False,
             name='spatiotemporal_reservoir_weights'
         )
         
-        # Initialize input weights for mapping the input to the reservoir
+        # Input weights (pre-allocated to max size)
         self.spatiotemporal_input_weights = self.add_weight(
-            shape=(self.initial_reservoir_size, self.input_dim),
+            shape=(self.max_dynamic_reservoir_dim, self.input_dim),
             initializer=tf.keras.initializers.RandomNormal(stddev=0.1),
             trainable=False,
             name='spatiotemporal_input_weights'
         )
         
-        # Initialize spiking gate weights
+        # Spiking gate weights (pre-allocated to max size)
         self.spiking_gate_weights = self.add_weight(
-            shape=(3 * self.initial_reservoir_size, self.input_dim),
+            shape=(3 * self.max_dynamic_reservoir_dim, self.input_dim),
             initializer=tf.keras.initializers.RandomNormal(stddev=0.1),
             trainable=False,
             name='spiking_gate_weights'
         )
 
+        # Trainable, per-neuron leak rate
+        self.leak_rate_param = self.add_weight(
+            shape=(self.max_dynamic_reservoir_dim,),
+            initializer=tf.keras.initializers.Constant(np.log(self.initial_leak_rate / (1 - self.initial_leak_rate))), # Inverse sigmoid
+            trainable=True,
+            name='leak_rate_param'
+        )
+
+        # Trainable, per-neuron spike threshold
+        self.spike_threshold_param = self.add_weight(
+            shape=(self.max_dynamic_reservoir_dim,),
+            initializer=tf.keras.initializers.Constant(np.log(np.exp(self.initial_spike_threshold) - 1)), # Inverse softplus
+            trainable=True,
+            name='spike_threshold_param'
+        )
+
+
     def add_neurons(self, new_neurons_count):
-        """Add new neurons to the reservoir."""
-        if self.initial_reservoir_size + new_neurons_count <= self.max_dynamic_reservoir_dim:
-            # Update the reservoir size
-            self.initial_reservoir_size += new_neurons_count
-            self.state_size[0] = self.initial_reservoir_size  # Update the state size
+        """Efficiently adds new neurons by incrementing the current size."""
+        new_size = tf.minimum(self.current_reservoir_size + new_neurons_count, self.max_dynamic_reservoir_dim)
+        self.current_reservoir_size.assign(new_size)
 
-            # Expand reservoir weights with appropriate padding
-            new_row_block = tf.zeros([self.spatiotemporal_reservoir_weights.shape[0], new_neurons_count])
-            new_col_block = tf.zeros([new_neurons_count, self.spatiotemporal_reservoir_weights.shape[1] + new_neurons_count])
-            
-            self.spatiotemporal_reservoir_weights = tf.concat([ 
-                tf.concat([self.spatiotemporal_reservoir_weights, new_row_block], axis=1),
-                new_col_block
-            ], axis=0)
-
-            # Reinitialize the new neurons' input connections
-            new_input_weights = tf.zeros([new_neurons_count, self.input_dim])
-            self.spatiotemporal_input_weights = tf.concat([
-                self.spatiotemporal_input_weights,
-                new_input_weights
-            ], axis=0)
-
-            # Reset the spiking gate weights for the new neurons
-            new_gate_weights = tf.zeros([3 * new_neurons_count, self.input_dim])
-            self.spiking_gate_weights = tf.concat([
-                self.spiking_gate_weights,
-                new_gate_weights
-            ], axis=0)
-    
     def prune_connections(self, pruning_threshold=0.1):
-        """Prune connections with small weights, pruning weak or redundant synaptic connections."""
-        # Mask weak or redundant connections based on a pruning threshold
-        mask = tf.abs(self.spatiotemporal_reservoir_weights) < pruning_threshold
-        self.spatiotemporal_reservoir_weights = tf.where(mask, tf.zeros_like(self.spatiotemporal_reservoir_weights), self.spatiotemporal_reservoir_weights)
+        """Prunes weak connections within the active part of the reservoir."""
+        active_size = self.current_reservoir_size
+        
+        # Create a mask for the active reservoir
+        active_weights = self.spatiotemporal_reservoir_weights[:active_size, :active_size]
+        mask = tf.abs(active_weights) < pruning_threshold
+        
+        # Apply pruning only to the active part
+        pruned_weights = tf.where(mask, tf.zeros_like(active_weights), active_weights)
+        
+        # Update the weight matrix
+        self.spatiotemporal_reservoir_weights.assign(tf.tensor_scatter_nd_update(
+            self.spatiotemporal_reservoir_weights,
+            tf.where(tf.ones((active_size, active_size), dtype=tf.bool)),
+            tf.reshape(pruned_weights, [-1])
+        ))
+
+    def prune_neurons(self, num_to_prune):
+        """Prunes inactive neurons using the efficient 'swap and pop' method."""
+        active_size = self.current_reservoir_size
+        if active_size <= num_to_prune:
+            return # Avoid pruning too many neurons
+
+        # Calculate neuron activity (e.g., sum of absolute outgoing weights)
+        activity = tf.reduce_sum(tf.abs(self.spatiotemporal_reservoir_weights[:active_size, :active_size]), axis=1)
+        
+        # Get indices of neurons to prune (least active)
+        _, indices_to_prune = tf.nn.top_k(-activity, k=num_to_prune)
+
+        for idx_to_prune in tf.sort(indices_to_prune, direction='DESCENDING'):
+            last_active_idx = self.current_reservoir_size - 1
+            if idx_to_prune >= last_active_idx:
+                 # If it's the last one, just decrement size
+                self.current_reservoir_size.assign_sub(1)
+                continue
+
+            # Efficiently swap the neuron to be pruned with the last active neuron
+            
+            # 1. Swap rows in the reservoir weights matrix
+            p = tf.constant([idx_to_prune, last_active_idx], dtype=tf.int32)
+            q = tf.constant([last_active_idx, idx_to_prune], dtype=tf.int32)
+            
+            # Swap rows
+            temp_weights = tf.tensor_scatter_nd_update(self.spatiotemporal_reservoir_weights, tf.expand_dims(p, axis=1), tf.gather(self.spatiotemporal_reservoir_weights, q))
+            # Swap columns
+            temp_weights = tf.transpose(temp_weights)
+            temp_weights = tf.tensor_scatter_nd_update(temp_weights, tf.expand_dims(p, axis=1), tf.gather(temp_weights, q))
+            self.spatiotemporal_reservoir_weights.assign(tf.transpose(temp_weights))
+
+            # 2. Swap the corresponding rows in the input weights
+            self.spatiotemporal_input_weights.assign(
+                tf.tensor_scatter_nd_update(self.spatiotemporal_input_weights, tf.expand_dims(p, axis=1), tf.gather(self.spatiotemporal_input_weights, q))
+            )
+            
+            # 3. Swap trainable parameters
+            self.leak_rate_param.assign(
+                tf.tensor_scatter_nd_update(self.leak_rate_param, tf.expand_dims(p, axis=1), tf.gather(self.leak_rate_param, q))
+            )
+            self.spike_threshold_param.assign(
+                tf.tensor_scatter_nd_update(self.spike_threshold_param, tf.expand_dims(p, axis=1), tf.gather(self.spike_threshold_param, q))
+            )
+
+            # 4. Decrement the reservoir size
+            self.current_reservoir_size.assign_sub(1)
+
 
     def call(self, inputs, states):
         """
@@ -143,32 +199,45 @@ class GSER(Layer):
             tensor: The updated state of the reservoir after processing the input.
             list: The updated state of the reservoir for use in the next time step.
         """
-        prev_state = states[0][:, :self.initial_reservoir_size]
+        active_size = self.current_reservoir_size
+        prev_state = states[0][:, :active_size]
 
-        # Compute the input part (mapping inputs to the reservoir state)
-        input_part = tf.matmul(inputs, self.spatiotemporal_input_weights, transpose_b=True)
+        # Get active weights using slicing
+        active_input_weights = self.spatiotemporal_input_weights[:active_size, :]
+        active_reservoir_weights = self.spatiotemporal_reservoir_weights[:active_size, :active_size]
+        active_gate_weights = self.spiking_gate_weights[:3 * active_size, :]
         
-        # Compute the reservoir part (feedback from the reservoir state)
-        reservoir_part = tf.matmul(prev_state, self.spatiotemporal_reservoir_weights)
+        # Get active trainable parameters and apply constraining activations
+        leak_rate = tf.sigmoid(self.leak_rate_param[:active_size])
+        spike_threshold = tf.nn.softplus(self.spike_threshold_param[:active_size])
+
+        # Compute the input part
+        input_part = tf.matmul(inputs, active_input_weights, transpose_b=True)
         
-        # Compute the gate part (gating mechanism to control the input flow)
-        gate_part = tf.matmul(inputs, self.spiking_gate_weights, transpose_b=True)
+        # Compute the reservoir part
+        reservoir_part = tf.matmul(prev_state, active_reservoir_weights)
+        
+        # Compute the gate part
+        gate_part = tf.matmul(inputs, active_gate_weights, transpose_b=True)
 
         # Split the gate part into three separate gates (input, forget, and output gates)
         i_gate, f_gate, o_gate = tf.split(tf.sigmoid(gate_part), 3, axis=-1)
 
         # Update the state using the gating mechanism and reservoir dynamics
-        state = (1 - self.leak_rate) * (f_gate * prev_state) + self.leak_rate * tf.tanh(i_gate * (input_part + reservoir_part))
+        state = (1 - leak_rate) * (f_gate * prev_state) + leak_rate * tf.tanh(i_gate * (input_part + reservoir_part))
         state = o_gate * state
 
         # Generate spikes if the state exceeds the spike threshold
-        spikes = tf.cast(tf.greater(state, self.spike_threshold), dtype=tf.float32)
+        spikes = tf.cast(tf.greater(state, spike_threshold), dtype=tf.float32)
         
         # If a spike occurs, reset the state by subtracting the spike threshold
-        state = tf.where(spikes > 0, state - self.spike_threshold, state)
+        state = tf.where(spikes > 0, state - spike_threshold, state)
 
-        # Padding the state to ensure the dynamic reservoir size is met
-        padded_state = tf.concat([state, tf.zeros([tf.shape(state)[0], self.max_dynamic_reservoir_dim - tf.shape(state)[-1]])], axis=1)
+        # Pad the state to match the max dimension for the RNN layer
+        padded_state = tf.pad(state, [[0, 0], [0, self.max_dynamic_reservoir_dim - active_size]])
+
+        # Explicitly set the shape to fix RNN layer issues with dynamic shapes
+        padded_state.set_shape([None, self.max_dynamic_reservoir_dim])
 
         return padded_state, [padded_state]
 
@@ -179,8 +248,8 @@ class GSER(Layer):
             'initial_reservoir_size': self.initial_reservoir_size,
             'input_dim': self.input_dim,
             'spectral_radius': self.spectral_radius,
-            'leak_rate': self.leak_rate,
-            'spike_threshold': self.spike_threshold,
+            'leak_rate': self.initial_leak_rate,
+            'spike_threshold': self.initial_spike_threshold,
             'max_dynamic_reservoir_dim': self.max_dynamic_reservoir_dim,
             'neurogenesis_rate': self.neurogenesis_rate,
             'pruning_rate': self.pruning_rate

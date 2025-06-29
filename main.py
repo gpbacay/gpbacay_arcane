@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import os
 
 from gpbacay_arcane.models import DSTSMGSER
+from gpbacay_arcane.callbacks import DynamicSelfModelingReservoirCallback
 
 def main():
     # Load and preprocess MNIST dataset
@@ -46,6 +47,12 @@ def main():
     # Define callbacks
     early_stopping = EarlyStopping(monitor='val_clf_out_accuracy', patience=10, mode='max', restore_best_weights=True)
     reduce_lr = ReduceLROnPlateau(monitor='val_clf_out_accuracy', factor=0.1, patience=5, mode='max')
+    dynamic_reservoir_callback = DynamicSelfModelingReservoirCallback(
+        reservoir_layer=dstsmgser.reservoir_layer,
+        performance_metric='val_clf_out_accuracy',
+        target_metric=0.98,
+        stagnation_epochs=7 # Prune neurons if no improvement for 7 epochs
+    )
 
     # Train the model
     history = dstsmgser.model.fit(
@@ -53,7 +60,7 @@ def main():
         validation_data=(x_test, {'clf_out': y_test, 'sm_out': x_test_flat}),
         epochs=10,
         batch_size=64,
-        callbacks=[early_stopping, reduce_lr]
+        callbacks=[early_stopping, reduce_lr, dynamic_reservoir_callback]
     )
 
     # Evaluate the model

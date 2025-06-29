@@ -19,15 +19,15 @@
             <div class="lg:col-span-1">
                 <div class="bg-card p-6 rounded-lg shadow-lg border border-border h-full flex flex-col">
                     <h2 class="text-2xl font-bold text-center text-primary mb-4">Digit Recognizer</h2>
-            
+    
                     <div id="canvas-container" class="mb-4 rounded-lg overflow-hidden border-2 border-primary/50 shadow-inner">
                         <canvas id="drawing-canvas" width="280" height="280" class="w-full h-auto cursor-crosshair bg-input"></canvas>
-                    </div>
-                    
-                    <button id="clear-btn" class="w-full bg-primary text-primary-foreground font-bold py-3 px-4 rounded-lg hover:bg-primary/90 transition-colors duration-300 shadow-md">
-                        Clear Canvas
-                    </button>
+            </div>
             
+                    <button id="clear-btn" class="w-full bg-primary text-primary-foreground font-bold py-3 px-4 rounded-lg hover:bg-primary/90 transition-colors duration-300 shadow-md">
+                Clear Canvas
+            </button>
+    
                     <div id="result-container" class="mt-6 p-4 bg-muted rounded-lg border border-border text-center">
                         <div class="result-item text-lg">Prediction: <span id="prediction" class="font-bold text-primary ml-2">-</span></div>
                         <div class="result-item text-md text-muted-foreground mt-2">Confidence: <span id="confidence" class="font-bold text-primary ml-2">-</span></div>
