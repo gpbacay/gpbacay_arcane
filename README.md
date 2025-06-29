@@ -1,4 +1,4 @@
-| ![Arcane Logo](assets/arcane_logo.png) | **gpbacay_arcane** |
+| ![Arcane Logo](/arcane_project/static/assets/arcane_logo.png) | **gpbacay_arcane** |
 |-----------------------------------------|--------------------|
 
 **gpbacay_arcane** is a Python library designed for custom neuromimetic artificial neural network mechanisms, built on top of TensorFlow and Keras. It is specifically developed for the **A.R.C.A.N.E** (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) project, enabling the creation of adaptive, biologically-inspired neural networks.
