@@ -16,7 +16,7 @@ pandas-ta
 scikit-learn
 
 # python setup.py sdist bdist_wheel
-# pip install dist/gpbacay_arcane-0.2.3-py3-none-any.whl --force-reinstall
+# pip install dist/gpbacay_arcane-1.0.0-py3-none-any.whl --force-reinstall
 # twine upload dist/*
 
 # pip install gpbacay-arcane --upgrade --force-reinstall

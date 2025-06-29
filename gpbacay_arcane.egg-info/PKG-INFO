@@ -1,6 +1,6 @@
-Metadata-Version: 2.4
+Metadata-Version: 2.1
 Name: gpbacay-arcane
-Version: 0.2.6
+Version: 1.0.0
 Summary: A Python library for custom neuromorphic neural network mechanisms built on top of TensorFlow and Keras
 Home-page: https://github.com/gpbacay/gpbacay_arcane
 Author: Gianne P. Bacay
@@ -10,19 +10,6 @@ Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Requires-Dist: numpy==1.23.5
-Requires-Dist: tensorflow
-Requires-Dist: keras
-Requires-Dist: matplotlib
-Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: description
-Dynamic: description-content-type
-Dynamic: home-page
-Dynamic: license-file
-Dynamic: requires-dist
-Dynamic: summary
 
 | ![Arcane Logo](assets/arcane_logo.png) | **gpbacay_arcane** |
 |-----------------------------------------|--------------------|
