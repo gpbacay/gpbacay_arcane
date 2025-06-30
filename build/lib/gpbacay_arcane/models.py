@@ -1,9 +1,9 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import RNN, Input, BatchNormalization, Flatten, LayerNormalization
+from tensorflow.keras.layers import RNN, Input, BatchNormalization, Flatten, LayerNormalization, RepeatVector
 from tensorflow.keras import Model
 
-from gpbacay_arcane.layers import GSER, HebbianHomeostaticNeuroplasticity, DenseGSER, RelationalConceptModeling, RelationalGraphAttentionReasoning
+from gpbacay_arcane.layers import GSER, HebbianHomeostaticNeuroplasticity, DenseGSER, RelationalConceptModeling, RelationalGraphAttentionReasoning, LatentTemporalCoherence
 
 
 # Test Accuracy: 0.9772, Loss: 0.1321
@@ -228,6 +228,97 @@ class GSERModel(Model):
             'max_dynamic_reservoir_dim': self.max_dynamic_reservoir_dim,
             'output_dim': self.output_dim,
             'd_model': self.d_model
+        }
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+
+
+
+
+# Test Accuracy: 0.9801, Loss: 0.0847
+class CoherentThoughtModel(Model):
+    """
+    A model that uses a sequence of internal "thought steps" processed by a GSER 
+    reservoir, and then distills the reservoir's history into a single latent
+    representation using the LatentTemporalCoherence layer for classification.
+    """
+    def __init__(self, input_shape, reservoir_dim, spectral_radius, leak_rate, spike_threshold, 
+                 max_dynamic_reservoir_dim, output_dim, d_model=128, num_thought_steps=10, 
+                 d_coherence=256, activation='gelu', **kwargs):
+        super().__init__(**kwargs)
+        self.input_shape = input_shape
+        self.reservoir_dim = reservoir_dim
+        self.spectral_radius = spectral_radius
+        self.leak_rate = leak_rate
+        self.spike_threshold = spike_threshold
+        self.max_dynamic_reservoir_dim = max_dynamic_reservoir_dim
+        self.output_dim = output_dim
+        self.d_model = d_model
+        self.num_thought_steps = num_thought_steps
+        self.d_coherence = d_coherence
+        self.activation = tf.keras.activations.get(activation)
+        
+        self.model = None
+
+    def build_model(self):
+        inputs = Input(shape=self.input_shape)
+
+        # 1. Preprocessing
+        x = Flatten()(inputs)
+        x = DenseGSER(self.d_model)(x)
+
+        # 2. Thought Generation: Repeat the state vector to create a sequence
+        x = RepeatVector(self.num_thought_steps)(x)
+
+        # 3. Dynamic Processing: Process the sequence with GSER, returning the full history
+        self.reservoir_layer = GSER(
+            input_dim=self.d_model,
+            initial_reservoir_size=self.reservoir_dim,
+            max_dynamic_reservoir_dim=self.max_dynamic_reservoir_dim,
+            spectral_radius=self.spectral_radius,
+            leak_rate=self.leak_rate,
+            spike_threshold=self.spike_threshold
+        )
+        # return_sequences=True is critical for the next layer
+        x = RNN(self.reservoir_layer, return_sequences=True)(x) 
+
+        # 4. Coherence Distillation: Distill the history into a single thought vector
+        coherence_layer = LatentTemporalCoherence(d_coherence=self.d_coherence)
+        x = coherence_layer(x)
+
+        # 5. Classification
+        outputs = DenseGSER(
+            units=self.output_dim,
+            spectral_radius=self.spectral_radius,
+            leak_rate=self.leak_rate,
+            spike_threshold=self.spike_threshold,
+            activation='softmax',
+            name='clf_out'
+        )(x)
+
+        self.model = Model(inputs=inputs, outputs=outputs)
+
+    def compile_model(self):
+        self.model.compile(
+            optimizer='adam',
+            loss='categorical_crossentropy',
+            metrics=['accuracy']
+        )
+
+    def get_config(self):
+        return {
+            'input_shape': self.input_shape,
+            'reservoir_dim': self.reservoir_dim,
+            'spectral_radius': self.spectral_radius,
+            'leak_rate': self.leak_rate,
+            'spike_threshold': self.spike_threshold,
+            'max_dynamic_reservoir_dim': self.max_dynamic_reservoir_dim,
+            'output_dim': self.output_dim,
+            'd_model': self.d_model,
+            'num_thought_steps': self.num_thought_steps,
+            'd_coherence': self.d_coherence,
         }
 
     @classmethod

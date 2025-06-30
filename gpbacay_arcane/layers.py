@@ -159,8 +159,8 @@ class GSER(Layer):
             # Efficiently swap the neuron to be pruned with the last active neuron
             
             # 1. Swap rows in the reservoir weights matrix
-            p = tf.constant([idx_to_prune, last_active_idx], dtype=tf.int32)
-            q = tf.constant([last_active_idx, idx_to_prune], dtype=tf.int32)
+            p = tf.stack([idx_to_prune, last_active_idx])
+            q = tf.stack([last_active_idx, idx_to_prune])
             
             # Swap rows
             temp_weights = tf.tensor_scatter_nd_update(self.spatiotemporal_reservoir_weights, tf.expand_dims(p, axis=1), tf.gather(self.spatiotemporal_reservoir_weights, q))
@@ -1127,6 +1127,118 @@ class PositionalEncodingLayer(Layer):
 
 
 
+
+
+class LatentTemporalCoherence(Layer):
+    """Distills a sequence of neural states into a single "thought vector" by measuring temporal coherence.
+
+    This layer processes the output history of a recurrent layer (e.g., GSER with 
+    `return_sequences=True`) to compute a fixed-size latent representation. It operates 
+    by calculating a weighted inner product on the activation histories of sampled neuron pairs. 
+    A learnable decay rate for each pair allows the model to dynamically weigh the importance 
+    of recent versus long-term temporal correlations.
+
+    **Importance:**
+    Instead of using only the final state of a recurrent layer, this provides a richer, 
+    high-level summary of a neural system's entire temporal dynamics. This "coherence vector" 
+    is crucial for tasks requiring reasoning about processes over time and is a core component 
+    for modeling emergent consciousness in the A.R.C.A.N.E. architecture.
+
+    Attributes:
+        d_coherence (int): Dimensionality of the output coherence vector, which corresponds 
+                         to the number of neuron pairs to sample.
+    """
+    def __init__(self, d_coherence, **kwargs):
+        super(LatentTemporalCoherence, self).__init__(**kwargs)
+        self.d_coherence = d_coherence
+
+    def build(self, input_shape):
+        num_neurons = input_shape[-1]
+        if num_neurons is None:
+            raise ValueError("The number of neurons (last dimension of input) must be defined for LatentTemporalCoherence layer.")
+
+        # Generate all unique pairs of neuron indices (i, j) where i < j
+        indices = tf.range(num_neurons)
+        i_indices, j_indices = tf.meshgrid(indices, indices)
+        mask = i_indices < j_indices
+        pair_i = tf.boolean_mask(i_indices, mask)
+        pair_j = tf.boolean_mask(j_indices, mask)
+        
+        num_possible_pairs = tf.shape(pair_i)[0]
+
+        if self.d_coherence > num_possible_pairs:
+            raise ValueError(f"d_coherence ({self.d_coherence}) cannot be greater than the number of unique neuron pairs ({num_possible_pairs}).")
+
+        # We sample a fixed set of pairs once during layer creation.
+        # These pairs will remain constant throughout training.
+        shuffled_pair_indices = tf.random.shuffle(tf.range(num_possible_pairs))
+        sampled_indices = shuffled_pair_indices[:self.d_coherence]
+
+        self.neuron_pair_i = tf.gather(pair_i, sampled_indices)
+        self.neuron_pair_j = tf.gather(pair_j, sampled_indices)
+
+        # Create learnable decay rates for each sampled neuron pair.
+        self.decay_rates = self.add_weight(
+            name='decay_rates',
+            shape=(self.d_coherence,),
+            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.1),
+            trainable=True
+        )
+        super(LatentTemporalCoherence, self).build(input_shape)
+
+    def call(self, inputs):
+        # inputs shape: (batch_size, num_ticks, num_neurons)
+        num_ticks = tf.shape(inputs)[1]
+
+        # 1. Gather the activation histories for the sampled pairs.
+        # Shape of both: (batch_size, num_ticks, d_coherence)
+        history_i = tf.gather(inputs, self.neuron_pair_i, axis=2)
+        history_j = tf.gather(inputs, self.neuron_pair_j, axis=2)
+
+        # 2. Create the exponential decay weights for the time dimension.
+        # `tau` represents the time distance from the present.
+        # For a history of length T, tau will be [T-1, T-2, ..., 0]
+        tau = tf.range(tf.cast(num_ticks, tf.float32), 0, -1) - 1.0
+        tau = tf.reshape(tau, (1, num_ticks, 1)) # Reshape for broadcasting
+
+        # Constrain decay_rates to be positive using softplus
+        r = tf.nn.softplus(self.decay_rates)
+        r = tf.reshape(r, (1, 1, self.d_coherence)) # Reshape for broadcasting
+        
+        # Calculate decay weights: exp(-r_ij * tau)
+        # Shape: (1, num_ticks, d_coherence)
+        decay_weights = tf.exp(-r * tau)
+        
+        # 3. Calculate the weighted inner product over time.
+        # Element-wise product of histories for each pair
+        product_over_time = history_i * history_j
+        
+        # Apply the temporal decay weights
+        weighted_product = product_over_time * decay_weights
+        
+        # Sum over the time dimension to get the final synchronization value for each pair
+        # Shape: (batch_size, d_coherence)
+        coherence_values = tf.reduce_sum(weighted_product, axis=1)
+
+        # 4. Normalize the resulting coherence vector for each batch item.
+        # This becomes the latent representation S_t
+        S_t = tf.nn.l2_normalize(coherence_values, axis=-1)
+        
+        return S_t
+
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], self.d_coherence)
+
+    def get_config(self):
+        config = super(LatentTemporalCoherence, self).get_config()
+        config.update({
+            'd_coherence': self.d_coherence,
+        })
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
 
 

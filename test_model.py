@@ -2,11 +2,19 @@ import cv2
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
+from gpbacay_arcane.layers import GSER, DenseGSER, LatentTemporalCoherence
+
+# Define the custom objects for model loading
+custom_objects = {
+    'GSER': GSER,
+    'DenseGSER': DenseGSER,
+    'LatentTemporalCoherence': LatentTemporalCoherence
+}
 
 # Load the trained model
 try:
-    MODEL_FILEPATH = 'Models/dstsmgser_model.keras'
-    model = tf.keras.models.load_model(MODEL_FILEPATH)
+    MODEL_FILEPATH = 'Models/coherent_thought_model.keras'
+    model = tf.keras.models.load_model(MODEL_FILEPATH, custom_objects=custom_objects)
     print("Model loaded successfully.")
 except FileNotFoundError:
     print(f"Error: The {MODEL_FILEPATH} model file was not found.")
@@ -38,13 +46,11 @@ def predict(image_path):
     
     try:
         predictions = model.predict(image)
-        # The first output is the classification result
-        classification_output = predictions[0]
-        predicted_digit = np.argmax(classification_output)
-        confidence = np.max(classification_output)
+        # For a single-output model, predictions is a single NumPy array
+        predicted_digit = np.argmax(predictions[0])
+        confidence = np.max(predictions[0])
         
-        print(f"Prediction shape: {[p.shape for p in predictions]}")
-        print(f"Prediction types: {[type(p) for p in predictions]}")
+        print(f"Prediction shape: {predictions.shape}")
         
         return predicted_digit, confidence
     except Exception as e:
