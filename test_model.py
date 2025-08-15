@@ -2,18 +2,23 @@ import cv2
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from gpbacay_arcane.layers import GSER, DenseGSER, LatentTemporalCoherence
+from gpbacay_arcane.layers import GSER, DenseGSER, LatentTemporalCoherence, RelationalConceptModeling, RelationalGraphAttentionReasoning, HebbianHomeostaticNeuroplasticity, BioplasticDenseLayer, MultiheadLinearSelfAttentionKernalization
 
 # Define the custom objects for model loading
 custom_objects = {
     'GSER': GSER,
     'DenseGSER': DenseGSER,
-    'LatentTemporalCoherence': LatentTemporalCoherence
+    'LatentTemporalCoherence': LatentTemporalCoherence,
+    'RelationalConceptModeling': RelationalConceptModeling,
+    'RelationalGraphAttentionReasoning': RelationalGraphAttentionReasoning,
+    'HebbianHomeostaticNeuroplasticity': HebbianHomeostaticNeuroplasticity,
+    'BioplasticDenseLayer': BioplasticDenseLayer,
+    'MultiheadLinearSelfAttentionKernalization': MultiheadLinearSelfAttentionKernalization
 }
 
 # Load the trained model
 try:
-    MODEL_FILEPATH = 'Models/coherent_thought_model.keras'
+    MODEL_FILEPATH = 'Models/high_accuracy_digit_model.keras'
     model = tf.keras.models.load_model(MODEL_FILEPATH, custom_objects=custom_objects)
     print("Model loaded successfully.")
 except FileNotFoundError:
@@ -46,11 +51,13 @@ def predict(image_path):
     
     try:
         predictions = model.predict(image)
-        # For a single-output model, predictions is a single NumPy array
-        predicted_digit = np.argmax(predictions[0])
-        confidence = np.max(predictions[0])
+        # For a multi-output model, predictions is a list of NumPy arrays.
+        # The classification output is the first one.
+        classification_output = predictions[0]
+        predicted_digit = np.argmax(classification_output[0])
+        confidence = np.max(classification_output[0])
         
-        print(f"Prediction shape: {predictions.shape}")
+        print(f"Classification output shape: {classification_output.shape}")
         
         return predicted_digit, confidence
     except Exception as e:
@@ -84,6 +91,4 @@ if __name__ == "__main__":
 
 
 # python test_model.py
-# Test Accuracy: 0.9695, Loss: 0.1832
-# Retrained Model Test Accuracy: 0.9736, Loss: 0.1852
-# 40 epochs: Test Accuracy: 0.9808, Loss: 0.1511
+# Test Accuracy: 0.9670, Loss: 0.1804

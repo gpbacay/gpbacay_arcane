@@ -6,7 +6,7 @@ from tensorflow.keras.utils import to_categorical
 import matplotlib.pyplot as plt
 import os
 
-from gpbacay_arcane.models import CoherentThoughtModel
+from gpbacay_arcane.models import DSTSMGSER
 from gpbacay_arcane.callbacks import DynamicSelfModelingReservoirCallback
 
 def main():
@@ -17,19 +17,25 @@ def main():
     y_train = to_categorical(y_train, 10)
     y_test = to_categorical(y_test, 10)
 
+    # Flatten the images for the self-modeling output
+    x_train_flat = x_train.reshape((x_train.shape[0], -1))
+    x_test_flat = x_test.reshape((x_test.shape[0], -1))
+
     # Hyperparameters
     input_shape = (28, 28, 1)
     reservoir_dim = 512
     spectral_radius = 2.0
     leak_rate = 0.2
     spike_threshold = 0.5
-    max_dynamic_reservoir_dim = 1024 # Reduced for this model to manage complexity
+    max_dynamic_reservoir_dim = 1024
     output_dim = 10
-    num_thought_steps = 15 # The number of internal "thought" steps
-    d_coherence = 256 # The dimensionality of the coherence vector
+    num_thought_steps = 15
+    d_coherence = 256
+    d_model = 128
+    num_heads = 8
 
     # Initialize the model
-    model_instance = CoherentThoughtModel(
+    model_instance = DSTSMGSER(
         input_shape=input_shape,
         reservoir_dim=reservoir_dim,
         spectral_radius=spectral_radius,
@@ -38,40 +44,48 @@ def main():
         max_dynamic_reservoir_dim=max_dynamic_reservoir_dim,
         output_dim=output_dim,
         num_thought_steps=num_thought_steps,
-        d_coherence=d_coherence
+        d_coherence=d_coherence,
+        d_model=d_model,
+        num_heads=num_heads
     )
     model_instance.build_model()
     model_instance.compile_model()
 
     # Define callbacks
-    early_stopping = EarlyStopping(monitor='val_accuracy', patience=10, mode='max', restore_best_weights=True)
-    reduce_lr = ReduceLROnPlateau(monitor='val_accuracy', factor=0.1, patience=5, mode='max')
+    early_stopping = EarlyStopping(monitor='val_clf_out_accuracy', patience=10, mode='max', restore_best_weights=True)
+    reduce_lr = ReduceLROnPlateau(monitor='val_clf_out_accuracy', factor=0.1, patience=5, mode='max')
     dynamic_reservoir_callback = DynamicSelfModelingReservoirCallback(
         reservoir_layer=model_instance.reservoir_layer,
-        performance_metric='val_accuracy',
+        performance_metric='val_clf_out_accuracy',
         target_metric=0.98,
-        stagnation_epochs=7 # Prune neurons if no improvement for 7 epochs
+        stagnation_epochs=7
     )
 
     # Train the model
     history = model_instance.model.fit(
-        x_train, y_train,
-        validation_data=(x_test, y_test),
-        epochs=10, # Increased epochs for this more complex model
+        x_train, {'clf_out': y_train, 'sm_out': x_train_flat},
+        validation_data=(x_test, {'clf_out': y_test, 'sm_out': x_test_flat}),
+        epochs=10,
         batch_size=64,
         callbacks=[early_stopping, reduce_lr, dynamic_reservoir_callback]
     )
 
     # Evaluate the model
-    loss, acc = model_instance.model.evaluate(x_test, y_test, verbose=2)
-    print(f"\nTest Accuracy: {acc:.4f}, Loss: {loss:.4f}")
+    results = model_instance.model.evaluate(x_test, {'clf_out': y_test, 'sm_out': x_test_flat}, verbose=2)
+    loss = results[0]
+    clf_out_loss = results[1]
+    sm_out_loss = results[2]
+    clf_out_accuracy = results[3]
+    sm_out_mse = results[4]
+    
+    print(f"\nTest Accuracy: {clf_out_accuracy:.4f}, Total Loss: {loss:.4f}")
 
     # Plot Training History
     plt.figure(figsize=(12, 5))
     
     plt.subplot(1, 2, 1)
-    plt.plot(history.history['accuracy'], label='Train Accuracy')
-    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    plt.plot(history.history['clf_out_accuracy'], label='Train Accuracy')
+    plt.plot(history.history['val_clf_out_accuracy'], label='Validation Accuracy')
     plt.title('Model Accuracy')
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
@@ -92,7 +106,7 @@ def main():
     os.makedirs('Models', exist_ok=True)
 
     # Save the model
-    model_path = os.path.join('Models', 'coherent_thought_model.keras')
+    model_path = os.path.join('Models', 'dstsmgser_model.keras')
     model_instance.model.save(model_path)
     print(f"\nModel saved to {model_path}")
 

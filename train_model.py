@@ -6,7 +6,7 @@ from tensorflow.keras.utils import to_categorical
 import matplotlib.pyplot as plt
 import os
 
-from gpbacay_arcane.models import DSTSMGSER
+from gpbacay_arcane.models import HighAccuracyDigitModel, NeuromimeticLanguageModel
 from gpbacay_arcane.callbacks import DynamicSelfModelingReservoirCallback
 
 def train_model():
@@ -21,51 +21,64 @@ def train_model():
     x_train_flat = x_train.reshape((x_train.shape[0], -1))
     x_test_flat = x_test.reshape((x_test.shape[0], -1))
 
-    # Hyperparameters
+    # Hyperparameters (tuned for >=99% MNIST accuracy)
     input_shape = (28, 28, 1)
-    reservoir_dim = 512
-    spectral_radius = 2.0
-    leak_rate = 0.2
-    spike_threshold = 0.5
-    max_dynamic_reservoir_dim = 4096
     output_dim = 10
 
+    # Custom reservoir/GSER parameters
+    reservoir_dim = 1024
+    spectral_radius = 1.5
+    leak_rate = 0.2
+    spike_threshold = 0.5
+    max_dynamic_reservoir_dim = 2048
+
+    # Custom embedding/attention/coherence parameters
+    d_model = 128
+    num_heads = 8
+    num_thought_steps = 8
+    d_coherence = 256
+
     # Initialize the model
-    dstsmgser = DSTSMGSER(
+    model_builder = HighAccuracyDigitModel(
         input_shape=input_shape,
+        output_dim=output_dim,
         reservoir_dim=reservoir_dim,
         spectral_radius=spectral_radius,
         leak_rate=leak_rate,
         spike_threshold=spike_threshold,
         max_dynamic_reservoir_dim=max_dynamic_reservoir_dim,
-        output_dim=output_dim,
-        use_weighted_summary=True
+        d_model=d_model,
+        num_heads=num_heads,
+        num_thought_steps=num_thought_steps,
+        d_coherence=d_coherence,
+        use_weighted_summary=True,
     )
-    dstsmgser.build_model()
-    dstsmgser.compile_model()
+    model_builder.build_model()
+    model_builder.compile_model()
 
     # Define callbacks
-    early_stopping = EarlyStopping(monitor='val_clf_out_accuracy', patience=10, mode='max', restore_best_weights=True)
-    reduce_lr = ReduceLROnPlateau(monitor='val_clf_out_accuracy', factor=0.1, patience=5, mode='max')
+    early_stopping = EarlyStopping(monitor='val_clf_out_accuracy', patience=8, mode='max', restore_best_weights=True)
+    reduce_lr = ReduceLROnPlateau(monitor='val_clf_out_accuracy', factor=0.5, patience=3, mode='max', min_lr=1e-5)
     dynamic_reservoir_callback = DynamicSelfModelingReservoirCallback(
-        reservoir_layer=dstsmgser.reservoir_layer,
+        reservoir_layer=model_builder.reservoir_layer,
         performance_metric='val_clf_out_accuracy',
-        target_metric=0.98
+        target_metric=0.99
     )
 
     # Train the model
-    history = dstsmgser.model.fit(
+    history = model_builder.model.fit(
         x_train, {'clf_out': y_train, 'sm_out': x_train_flat},
         validation_data=(x_test, {'clf_out': y_test, 'sm_out': x_test_flat}),
-        epochs=10,
-        batch_size=64,
+        epochs=20,
+        batch_size=128,
         callbacks=[early_stopping, reduce_lr, dynamic_reservoir_callback]
     )
 
     # Evaluate the model
-    evaluation_results = dstsmgser.model.evaluate(x_test, {'clf_out': y_test, 'sm_out': x_test_flat}, verbose=2)
-    acc, loss = evaluation_results[3], evaluation_results[0]
-    print(f"\nTest Accuracy: {acc:.4f}, Loss: {loss:.4f}")
+    eval_dict = model_builder.model.evaluate(
+        x_test, {'clf_out': y_test, 'sm_out': x_test_flat}, verbose=2, return_dict=True
+    )
+    print(f"\nTest Accuracy: {eval_dict.get('clf_out_accuracy', 0):.4f}, Loss: {eval_dict.get('loss', 0):.4f}")
 
     # Plot Training History
     plt.figure(figsize=(12, 5))
@@ -92,8 +105,8 @@ def train_model():
     os.makedirs('Models', exist_ok=True)
 
     # Save the model
-    model_path = os.path.join('Models', 'dstsmgser_model.keras')
-    dstsmgser.model.save(model_path)
+    model_path = os.path.join('Models', 'high_accuracy_digit_model.keras')
+    model_builder.model.save(model_path)
     print(f"\nModel saved to {model_path}")
 
 
