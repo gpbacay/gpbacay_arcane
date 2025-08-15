@@ -4,34 +4,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>A.R.C.A.N.E. - Digit Recognition</title>
+    <title>A.R.C.A.N.E. - Neuromimetic Language Model</title>
     <link rel="icon" href="{% static 'assets/arcane_logo.ico' %}" type="image/x-icon">
     <link rel="stylesheet" href="{% static 'recognizer/style.css' %}">
 </head>
 <body class="bg-background text-foreground relative min-h-screen">
+    <!-- About Button -->
     <button id="about-btn" class="absolute top-4 right-4 z-40 text-primary hover:text-primary/80 p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
     </button>
+
     <div class="container mx-auto p-4 md:p-8 min-h-screen flex items-center">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full">
 
-            <!-- Left Column: Recognizer -->
+            <!-- Left Column: Language Model Interface -->
             <div class="lg:col-span-1">
                 <div class="bg-card p-6 rounded-lg shadow-lg border border-border h-full flex flex-col">
-                    <h2 class="text-2xl font-bold text-center text-primary mb-4">Digit Recognizer</h2>
+                    <h2 class="text-2xl font-bold text-center text-primary mb-4">Neuromimetic Language Model</h2>
     
-                    <div id="canvas-container" class="mb-4 rounded-lg overflow-hidden border-2 border-primary/50 shadow-inner">
-                        <canvas id="drawing-canvas" width="280" height="280" class="w-full h-auto cursor-crosshair bg-input"></canvas>
-            </div>
-            
-                    <button id="clear-btn" class="w-full bg-primary text-primary-foreground font-bold py-3 px-4 rounded-lg hover:bg-primary/90 transition-colors duration-300 shadow-md">
-                Clear Canvas
-            </button>
-    
-                    <div id="result-container" class="mt-6 p-4 bg-muted rounded-lg border border-border text-center">
-                        <div class="result-item text-lg">Prediction: <span id="prediction" class="font-bold text-primary ml-2">-</span></div>
-                        <div class="result-item text-md text-muted-foreground mt-2">Confidence: <span id="confidence" class="font-bold text-primary ml-2">-</span></div>
-                        <div id="loader" class="text-primary mt-2 hidden">Processing...</div>
+                    <!-- Model Status -->
+                    <div id="model-status" class="mb-4 p-3 rounded-lg border {% if model_loaded and tokenizer_loaded %}border-green-500 bg-green-500/10{% else %}border-red-500 bg-red-500/10{% endif %}">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full {% if model_loaded and tokenizer_loaded %}bg-green-500{% else %}bg-red-500{% endif %}"></div>
+                            <span class="text-sm font-medium">
+                                {% if model_loaded and tokenizer_loaded %}
+                                    Model Ready
+                                {% else %}
+                                    Model Loading...
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Text Input -->
+                    <div class="mb-4">
+                        <label for="seed-text" class="block text-sm font-medium text-muted-foreground mb-2">Seed Text:</label>
+                        <textarea 
+                            id="seed-text" 
+                            rows="3" 
+                            class="w-full p-3 bg-input border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                            placeholder="Enter your seed text here (e.g., 'to be or not to be')"
+                        ></textarea>
+                    </div>
+
+                    <!-- Controls -->
+                    <div class="mb-4 space-y-4">
+                        <!-- Temperature Control -->
+                        <div>
+                            <label for="temperature" class="block text-sm font-medium text-muted-foreground mb-2">
+                                Creativity: <span id="temperature-value">0.8</span>
+                            </label>
+                            <input 
+                                type="range" 
+                                id="temperature" 
+                                min="0.1" 
+                                max="2.0" 
+                                step="0.1" 
+                                value="0.8" 
+                                class="w-full h-2 bg-input rounded-lg appearance-none cursor-pointer slider"
+                            />
+                            <div class="flex justify-between text-xs text-muted-foreground mt-1">
+                                <span>Conservative</span>
+                                <span>Balanced</span>
+                                <span>Creative</span>
+                            </div>
+                        </div>
+
+                        <!-- Length Control -->
+                        <div>
+                            <label for="max-length" class="block text-sm font-medium text-muted-foreground mb-2">
+                                Max Length: <span id="length-value">50</span> words
+                            </label>
+                            <input 
+                                type="range" 
+                                id="max-length" 
+                                min="10" 
+                                max="100" 
+                                step="5" 
+                                value="50" 
+                                class="w-full h-2 bg-input rounded-lg appearance-none cursor-pointer slider"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Generate Button -->
+                    <button 
+                        id="generate-btn" 
+                        class="w-full bg-primary text-primary-foreground font-bold py-3 px-4 rounded-lg hover:bg-primary/90 transition-colors duration-300 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        {% if not model_loaded or not tokenizer_loaded %}disabled{% endif %}
+                    >
+                        Generate Text
+                    </button>
+
+                    <!-- Generated Text Display -->
+                    <div id="result-container" class="mt-6 p-4 bg-muted rounded-lg border border-border flex-1">
+                        <div class="text-sm text-muted-foreground mb-2">Generated Text:</div>
+                        <div id="generated-text" class="text-foreground min-h-[100px] whitespace-pre-wrap">
+                            Click "Generate Text" to see the neuromimetic language model in action...
+                        </div>
+                        <div id="generation-info" class="text-xs text-muted-foreground mt-3 hidden">
+                            <!-- Generation metadata will appear here -->
+                        </div>
+                        <div id="loader" class="text-primary mt-2 hidden flex items-center space-x-2">
+                            <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                            <span>Generating...</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -41,10 +118,46 @@
                 <div class="w-full max-w-3xl text-center">
                     <div class="mb-8">
                         <h1 class="text-6xl font-bold text-primary">A.R.C.A.N.E.</h1>
-                        <p class="text-muted-foreground">Augmented Reconstruction of Consciousness through Artificial Neural Evolution</p>
+                        <p class="text-muted-foreground text-lg mt-2">Augmented Reconstruction of Consciousness through Artificial Neural Evolution</p>
+                        <p class="text-sm text-muted-foreground mt-4">
+                            The world's first neuromimetic language foundation model
+                        </p>
                     </div>
                     
-                    <div id="three-container" class="w-full h-80 rounded-lg border border-border shadow-inner bg-card mt-8"></div>
+                    <!-- Model Architecture Visualization -->
+                    <div id="architecture-container" class="w-full h-80 rounded-lg border border-border shadow-inner bg-card mt-8 p-6">
+                        <h3 class="text-xl font-semibold mb-4 text-secondary-foreground">Neuromimetic Architecture</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                            <div class="space-y-3">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                    <span class="text-sm">DenseGSER Spiking Layers</span>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                                    <span class="text-sm">BioplasticDenseLayer</span>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-3 h-3 bg-purple-500 rounded-full"></div>
+                                    <span class="text-sm">LSTM Temporal Processing</span>
+                                </div>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                                    <span class="text-sm">Hebbian Learning</span>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                                    <span class="text-sm">Homeostatic Plasticity</span>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-3 h-3 bg-indigo-500 rounded-full"></div>
+                                    <span class="text-sm">Feature Fusion</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>
@@ -58,22 +171,27 @@
             </button>
             <div id="modal-content">
                 <div class="bg-card p-6 rounded-lg">
-                    <h2 class="text-2xl font-semibold text-secondary-foreground border-b-2 border-secondary inline-block px-4 pb-2 mb-4">Project Overview</h2>
-                    <p class="text-muted-foreground mb-6 text-lg leading-relaxed max-w-2xl mx-auto">
-                        An advanced neuromorphic architecture designed to process complex spatio-temporal patterns with high adaptability and efficiency.
+                    <h2 class="text-2xl font-semibold text-secondary-foreground border-b-2 border-secondary inline-block px-4 pb-2 mb-4">Neuromimetic Language Foundation Model</h2>
+                    <p class="text-muted-foreground mb-6 text-lg leading-relaxed">
+                        A revolutionary language model that incorporates biological neural principles including spiking neural dynamics, 
+                        Hebbian learning, and homeostatic plasticity. This represents the first successful implementation of a 
+                        neuromimetic language foundation model.
                     </p>
-                    <div class="model-info bg-muted rounded-lg p-4 border border-border max-w-2xl mx-auto">
-                        <p class="text-md text-foreground">
-                            <b class="font-bold text-primary">Model:</b> 
-                            <span>Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir</span>
-                        </p>
+                    <div class="model-info bg-muted rounded-lg p-4 border border-border">
+                        <h3 class="font-bold text-primary mb-3">Key Features:</h3>
+                        <ul class="text-sm text-foreground space-y-2">
+                            <li>• <strong>Dual DenseGSER Layers:</strong> Spiking neural dynamics with reservoir computing</li>
+                            <li>• <strong>BioplasticDenseLayer:</strong> Hebbian learning and synaptic plasticity</li>
+                            <li>• <strong>LSTM Integration:</strong> Temporal sequence processing</li>
+                            <li>• <strong>Homeostatic Regulation:</strong> Activity-dependent neural regulation</li>
+                            <li>• <strong>Advanced Sampling:</strong> Multiple creativity levels for text generation</li>
+                        </ul>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="{% static 'recognizer/script.js' %}"></script>
 </body>
-</html> 
+</html>

@@ -63,13 +63,27 @@ class GSER(Layer):
         self.neurogenesis_rate = neurogenesis_rate
         self.pruning_rate = pruning_rate
         
-        # State tracking for elastic reservoir
-        self.current_reservoir_size = tf.Variable(initial_reservoir_size, trainable=False, dtype=tf.int32)
+        # State tracking for elastic reservoir (will be created in build method)
+        self.initial_reservoir_size_value = initial_reservoir_size
+        self.current_reservoir_size = None
         
         self.state_size = [self.max_dynamic_reservoir_dim]
         self.output_size = self.max_dynamic_reservoir_dim
         
-        # Initialize weights and reservoirs using pre-allocation
+    def build(self, input_shape):
+        """Build the layer and initialize all weights on the correct device."""
+        super().build(input_shape)
+        
+        # Create the current reservoir size variable in build method to ensure proper device placement
+        self.current_reservoir_size = self.add_weight(
+            shape=(),
+            initializer=tf.keras.initializers.Constant(self.initial_reservoir_size_value),
+            trainable=False,
+            dtype=tf.int32,
+            name='current_reservoir_size'
+        )
+        
+        # Initialize all other weights
         self.initialize_weights()
 
     def initialize_weights(self):
@@ -200,8 +214,11 @@ class GSER(Layer):
             tensor: The updated state of the reservoir after processing the input.
             list: The updated state of the reservoir for use in the next time step.
         """
+        # Convert to float32 for computation to avoid mixed precision issues
+        inputs = tf.cast(inputs, tf.float32)
+        
         active_size = self.current_reservoir_size
-        prev_state = states[0][:, :active_size]
+        prev_state = tf.cast(states[0][:, :active_size], tf.float32)
 
         # Get active weights using slicing
         active_input_weights = self.spatiotemporal_input_weights[:active_size, :]
@@ -360,6 +377,9 @@ class DenseGSER(Layer):
         self.built = True
 
     def call(self, inputs):
+        # Convert to float32 for computation to avoid mixed precision issues
+        inputs = tf.cast(inputs, tf.float32)
+        
         # Ensure that input is of the expected shape
         input_part = tf.matmul(inputs, self.input_weights)
         reservoir_part = tf.matmul(inputs, self.reservoir_weights)
@@ -919,6 +939,9 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
         """Enhanced forward pass with multiple plasticity mechanisms."""
         if training is None:
             training = tf.keras.backend.learning_phase()
+        
+        # Convert to float32 for computation to avoid mixed precision issues
+        inputs = tf.cast(inputs, tf.float32)
             
         # Handle temporal sequences
         original_shape = tf.shape(inputs)
@@ -1691,6 +1714,9 @@ class LatentTemporalCoherence(Layer):
         super(LatentTemporalCoherence, self).build(input_shape)
 
     def call(self, inputs):
+        # Convert to float32 for computation to avoid mixed precision issues
+        inputs = tf.cast(inputs, tf.float32)
+        
         # inputs shape: (batch_size, num_ticks, num_neurons)
         num_ticks = tf.shape(inputs)[1]
 

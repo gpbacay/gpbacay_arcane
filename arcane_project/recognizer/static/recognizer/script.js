@@ -1,232 +1,241 @@
+// A.R.C.A.N.E. Neuromimetic Language Model Interface
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Canvas and UI Elements
-    const canvas = document.getElementById('drawing-canvas');
-    const ctx = canvas.getContext('2d');
-    const clearBtn = document.getElementById('clear-btn');
-    const predictionSpan = document.getElementById('prediction');
-    const confidenceSpan = document.getElementById('confidence');
+    // UI Elements
+    const seedTextArea = document.getElementById('seed-text');
+    const temperatureSlider = document.getElementById('temperature');
+    const temperatureValue = document.getElementById('temperature-value');
+    const maxLengthSlider = document.getElementById('max-length');
+    const lengthValue = document.getElementById('length-value');
+    const generateBtn = document.getElementById('generate-btn');
+    const generatedText = document.getElementById('generated-text');
+    const generationInfo = document.getElementById('generation-info');
     const loader = document.getElementById('loader');
     const aboutBtn = document.getElementById('about-btn');
-    const closeModalBtn = document.getElementById('close-modal-btn');
     const aboutModal = document.getElementById('about-modal');
+    const closeModalBtn = document.getElementById('close-modal-btn');
+    const modelStatus = document.getElementById('model-status');
 
-    let isDrawing = false;
-    let lastX = 0;
-    let lastY = 0;
+    // Update slider displays
+    temperatureSlider.addEventListener('input', function() {
+        temperatureValue.textContent = this.value;
+        updateTemperatureDescription();
+    });
 
-    function getCanvasCoordinates(e) {
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        
-        let clientX, clientY;
-        if (e.touches && e.touches[0]) {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
+    maxLengthSlider.addEventListener('input', function() {
+        lengthValue.textContent = this.value;
+    });
+
+    function updateTemperatureDescription() {
+        const temp = parseFloat(temperatureSlider.value);
+        let description;
+        if (temp < 0.6) {
+            description = 'Conservative';
+        } else if (temp < 1.1) {
+            description = 'Balanced';
         } else {
-            clientX = e.clientX;
-            clientY = e.clientY;
+            description = 'Creative';
+        }
+        temperatureValue.textContent = `${temp} (${description})`;
+    }
+
+    // Initialize temperature description
+    updateTemperatureDescription();
+
+    // Generate Text Function
+    generateBtn.addEventListener('click', async function() {
+        const seedText = seedTextArea.value.trim();
+        
+        if (!seedText) {
+            alert('Please enter some seed text to start generation.');
+            return;
         }
 
-        const x = (clientX - rect.left) * scaleX;
-        const y = (clientY - rect.top) * scaleY;
+        if (seedText.length > 200) {
+            alert('Seed text is too long. Please limit to 200 characters.');
+            return;
+        }
 
-        return { x, y };
-    }
+        // Disable button and show loader
+        generateBtn.disabled = true;
+        loader.classList.remove('hidden');
+        generatedText.textContent = '';
+        generationInfo.classList.add('hidden');
 
-    // Canvas Setup
-    function initializeCanvas() {
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 20;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-    }
+        try {
+            const response = await fetch('/generate/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    seed_text: seedText,
+                    temperature: parseFloat(temperatureSlider.value),
+                    max_length: parseInt(maxLengthSlider.value)
+                })
+            });
 
-    // Event Listeners
-    canvas.addEventListener('mousedown', startDrawing);
-    canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDrawing);
-    canvas.addEventListener('mouseout', stopDrawing);
-    canvas.addEventListener('touchstart', startDrawing);
-    canvas.addEventListener('touchmove', draw);
-    canvas.addEventListener('touchend', stopDrawing);
-    clearBtn.addEventListener('click', clearCanvas);
-    aboutBtn.addEventListener('click', () => {
+            const data = await response.json();
+
+            if (response.ok) {
+                // Display generated text
+                generatedText.textContent = data.generated_text;
+                
+                // Show generation info
+                generationInfo.innerHTML = `
+                    <strong>Seed:</strong> "${data.seed_text}" | 
+                    <strong>Temperature:</strong> ${data.temperature} | 
+                    <strong>Max Length:</strong> ${data.max_length} words
+                `;
+                generationInfo.classList.remove('hidden');
+            } else {
+                generatedText.textContent = `Error: ${data.error}`;
+                generatedText.className = 'text-red-500';
+            }
+
+        } catch (error) {
+            console.error('Generation error:', error);
+            generatedText.textContent = `Network error: ${error.message}`;
+            generatedText.className = 'text-red-500';
+        }
+
+        // Re-enable button and hide loader
+        generateBtn.disabled = false;
+        loader.classList.add('hidden');
+    });
+
+    // Modal functionality
+    aboutBtn.addEventListener('click', function() {
         aboutModal.classList.remove('hidden');
         aboutModal.classList.add('flex');
     });
-    closeModalBtn.addEventListener('click', () => {
+
+    closeModalBtn.addEventListener('click', function() {
         aboutModal.classList.add('hidden');
         aboutModal.classList.remove('flex');
     });
-    aboutModal.addEventListener('click', (e) => {
+
+    aboutModal.addEventListener('click', function(e) {
         if (e.target === aboutModal) {
             aboutModal.classList.add('hidden');
             aboutModal.classList.remove('flex');
         }
     });
 
-    // Drawing Handlers
-    function startDrawing(e) {
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + Enter to generate
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
-        isDrawing = true;
-        const { x, y } = getCanvasCoordinates(e);
-        [lastX, lastY] = [x, y];
-    }
-
-    function draw(e) {
-        if (!isDrawing) return;
-        e.preventDefault();
-        const { x, y } = getCanvasCoordinates(e);
-        ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        [lastX, lastY] = [x, y];
-        predictDebounced();
-    }
-
-    function stopDrawing() {
-        if (isDrawing) {
-            predictDebounced();
+            if (!generateBtn.disabled) {
+                generateBtn.click();
+            }
         }
-        isDrawing = false;
-    }
-
-    function clearCanvas() {
-        initializeCanvas();
-        predictionSpan.textContent = '-';
-        confidenceSpan.textContent = '-';
-        resetCuboctahedron();
-    }
-
-    // Debounce function
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-
-    const predictDebounced = debounce(predict, 300);
-
-    // Prediction Logic
-    function predict() {
-        loader.style.display = 'block';
-
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCanvas.width = 28;
-        tempCanvas.height = 28;
         
-        tempCtx.fillStyle = 'black';
-        tempCtx.fillRect(0, 0, 28, 28);
-        tempCtx.drawImage(canvas, 0, 0, 280, 280, 0, 0, 28, 28);
-    
-        const imageData = tempCtx.getImageData(0, 0, 28, 28);
-        const data = new Float32Array(28 * 28);
-        for (let i = 0; i < imageData.data.length; i += 4) {
-            data[i / 4] = imageData.data[i] / 255.0; // Use the red channel for grayscale
+        // Escape to close modal
+        if (e.key === 'Escape') {
+            aboutModal.classList.add('hidden');
+            aboutModal.classList.remove('flex');
         }
+    });
 
-        const apiUrl = '/predict/';
+    // Auto-resize textarea
+    seedTextArea.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
 
-        fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                image: Array.from(data)
-            })
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Network response was not ok (status: ${response.status})`);
+    // Check model status periodically
+    async function checkModelStatus() {
+        try {
+            const response = await fetch('/health/');
+            const data = await response.json();
+            
+            const statusIndicator = modelStatus.querySelector('.w-3.h-3.rounded-full');
+            const statusText = modelStatus.querySelector('span');
+            
+            if (data.model_loaded && data.tokenizer_loaded) {
+                statusIndicator.className = statusIndicator.className.replace('bg-red-500', 'bg-green-500');
+                modelStatus.className = modelStatus.className.replace('border-red-500 bg-red-500/10', 'border-green-500 bg-green-500/10');
+                statusText.textContent = 'Model Ready';
+                generateBtn.disabled = false;
+            } else {
+                statusIndicator.className = statusIndicator.className.replace('bg-green-500', 'bg-red-500');
+                modelStatus.className = modelStatus.className.replace('border-green-500 bg-green-500/10', 'border-red-500 bg-red-500/10');
+                statusText.textContent = 'Model Loading...';
+                generateBtn.disabled = true;
             }
-            return response.json();
-        })
-        .then(result => {
-            if (result.error) {
-                throw new Error(result.error);
-            }
-            predictionSpan.textContent = result.digit;
-            confidenceSpan.textContent = `${(result.confidence * 100).toFixed(2)}%`;
-            updateCuboctahedron(result.confidence);
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            predictionSpan.textContent = 'Error';
-            confidenceSpan.textContent = 'N/A';
-        })
-        .finally(() => {
-            loader.style.display = 'none';
+        } catch (error) {
+            console.error('Health check failed:', error);
+        }
+    }
+
+    // Check status every 10 seconds
+    setInterval(checkModelStatus, 10000);
+
+    // Sample text suggestions
+    const sampleTexts = [
+        "to be or not to be",
+        "once upon a time",
+        "in a distant galaxy",
+        "the meaning of life",
+        "artificial intelligence will",
+        "consciousness is defined as"
+    ];
+
+    // Add sample text buttons
+    function addSampleButtons() {
+        const container = document.createElement('div');
+        container.className = 'mb-4';
+        container.innerHTML = '<div class="text-sm text-muted-foreground mb-2">Quick starts:</div>';
+        
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.className = 'flex flex-wrap gap-2';
+        
+        sampleTexts.forEach(text => {
+            const button = document.createElement('button');
+            button.className = 'px-2 py-1 text-xs bg-muted hover:bg-muted/80 text-muted-foreground rounded border border-border transition-colors';
+            button.textContent = `"${text}"`;
+            button.addEventListener('click', () => {
+                seedTextArea.value = text;
+                seedTextArea.focus();
+            });
+            buttonsContainer.appendChild(button);
         });
+        
+        container.appendChild(buttonsContainer);
+        seedTextArea.parentNode.insertBefore(container, seedTextArea);
     }
 
-    // Three.js Scene for Cuboctahedron
-    const threeContainer = document.getElementById('three-container');
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, threeContainer.clientWidth / threeContainer.clientHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
-    threeContainer.appendChild(renderer.domElement);
+    // Add sample buttons
+    addSampleButtons();
 
-    // Function to get color from CSS variable
-    function getCssVar(varName) {
-        return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    // Get model info on load
+    async function loadModelInfo() {
+        try {
+            const response = await fetch('/model-info/');
+            const data = await response.json();
+            
+            if (response.ok && data.parameters) {
+                console.log('Neuromimetic Model Info:', data);
+                
+                // Could display model parameters in the architecture section
+                const archContainer = document.getElementById('architecture-container');
+                if (archContainer) {
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'mt-4 text-xs text-muted-foreground text-center';
+                    infoDiv.innerHTML = `
+                        <div>Parameters: ${data.parameters.total_parameters.toLocaleString()}</div>
+                        <div>Layers: ${data.parameters.layers}</div>
+                    `;
+                    archContainer.appendChild(infoDiv);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load model info:', error);
+        }
     }
 
-    const geometry = new THREE.IcosahedronGeometry(1.5, 1);
-    const material = new THREE.MeshStandardMaterial({ 
-        color: new THREE.Color(getCssVar('--primary')), 
-        wireframe: true,
-        metalness: 0.5,
-        roughness: 0.8
-    });
-    const shape = new THREE.Mesh(geometry, material);
-    scene.add(shape);
-    camera.position.z = 4;
-
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
-    const pointLight = new THREE.PointLight(new THREE.Color(getCssVar('--primary')), 0.8); 
-    pointLight.position.set(5, 5, 5);
-    scene.add(pointLight);
-
-    function animate() {
-        requestAnimationFrame(animate);
-        shape.rotation.x += 0.005;
-        shape.rotation.y += 0.005;
-        renderer.render(scene, camera);
-    }
-
-    function resetCuboctahedron() {
-        shape.scale.set(1, 1, 1);
-        shape.rotation.set(0, 0, 0);
-    }
-
-    function updateCuboctahedron(confidence) {
-        const scale = 1 + confidence * 0.7;
-        shape.scale.set(scale, scale, scale);
-    }
-    
-    // Handle window resize
-    window.addEventListener('resize', () => {
-        camera.aspect = threeContainer.clientWidth / threeContainer.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
-    });
-
-    // Initial setup
-    initializeCanvas();
-    animate();
+    // Load model info
+    loadModelInfo();
 }); 
