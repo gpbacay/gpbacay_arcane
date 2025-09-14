@@ -28,75 +28,193 @@ This is the **world's first neuromimetic language foundation model** that bridge
 - **Context-aware Processing**: 16-token sequence understanding
 - **Adaptive Creativity**: Temperature-controlled output diversity
 
-## 🛠️ Installation
+## 🛠️ Installation & Setup
 
 ### Prerequisites
 - Python 3.11+
 - TensorFlow 2.12+
-- Django 4.2+
+- (Optional) Django 4.2+ for documentation interface
 
-### Quick Start
+### Installation Methods
 
-1. **Clone the repository**:
+#### Option 1: Install from PyPI (Recommended)
+```bash
+pip install gpbacay-arcane
+```
+
+#### Option 2: Install from Source
 ```bash
 git clone https://github.com/yourusername/gpbacay_arcane.git
 cd gpbacay_arcane
-```
-
-2. **Install dependencies**:
-```bash
-pip install -r requirements.txt
-```
-
-3. **Install the gpbacay_arcane package**:
-```bash
 pip install -e .
 ```
 
-4. **Train the neuromimetic language model**:
-```bash
-python train_neuromimetic_lm.py
-```
-
-5. **Run the web interface**:
-```bash
-cd arcane_project
-python manage.py runserver
-```
-
-6. **Open your browser** to `http://localhost:8000`
-
-## 🎮 Usage
-
-### Web Interface
-The Django web application provides an intuitive interface to:
-- Input seed text for generation
-- Control creativity level (temperature)
-- Adjust generation length
-- View real-time model status
-
-### API Endpoints
-- `POST /generate/` - Generate text from seed
-- `GET /model-info/` - Get model architecture info
-- `GET /health/` - Check model status
-
-### Programmatic Usage
+#### Basic Usage
 ```python
-from gpbacay_arcane.models import NeuromimeticLanguageModel
+from gpbacay_arcane import NeuromimeticLanguageModel
 
-# Load the model
+# Initialize the model
 model = NeuromimeticLanguageModel(vocab_size=1000)
 model.build_model()
 model.compile_model()
 
-# Generate text
-generated = model.generate_text(
-    seed_text="to be or not to be",
-    temperature=0.8,
-    max_length=50
+# Generate text (requires trained tokenizer)
+generated_text = model.generate_text(
+    seed_text="artificial intelligence",
+    max_length=50,
+    temperature=0.8
 )
-print(generated)
+print(generated_text)
 ```
+
+## 🎮 Usage
+
+### Core Python Package
+
+The `gpbacay-arcane` package provides the neuromimetic language model implementation:
+
+#### Complete Training and Usage Example
+```python
+import numpy as np
+from gpbacay_arcane import NeuromimeticLanguageModel
+from tensorflow.keras.preprocessing.text import Tokenizer
+
+# 1. Prepare your text data
+text_data = "your training text here..."
+
+# 2. Create and train tokenizer
+tokenizer = Tokenizer(num_words=1000, oov_token="<UNK>")
+tokenizer.fit_on_texts([text_data])
+
+# 3. Initialize the neuromimetic model
+model = NeuromimeticLanguageModel(
+    vocab_size=len(tokenizer.word_index) + 1,
+    seq_len=16,
+    embed_dim=32,
+    hidden_dim=64
+)
+
+# 4. Build and compile the model
+neuromimetic_model = model.build_model()
+model.compile_model(learning_rate=1e-3)
+
+# 5. Generate text after training
+generated_text = model.generate_text(
+    seed_text="artificial intelligence is",
+    tokenizer=tokenizer,
+    max_length=50,
+    temperature=0.8  # 0.6=conservative, 0.9=balanced, 1.2=creative
+)
+print(f"Generated: {generated_text}")
+```
+
+#### Using Individual Neural Layers
+```python
+from gpbacay_arcane.layers import DenseGSER, BioplasticDenseLayer
+from tensorflow.keras.layers import Input
+from tensorflow.keras.models import Model
+
+# Build custom architecture with neuromimetic layers
+inputs = Input(shape=(16, 32))  # (sequence_length, embedding_dim)
+
+# Spiking neural layer with reservoir computing
+spiking_layer = DenseGSER(
+    units=64,
+    spectral_radius=0.9,
+    leak_rate=0.1,
+    spike_threshold=0.35,
+    activation='gelu'
+)(inputs)
+
+# Hebbian learning layer
+hebbian_layer = BioplasticDenseLayer(
+    units=128,
+    learning_rate=1e-3,
+    target_avg=0.11,
+    homeostatic_rate=8e-5,
+    activation='gelu'
+)(spiking_layer)
+
+# Create custom model
+custom_model = Model(inputs=inputs, outputs=hebbian_layer)
+```
+
+#### Training Your Own Model
+```python
+# For complete training pipeline, use the training script:
+# python train_neuromimetic_lm.py
+
+# Or integrate into your training loop:
+from gpbacay_arcane.callbacks import DynamicSelfModelingReservoirCallback
+
+# Add self-modeling callback during training
+callback = DynamicSelfModelingReservoirCallback(
+    reservoir_layer=your_gser_layer,
+    performance_metric='accuracy',
+    target_metric=0.98,
+    growth_rate=10
+)
+
+model.fit(X_train, y_train, callbacks=[callback])
+```
+
+### Advanced Features
+
+#### Multi-Temperature Text Generation
+```python
+# Conservative generation (coherent, safe)
+conservative = model.generate_text(
+    seed_text="machine learning",
+    tokenizer=tokenizer,
+    temperature=0.6,
+    max_length=30
+)
+
+# Balanced generation (creative but coherent)
+balanced = model.generate_text(
+    seed_text="machine learning",
+    tokenizer=tokenizer,
+    temperature=0.9,
+    max_length=30
+)
+
+# Creative generation (diverse, experimental)
+creative = model.generate_text(
+    seed_text="machine learning",
+    tokenizer=tokenizer,
+    temperature=1.2,
+    max_length=30
+)
+```
+
+#### Model Information and Statistics
+```python
+# Get model architecture information
+model_info = model.get_model_info()
+print(f"Model: {model_info['name']}")
+print(f"Features: {model_info['features']}")
+print(f"Parameters: {model_info['parameters']}")
+
+# Access bioplastic layer statistics (if using BioplasticDenseLayer)
+for layer in model.model.layers:
+    if hasattr(layer, 'get_plasticity_stats'):
+        stats = layer.get_plasticity_stats()
+        print(f"Average activity: {stats['avg_activity'].mean():.3f}")
+        print(f"Synaptic density: {stats['synaptic_density']:.3f}")
+```
+
+### Web Interface (Documentation Only)
+
+A Django web interface is included for **documentation and demonstration purposes only**. The actual functionality is accessed through the Python package:
+
+```bash
+# Run documentation interface (optional)
+cd arcane_project
+python manage.py runserver
+# Visit http://localhost:8000 for demonstrations
+```
+
+**Note**: The web interface is for showcasing the model's capabilities. For production use, integrate the `gpbacay-arcane` package directly into your Python applications.
 
 ## 🏗️ Architecture
 

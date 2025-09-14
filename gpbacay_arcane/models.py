@@ -285,3 +285,10 @@ def load_neuromimetic_model(model_path, tokenizer_path=None):
         return model, tokenizer
     
     return model
+
+
+# Legacy model aliases for backward compatibility
+# These provide compatibility with older references while using the main neuromimetic architecture
+DSTSMGSER = NeuromimeticLanguageModel  # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir
+GSERModel = NeuromimeticLanguageModel  # Simplified Gated Spiking Elastic Reservoir Model  
+CoherentThoughtModel = NeuromimeticLanguageModel  # Coherent Thought Model
