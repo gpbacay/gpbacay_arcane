@@ -158,6 +158,8 @@ callback = DynamicSelfModelingReservoirCallback(
 model.fit(X_train, y_train, callbacks=[callback])
 ```
 
+**Note**: All trained models are automatically saved to the `/Models` folder for easy organization and access.
+
 ### Advanced Features
 
 #### Multi-Temperature Text Generation
@@ -215,6 +217,28 @@ python manage.py runserver
 ```
 
 **Note**: The web interface is for showcasing the model's capabilities. For production use, integrate the `gpbacay-arcane` package directly into your Python applications.
+
+### 🦙 Create A.R.C.A.N.E. Foundation Model with Ollama
+
+**Create a neuromimetic foundation small language model** by combining Ollama's llama3.2:1b with A.R.C.A.N.E.'s biological neural mechanisms:
+
+```bash
+# Install dependencies
+pip install ollama sentence-transformers
+
+# Install and pull Ollama model
+# Download Ollama from: https://ollama.ai
+ollama pull llama3.2:1b
+
+# Create the foundation model
+python create_foundation_model.py
+```
+
+This creates a single, comprehensive neuromimetic foundation model that:
+- Combines Ollama's pre-trained knowledge with biological neural dynamics
+- Features spiking neural networks and Hebbian learning
+- Automatically saves to `/Models` folder
+- Provides a foundation for neuromimetic language modeling
 
 ## 🏗️ Architecture
 

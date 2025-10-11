@@ -31,9 +31,18 @@ django-cors-headers>=4.0.0
 # Additional utilities
 Pillow>=9.0.0  # Image processing (if needed)
 
+# Optional integrations (install separately if needed)
+ollama>=0.1.0  # For Ollama AI integration
+sentence-transformers>=2.2.0  # For advanced text embeddings
+
 # Development dependencies (optional)
 # Uncomment these for development
 # django-debug-toolbar>=4.0.0
 # pytest-django>=4.5.0
 # black>=23.0.0
 # flake8>=6.0.0
+
+
+# python setup.py sdist bdist_wheel
+# pip install dist/gpbacay_arcane-2.0.2-py3-none-any.whl --force-reinstall
+# twine upload dist/*

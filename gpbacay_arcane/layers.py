@@ -217,8 +217,44 @@ class GSER(Layer):
         # Convert to float32 for computation to avoid mixed precision issues
         inputs = tf.cast(inputs, tf.float32)
         
+        # Handle states parameter - ensure it's a proper tensor
+        if isinstance(states, (list, tuple)):
+            # If states is a list/tuple, get the first element
+            if len(states) > 0:
+                state_item = states[0]
+                if isinstance(state_item, str):
+                    # This is a TensorFlow issue where tensor gets stringified
+                    # Initialize with zeros as fallback
+                    batch_size = tf.shape(inputs)[0]
+                    prev_state_full = tf.zeros((batch_size, self.max_dynamic_reservoir_dim), dtype=tf.float32)
+                    print(f"Warning: GSER received string state, using zero initialization: {state_item[:50]}...")
+                else:
+                    prev_state_full = state_item
+            else:
+                # Initialize with zeros if no states
+                batch_size = tf.shape(inputs)[0]
+                prev_state_full = tf.zeros((batch_size, self.max_dynamic_reservoir_dim), dtype=tf.float32)
+        else:
+            # If states is directly a tensor
+            if isinstance(states, str):
+                # Fallback to zero initialization
+                batch_size = tf.shape(inputs)[0]
+                prev_state_full = tf.zeros((batch_size, self.max_dynamic_reservoir_dim), dtype=tf.float32)
+                print(f"Warning: GSER received string state, using zero initialization: {states[:50]}...")
+            else:
+                prev_state_full = states
+        
+        # Ensure prev_state_full is a tensor with correct dtype
+        try:
+            prev_state_full = tf.cast(prev_state_full, tf.float32)
+        except (TypeError, ValueError) as e:
+            # If casting fails, it might be a string, fallback to zero initialization
+            print(f"Warning: Failed to cast state to tensor ({e}), using zero initialization")
+            batch_size = tf.shape(inputs)[0]
+            prev_state_full = tf.zeros((batch_size, self.max_dynamic_reservoir_dim), dtype=tf.float32)
+        
         active_size = self.current_reservoir_size
-        prev_state = tf.cast(states[0][:, :active_size], tf.float32)
+        prev_state = prev_state_full[:, :active_size]
 
         # Get active weights using slicing
         active_input_weights = self.spatiotemporal_input_weights[:active_size, :]
@@ -258,6 +294,17 @@ class GSER(Layer):
         padded_state.set_shape([None, self.max_dynamic_reservoir_dim])
 
         return padded_state, [padded_state]
+
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
+        """Get the initial state for the RNN layer."""
+        if batch_size is None and inputs is not None:
+            batch_size = tf.shape(inputs)[0]
+        if dtype is None:
+            dtype = tf.float32
+        
+        # Return initial state as a list of tensors
+        initial_state = tf.zeros((batch_size, self.max_dynamic_reservoir_dim), dtype=dtype)
+        return [initial_state]
 
     def get_config(self):
         """Returns the configuration of the layer, useful for model serialization."""

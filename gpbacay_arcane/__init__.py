@@ -19,11 +19,21 @@ from .models import (
     load_neuromimetic_model,
 )
 
+# Ollama integration (optional)
+try:
+    from .ollama_integration import (
+        OllamaARCANEHybrid,
+        create_custom_lm_with_ollama
+    )
+except ImportError:
+    # Ollama integration not available (missing dependencies)
+    pass
+
 # Legacy model aliases (deprecated but maintained for compatibility)
 DSTSMGSER = NeuromimeticLanguageModel
 GSERModel = NeuromimeticLanguageModel
 CoherentThoughtModel = NeuromimeticLanguageModel
 
-__version__ = "2.0.1"
+__version__ = "2.1.0"
 __author__ = "Gianne P. Bacay"
 __description__ = "Neuromimetic Language Foundation Model with Biologically-Inspired Neural Mechanisms"
