@@ -2,7 +2,7 @@
 
 ## Overview
 
-Hierarchical Neural Resonance is a bi-directional computational mechanism that enables multi-layered neural systems to iteratively synchronize their internal representations through continuous feedback loops and state alignment. It is a core architectural innovation of the A.R.C.A.N.E. framework, designed to address fundamental limitations in modern artificial intelligence by bridging the gap between connectionist machine learning, **Adaptive Resonance Theory (ART)**, and biological neurodynamics. At its heart, this mechanism is a response to the "static nature" of contemporary neural networks, which, despite their power, lack the capacity for the iterative, self-correcting internal dialogue that characterizes human cognition.
+Hierarchical Neural Resonance is a bi-directional and self-modeling computational mechanism that enables multi-layered neural systems to iteratively synchronize their internal representations through continuous feedback loops and state alignment. It is a core architectural innovation of the A.R.C.A.N.E. framework, designed to address fundamental limitations in modern artificial intelligence by bridging the gap between connectionist machine learning, **Adaptive Resonance Theory (ART)**, and biological neurodynamics. At its heart, this mechanism is a response to the "static nature" of contemporary neural networks, which, despite their power, lack the capacity for the iterative, self-correcting, and self-modeling internal dialogue that characterizes human cognition.
 
 ### The Problem: Feed-Forward Limitations and the Alignment Gap
 
@@ -44,7 +44,10 @@ To understand Hierarchical Neural Resonance, it is essential to define the key t
 **Prediction Divergence** is the measured difference (error) between a layer's current internal representation and the Feedback Projection it receives. This divergence acts as a corrective signal that guides the resonance process.
 
 ### 6. Thinking Phase
-The **Thinking Phase** is a distinct stage during training (orchestrated by the `NeuralResonanceCallback`) where the model performs multiple resonance cycles for a single batch of data *before* the standard backpropagation step.
+**Thinking Phase** is a distinct stage during training (orchestrated by the `NeuralResonanceCallback`) where the model performs multiple resonance cycles for a single batch of data before the standard backpropagation step.
+
+### 7. Self-Modeling
+**Self-Modeling** is the capability of a neural hierarchy to maintain and refine a persistent internal representation of its own state. It involves the model constructing an internal "model" of hierarchical expectations through iterative resonance, allowing it to evaluate and adjust its own activations based on internal coherence rather than just external inputs.
 
 ---
 
@@ -116,20 +119,41 @@ graph LR
     Div -- "Prospective Correction" --> Out[Layer Output]
     IR --> Out
 
-    style IR fill:#dfd,stroke:#333,stroke-width:2px
-    style Div fill:#fdd,stroke:#333,stroke-width:2px
+    style Input fill:#0ea5e9,stroke:#38bdf8,stroke-width:2px,color:#fff
+    style Act fill:#6366f1,stroke:#818cf8,stroke-width:2px,color:#fff
+    style IR fill:#10b981,stroke:#34d399,stroke-width:3px,color:#fff
+    style FP fill:#f59e0b,stroke:#fbbf24,stroke-width:2px,color:#fff
+    style Div fill:#ef4444,stroke:#f87171,stroke-width:3px,color:#fff
+    style Out fill:#8b5cf6,stroke:#a78bfa,stroke-width:2px,color:#fff
 ```
 
 ---
 
-## An Alternative to Transformers
-While Transformer models currently dominate natural language processing, Hierarchical Neural Resonance offers a fundamentally different and in many ways superior approach to intelligence and information processing.
+## Advantages and Disadvantages
 
-### Why Resonance is Better than Transformers
+### Advantages (An Alternative to Transformers)
+
+While Transformer models currently dominate natural language processing, Hierarchical Neural Resonance offers a fundamentally different and in many ways superior approach to intelligence and information processing:
+
 1. **System 2 Reasoning**: Transformers are purely feed-forward. They take an input and pass it through layers of attention to get an output without any internal "reflection." Resonant models perform iterative internal cycles to align hierarchical states, mimicking the brain's ability to deliberate before responding.
+
 2. **Linear vs. Quadratic Complexity**: Transformers suffer from quadratic complexity ($O(n^2)$) relative to sequence length due to global attention. Resonant models use hierarchical projections which scale linearly ($O(n)$), theoretically allowing for much larger context windows with lower memory overhead.
+
 3. **Prospective Alignment vs. Standard Backprop**: Standard Transformers rely entirely on backpropagation, which is not biologically plausible and can be unstable in very deep models. Resonant models use **Prospective Configuration**, where neural activities are refined *locally* and *immediately* during resonance cycles before weights are updated.
+
 4. **Biological Plausibility**: Transformers do not mimic actual brain behavior. Resonant models use spiking neural dynamics and bi-directional feedback loops that are observed in biological neocortical hierarchies.
+
+### Disadvantages and Limitations
+
+Despite its theoretical advantages, the resonant approach introduces specific trade-offs:
+
+1. **Computational Overhead during Training**: The iterative "Thinking Phase" requires multiple resonance cycles for every batch. This makes each training step slower than a single feed-forward pass in a traditional model.
+
+2. **Memory Requirements**: Each `ResonantGSER` layer must maintain persistent internal representations and divergence variables. This increases the memory footprint per layer compared to stateless feed-forward layers.
+
+3. **Orchestration Complexity**: Implementing and training a resonant model requires more sophisticated coordination, such as the `NeuralResonanceCallback`, to manage the timing of feedback and harmonization across the hierarchy.
+
+4. **Early-Stage Optimization**: Unlike Transformers, which benefit from highly optimized industry-standard kernels (such as FlashAttention), resonant architectures are currently in a more experimental stage of software-level performance optimization.
 
 ## Technical Implementation Details
 
@@ -196,4 +220,4 @@ By minimizing this divergence through resonance cycles, A.R.C.A.N.E. achieves a 
 
 Hierarchical Neural Resonance represents a significant paradigm shift in how artificial neural networks process information. By moving away from purely feed-forward architectures and embracing bi-directional, iterative communication, the A.R.C.A.N.E. framework provides a more robust and biologically plausible foundation for intelligence. This approach successfully addresses the alignment gap and the stability issues inherent in traditional deep learning models.
 
-The integration of Adaptive Resonance Theory principles and prospective configuration allows for a deliberative "Thinking Phase" that mirrors human cognitive processes. As these resonant architectures continue to evolve, they promise to unlock higher levels of reasoning, better generalization, and more efficient learning, ultimately bridging the gap between artificial systems and the complex dynamics of the biological brain.
+The integration of Adaptive Resonance Theory principles and prospective configuration allows for a deliberative "Thinking Phase" that mirrors human cognitive processes. As these self-modeling resonant architectures continue to evolve, they promise to unlock higher levels of reasoning, better generalization, and more efficient learning, ultimately bridging the gap between artificial systems and the complex dynamics of the biological brain.
