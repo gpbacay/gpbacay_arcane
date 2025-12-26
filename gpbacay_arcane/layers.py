@@ -485,6 +485,79 @@ class DenseGSER(Layer):
 
 
 
+class ResonantGSER(DenseGSER):
+    """
+    A Hierarchical Resonant Layer that facilitates bi-directional information flow.
+    It maintains internal representation and divergence signals to enable 
+    prospective state alignment and feedback loops within the A.R.C.A.N.E. framework.
+    """
+    def __init__(self, units, resonance_factor=0.1, **kwargs):
+        super(ResonantGSER, self).__init__(units, **kwargs)
+        self.resonance_factor = resonance_factor
+        self.internal_representation = None
+        self.prediction_divergence = None
+
+    def build(self, input_shape):
+        super().build(input_shape)
+        # Internal state tracking for resonant harmonization
+        # Dynamically determine shape from input_shape (e.g., [batch, units] or [batch, seq, units])
+        state_shape = list(input_shape)
+        state_shape[-1] = self.units
+        
+        self.internal_representation = self.add_weight(
+            name=f"{self.name}_internal_rep",
+            shape=tuple(state_shape),
+            initializer="zeros",
+            trainable=False
+        )
+        self.prediction_divergence = self.add_weight(
+            name=f"{self.name}_divergence",
+            shape=tuple(state_shape),
+            initializer="zeros",
+            trainable=False
+        )
+
+    def project_feedback(self, representation=None):
+        """Generates a downward projection for lower-level harmonization."""
+        rep = representation if representation is not None else self.internal_representation
+        # Project current internal state back through the input weights
+        return tf.matmul(rep, tf.transpose(self.input_weights))
+
+    def harmonize_states(self, external_projection):
+        """
+        Aligns the internal representation by minimizing divergence from external signals.
+        Part of the A.R.C.A.N.E. prospective alignment mechanism.
+        """
+        if external_projection is not None:
+            # Calculate divergence: delta = representation - projection
+            divergence = self.internal_representation - external_projection
+            self.prediction_divergence.assign(divergence)
+            
+            # Adjust internal state to reduce resonance divergence
+            adjustment = -self.resonance_factor * divergence
+            self.internal_representation.assign_add(adjustment)
+
+    def call(self, inputs, training=None):
+        # Primary neural activation pass
+        activation = super().call(inputs)
+        
+        if training:
+            # Synchronize internal representation with current activation
+            self.internal_representation.assign(activation)
+            
+            # Incorporate prospective divergence as a corrective signal
+            # This implements a form of 'Neural Resonance' where the output
+            # is adjusted based on top-down alignment signals from the previous cycle.
+            return activation - self.resonance_factor * self.prediction_divergence
+        
+        return activation
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({'resonance_factor': self.resonance_factor})
+        return config
+
+
 class RelationalConceptModeling(Layer):
     """
     Relational Concept Modeling (RCM) is an encoder layer that applies multi-head self-attention to capture token-level relations, 
@@ -935,8 +1008,8 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
     def _compute_bcm_plasticity(self, pre: tf.Tensor, post: tf.Tensor, 
                                post_squared: tf.Tensor) -> tf.Tensor:
         """Compute BCM-style plasticity with sliding threshold."""
-        # BCM rule: Δw ∝ post * (post - θ) * pre
-        # where θ is the sliding threshold
+        # BCM rule: delta w proportional to post * (post - theta) * pre
+        # where theta is the sliding threshold
         post_minus_threshold = post - tf.expand_dims(self.bcm_threshold, 0)
         plasticity_signal = post * post_minus_threshold
         

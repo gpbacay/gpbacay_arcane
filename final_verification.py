@@ -12,15 +12,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from gpbacay_arcane.ollama_integration import OllamaARCANEHybrid
-    print("✅ A.R.C.A.N.E. modules loaded successfully")
+    print("A.R.C.A.N.E. modules loaded successfully")
 except ImportError as e:
-    print(f"❌ Error importing A.R.C.A.N.E. modules: {e}")
+    print(f"Error importing A.R.C.A.N.E. modules: {e}")
     sys.exit(1)
 
 def demonstrate_improved_responses():
     """Demonstrate the improved concise responses."""
     print("="*60)
-    print("🔍 FINAL VERIFICATION: CONCISE A.R.C.A.N.E. RESPONSES")
+    print("FINAL VERIFICATION: CONCISE A.R.C.A.N.E. RESPONSES")
     print("="*60)
     
     try:
@@ -34,14 +34,14 @@ def demonstrate_improved_responses():
         model_path = "Models/arcane_foundational_slm_saved"
         if os.path.exists(model_path):
             foundational_model.load_model(model_path)
-            print(f"✅ Loaded Arcane Foundational Model from: {model_path}")
+            print(f"Loaded Arcane Foundational Model from: {model_path}")
         else:
-            print("⚠️  Pre-trained model not found, using initialization...")
+            print("Pre-trained model not found, using initialization...")
             # Build the model architecture
             foundational_model.build_neuromimetic_architecture()
         
         print("\n" + "="*60)
-        print("🤖 TESTING IMPROVED CONCISE RESPONSES")
+        print("TESTING IMPROVED CONCISE RESPONSES")
         print("="*60)
         
         # Test cases that should produce concise responses
@@ -55,7 +55,7 @@ def demonstrate_improved_responses():
         ]
         
         for i, prompt in enumerate(test_cases, 1):
-            print(f"\n🔍 Test {i}: '{prompt}'")
+            print(f"\nTest {i}: '{prompt}'")
             
             response = foundational_model.generate_text_with_improved_sampling(
                 seed_text=prompt,
@@ -67,26 +67,26 @@ def demonstrate_improved_responses():
             response = response.strip()
             response = re.sub(r'\s+', ' ', response)
             
-            print(f"🤖 A.R.C.A.N.E.: {response}")
+            print(f"A.R.C.A.N.E.: {response}")
             
             # Check conciseness
             word_count = len(response.split())
             if word_count <= 15:
-                print(f"✅ Response is concise ({word_count} words)")
+                print(f"Response is concise ({word_count} words)")
             elif word_count <= 30:
-                print(f"⚠️  Response is moderately long ({word_count} words)")
+                print(f"Response is moderately long ({word_count} words)")
             else:
-                print(f"❌ Response is quite verbose ({word_count} words)")
+                print(f"Response is quite verbose ({word_count} words)")
         
         print("\n" + "="*60)
-        print("🎉 SUCCESS: A.R.C.A.N.E. now produces concise, direct responses!")
-        print("✅ The model answers questions directly without unnecessary verbosity")
-        print("✅ Numerical questions get numerical answers")
-        print("✅ Factual questions get straight-to-the-point answers")
+        print("SUCCESS: A.R.C.A.N.E. now produces concise, direct responses!")
+        print("The model answers questions directly without unnecessary verbosity")
+        print("Numerical questions get numerical answers")
+        print("Factual questions get straight-to-the-point answers")
         print("="*60)
         
     except Exception as e:
-        print(f"❌ Error during verification: {e}")
+        print(f"Error during verification: {e}")
         import traceback
         traceback.print_exc()
 

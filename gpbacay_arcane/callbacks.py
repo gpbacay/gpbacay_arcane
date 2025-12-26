@@ -1,4 +1,48 @@
+import tensorflow as tf
 from tensorflow.keras.callbacks import Callback
+
+class NeuralResonanceCallback(Callback):
+    """
+    Orchestrates Neural Resonance cycles within the A.R.C.A.N.E. architecture.
+    Performs multiple 'Resonance Cycles' to align internal states across 
+    the hierarchy before synaptic weights are modified.
+    """
+    def __init__(self, resonance_cycles=5, learning_rate=0.01):
+        super(NeuralResonanceCallback, self).__init__()
+        self.resonance_cycles = resonance_cycles
+        self.lr = learning_rate
+
+    def on_train_batch_begin(self, batch, logs=None):
+        """
+        The Resonance Phase: Synchronize neural representations by aligning 
+        projections from higher-level layers.
+        """
+        if not hasattr(self, 'model') or self.model is None:
+            return
+
+        # Identify ResonantGSER layers in the architecture
+        resonant_layers = []
+        for layer in self.model.layers:
+            if 'ResonantGSER' in str(type(layer)):
+                resonant_layers.append(layer)
+        
+        if not resonant_layers:
+            return
+
+        # Resonance Cycle: Prospective State Alignment
+        for _ in range(self.resonance_cycles):
+            # 1. Emit feedback projections from higher layers
+            projections = {}
+            for i in range(len(resonant_layers) - 1, 0, -1):
+                # Layer i projects feedback to layer i-1
+                projections[i-1] = resonant_layers[i].project_feedback()
+
+            # 2. Harmonize internal states based on projections
+            for i, layer in enumerate(resonant_layers):
+                incoming_proj = projections.get(i)
+                if incoming_proj is not None:
+                    layer.harmonize_states(incoming_proj)
+
 
 class DynamicSelfModelingReservoirCallback(Callback):
     def __init__(self, reservoir_layer, performance_metric='accuracy', target_metric=0.98,

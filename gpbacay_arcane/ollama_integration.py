@@ -19,8 +19,8 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.preprocessing.text import Tokenizer
 
 # Import A.R.C.A.N.E. components
-from .layers import DenseGSER, BioplasticDenseLayer, GSER
-from .callbacks import DynamicSelfModelingReservoirCallback
+from .layers import ResonantGSER, BioplasticDenseLayer, GSER, DenseGSER
+from .callbacks import DynamicSelfModelingReservoirCallback, NeuralResonanceCallback
 
 try:
     import ollama
@@ -44,9 +44,9 @@ class OllamaARCANEHybrid:
     
     This class provides a complete pipeline for:
     1. Generating training data using Ollama
-    2. Building neuromimetic architectures
-    3. Training custom models with biological learning
-    4. Generating text with spiking neural dynamics
+    2. Building neuromimetic architectures with Hierarchical Neural Resonance
+    3. Training custom models with biological learning and prospective alignment
+    4. Generating text with spiking neural dynamics and resonant harmonization
     """
     
     def __init__(
@@ -97,7 +97,7 @@ class OllamaARCANEHybrid:
         Returns:
             TensorFlow model with neuromimetic layers
         """
-        print("🧠 Building neuromimetic architecture...")
+        print("Building neuromimetic architecture...")
         
         # Input layer
         inputs = Input(shape=(self.seq_len,), name='text_input')
@@ -110,34 +110,34 @@ class OllamaARCANEHybrid:
             name='embedding'
         )(inputs)
         
-        # Primary spiking neural layer with reservoir computing
-        spiking_1 = DenseGSER(
+        # Primary neural processing layer with Resonant Alignment
+        spiking_1 = ResonantGSER(
             units=128,
             spectral_radius=0.9,
             leak_rate=0.08,
             spike_threshold=0.3,
             activation='swish',
-            name='primary_spiking'
+            name='primary_resonance'
         )(embedded)
         
-        # Dynamic spiking reservoir layer for self-modeling (simplified)
-        reservoir = DenseGSER(
+        # Resonant reservoir layer for self-modeling
+        reservoir = ResonantGSER(
             units=128,
             spectral_radius=0.85,
             leak_rate=0.1,
             spike_threshold=0.35,
             activation='swish',
-            name='adaptive_reservoir'
+            name='adaptive_resonance'
         )(spiking_1)
         
-        # Secondary spiking layer for refined processing
-        spiking_2 = DenseGSER(
+        # Secondary resonant layer for refined processing
+        spiking_2 = ResonantGSER(
             units=96,
             spectral_radius=0.8,
             leak_rate=0.12,
             spike_threshold=0.25,
             activation='swish',
-            name='refined_spiking'
+            name='refined_resonance'
         )(reservoir)
         
         # Global pooling for sequence summarization
@@ -180,8 +180,8 @@ class OllamaARCANEHybrid:
             name=self.model_name
         )
         
-        print(f"✅ Built neuromimetic model: {self.model_name}")
-        print(f"📊 Total parameters: {self.model.count_params():,}")
+        print(f"Built neuromimetic model: {self.model_name}")
+        print(f"Total parameters: {self.model.count_params():,}")
         
         return self.model
     
@@ -202,7 +202,7 @@ class OllamaARCANEHybrid:
         Returns:
             List of training texts combining prompts and responses
         """
-        print(f"🦙 Generating training data with Ollama model: {self.ollama_model}")
+        print(f"Generating training data with Ollama model: {self.ollama_model}")
         training_texts = []
         
         for i, prompt in enumerate(prompts):
@@ -256,7 +256,7 @@ class OllamaARCANEHybrid:
                     training_texts.append(fallback_text)
                     continue
         
-        print(f"✅ Generated {len(training_texts)} training examples")
+        print(f"Generated {len(training_texts)} training examples")
         return training_texts
     
     def prepare_training_sequences(self, texts: List[str]) -> tuple:
@@ -269,7 +269,7 @@ class OllamaARCANEHybrid:
         Returns:
             Tuple of (X, y) training arrays
         """
-        print("🔤 Preparing tokenizer and training sequences...")
+        print("Preparing tokenizer and training sequences...")
         
         # Create and fit tokenizer
         self.tokenizer = Tokenizer(
@@ -290,8 +290,8 @@ class OllamaARCANEHybrid:
             for i in range(len(sequences) - self.seq_len):
                 all_sequences.append(sequences[i:i + self.seq_len + 1])
         
-        print(f"✅ Created {len(all_sequences)} training sequences")
-        print(f"📖 Vocabulary size: {len(self.tokenizer.word_index) + 1}")
+        print(f"Created {len(all_sequences)} training sequences")
+        print(f"Vocabulary size: {len(self.tokenizer.word_index) + 1}")
         
         # Prepare input (X) and target (y) arrays
         X = np.array([seq[:-1] for seq in all_sequences])
@@ -305,7 +305,7 @@ class OllamaARCANEHybrid:
         This method uses knowledge distillation to transfer knowledge from the 
         pre-trained Ollama model to the A.R.C.A.N.E. architecture.
         """
-        print("🔄 Initializing model with Ollama knowledge transfer...")
+        print("Initializing model with Ollama knowledge transfer...")
         
         # Build the model architecture first
         if self.model is None:
@@ -321,7 +321,7 @@ class OllamaARCANEHybrid:
         ]
         
         # Generate responses from Ollama for these prompts
-        print("📚 Collecting knowledge samples from Ollama...")
+        print("Collecting knowledge samples from Ollama...")
         ollama_responses = []
         for prompt in sample_prompts:
             try:
@@ -340,14 +340,14 @@ class OllamaARCANEHybrid:
                         'response': response['response']
                     })
             except Exception as e:
-                print(f"⚠️  Error getting response for '{prompt}': {e}")
+                print(f"Error getting response for '{prompt}': {e}")
                 continue
         
-        print(f"✅ Collected {len(ollama_responses)} knowledge samples")
+        print(f"Collected {len(ollama_responses)} knowledge samples")
         
         # Use these samples to initialize the model with better starting weights
         # This is a simplified approach - in practice, you'd do more sophisticated knowledge distillation
-        print("🧠 Initializing with knowledge-aware weights...")
+        print("Initializing with knowledge-aware weights...")
         
         # For now, we'll just ensure the model is built and ready
         # The real knowledge transfer happens during training with high-quality data
@@ -374,7 +374,7 @@ class OllamaARCANEHybrid:
         Returns:
             Training history
         """
-        print("🚀 Training with knowledge transfer...")
+        print("Training with knowledge transfer...")
         
         # Initialize with Ollama knowledge
         self.initialize_with_ollama_knowledge()
@@ -421,7 +421,7 @@ class OllamaARCANEHybrid:
         ]
         
         # Train the model
-        print(f"🎯 Starting knowledge transfer training with {len(X)} sequences...")
+        print(f"Starting knowledge transfer training with {len(X)} sequences...")
         
         history = self.model.fit(
             X, y,
@@ -432,7 +432,7 @@ class OllamaARCANEHybrid:
             verbose=1
         )
         
-        print("✅ Knowledge transfer training completed!")
+        print("Knowledge transfer training completed!")
         return history
 
     def save_model(self, save_dir: str = None) -> str:
@@ -477,7 +477,7 @@ class OllamaARCANEHybrid:
         with open(os.path.join(save_dir, "config.pkl"), 'wb') as f:
             pickle.dump(config, f)
         
-        print(f"✅ Model saved to: {save_dir}")
+        print(f"Model saved to: {save_dir}")
         return save_dir
     
     def load_model(self, save_dir: str) -> None:
@@ -506,7 +506,7 @@ class OllamaARCANEHybrid:
             with open(tokenizer_path, 'rb') as f:
                 self.tokenizer = pickle.load(f)
         else:
-            print(f"⚠️  Tokenizer not found at {tokenizer_path}")
+            print(f"Tokenizer not found at {tokenizer_path}")
         
         # Load model with custom objects
         model_path = os.path.join(save_dir, "model.h5")
@@ -521,9 +521,9 @@ class OllamaARCANEHybrid:
                 model_path,
                 custom_objects=custom_objects
             )
-            print(f"✅ Model loaded from: {save_dir}")
+            print(f"Model loaded from: {save_dir}")
         else:
-            print(f"⚠️  Model not found at {model_path}")
+            print(f"Model not found at {model_path}")
     
     def get_model_stats(self) -> Dict[str, Any]:
         """
@@ -621,7 +621,7 @@ class OllamaARCANEHybrid:
             
         except Exception as e:
             # Fallback to original method if Ollama is not available
-            print(f"⚠️ Ollama not available, using fallback generation: {e}")
+            print(f"Ollama not available, using fallback generation: {e}")
             return self._generate_text_fallback(seed_text, max_length, temperature)
     
     def _generate_text_fallback(

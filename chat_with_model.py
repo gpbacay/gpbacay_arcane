@@ -23,9 +23,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from gpbacay_arcane.ollama_integration import OllamaARCANEHybrid
     from gpbacay_arcane.layers import DenseGSER, BioplasticDenseLayer, GSER
-    print("✅ A.R.C.A.N.E. modules loaded successfully")
+    print("A.R.C.A.N.E. modules loaded successfully")
 except ImportError as e:
-    print(f"❌ Error importing A.R.C.A.N.E. modules: {e}")
+    print(f"Error importing A.R.C.A.N.E. modules: {e}")
     print("Please ensure all dependencies are installed:")
     print("pip install ollama sentence-transformers")
     sys.exit(1)
@@ -161,13 +161,13 @@ def load_pretrained_model(model_path="Models/arcane_transfer_learned_lm_best.h5"
     Returns:
         Tuple of (model, tokenizer)
     """
-    print("🔄 Loading pretrained A.R.C.A.N.E. model...")
+    print("Loading pretrained A.R.C.A.N.E. model...")
     
     try:
         # Load tokenizer
         with open(tokenizer_path, 'rb') as f:
             tokenizer = pickle.load(f)
-        print(f"✅ Tokenizer loaded from: {tokenizer_path}")
+        print(f"Tokenizer loaded from: {tokenizer_path}")
         
         # Load model with custom objects
         custom_objects = {
@@ -180,12 +180,12 @@ def load_pretrained_model(model_path="Models/arcane_transfer_learned_lm_best.h5"
             model_path,
             custom_objects=custom_objects
         )
-        print(f"✅ Model loaded from: {model_path}")
-        print(f"📊 Model parameters: {model.count_params():,}")
+        print(f"Model loaded from: {model_path}")
+        print(f"Model parameters: {model.count_params():,}")
         
         return model, tokenizer
     except Exception as e:
-        print(f"❌ Error loading model: {e}")
+        print(f"Error loading model: {e}")
         return None, None
 
 
@@ -199,7 +199,7 @@ def load_ollama_hybrid_model(model_dir="Models/arcane_transfer_learned_lm_saved"
     Returns:
         OllamaARCANEHybrid instance
     """
-    print("🔄 Loading Ollama-A.R.C.A.N.E. Hybrid model...")
+    print("Loading Ollama-A.R.C.A.N.E. Hybrid model...")
     
     try:
         # Create hybrid model instance
@@ -211,10 +211,10 @@ def load_ollama_hybrid_model(model_dir="Models/arcane_transfer_learned_lm_saved"
         # Load the saved model
         hybrid_model.load_model(model_dir)
         
-        print(f"✅ Hybrid model loaded from: {model_dir}")
+        print(f"Hybrid model loaded from: {model_dir}")
         return hybrid_model
     except Exception as e:
-        print(f"❌ Error loading hybrid model: {e}")
+        print(f"Error loading hybrid model: {e}")
         return None
 
 
@@ -321,7 +321,7 @@ def generate_text_with_model(model, tokenizer, seed_text, max_length=50, tempera
         
         return generated_text if generated_text else "I'm processing your request..."
     except Exception as e:
-        print(f"❌ Error during text generation: {e}")
+        print(f"Error during text generation: {e}")
         return "I'm having trouble responding right now. Please try again."
 
 
@@ -330,7 +330,7 @@ def chat_with_model():
     Interactive chat interface with the pretrained model.
     """
     print("\n" + "="*60)
-    print("🧠 A.R.C.A.N.E. Neuromimetic Language Model Chat Interface")
+    print("A.R.C.A.N.E. Neuromimetic Language Model Chat Interface")
     print("="*60)
     
     # Try to load models in order of preference
@@ -341,26 +341,26 @@ def chat_with_model():
     # Try loading the Arcane Foundational Small Language Model first
     foundational_model_path = "Models/arcane_foundational_slm_saved"
     if os.path.exists(foundational_model_path):
-        print(f"\n🔄 Attempting to load Arcane Foundational Small Language Model...")
+        print(f"\nAttempting to load Arcane Foundational Small Language Model...")
         try:
             hybrid_model = load_ollama_hybrid_model(foundational_model_path)
             if hybrid_model is not None:
-                print(f"✅ Successfully loaded Arcane Foundational Small Language Model")
+                print(f"Successfully loaded Arcane Foundational Small Language Model")
         except Exception as e:
-            print(f"⚠️  Failed to load Arcane Foundational Small Language Model: {e}")
+            print(f"Failed to load Arcane Foundational Small Language Model: {e}")
             hybrid_model = None
     
     # If not found, try loading the transfer learned hybrid model
     if hybrid_model is None:
         hybrid_model_path = "Models/arcane_transfer_learned_lm_saved"
         if os.path.exists(hybrid_model_path):
-            print(f"\n🔄 Attempting to load Transfer Learning Model...")
+            print(f"\nAttempting to load Transfer Learning Model...")
             try:
                 hybrid_model = load_ollama_hybrid_model(hybrid_model_path)
                 if hybrid_model is not None:
-                    print(f"✅ Successfully loaded Transfer Learning Model")
+                    print(f"Successfully loaded Transfer Learning Model")
             except Exception as e:
-                print(f"⚠️  Failed to load Transfer Learning Model: {e}")
+                print(f"Failed to load Transfer Learning Model: {e}")
                 hybrid_model = None
     
     # If no hybrid model, try loading standard models
@@ -374,21 +374,21 @@ def chat_with_model():
         # Try loading models in order
         for model_name, model_path, tokenizer_path in model_paths:
             if os.path.exists(model_path) and os.path.exists(tokenizer_path):
-                print(f"\n🔄 Attempting to load {model_name}...")
+                print(f"\nAttempting to load {model_name}...")
                 model, tokenizer = load_pretrained_model(model_path, tokenizer_path)
                 if model is not None and tokenizer is not None:
-                    print(f"✅ Successfully loaded {model_name}")
+                    print(f"Successfully loaded {model_name}")
                     break
             else:
-                print(f"⚠️  {model_name} not found at expected location")
+                print(f"{model_name} not found at expected location")
     
     if hybrid_model is None and (model is None or tokenizer is None):
-        print("❌ No pretrained model found. Please train a model first.")
-        print("💡 Run 'python transfer_learn_arcane.py' to create a transfer learning model")
+        print("No pretrained model found. Please train a model first.")
+        print("Run 'python transfer_learn_arcane.py' to create a transfer learning model")
         return
     
     print("\n" + "="*60)
-    print("💬 Chat with your A.R.C.A.N.E. model!")
+    print("Chat with your A.R.C.A.N.E. model!")
     print("   Type 'quit' or 'exit' to end the conversation")
     print("   Type 'clear' to clear the conversation history")
     print("="*60)
@@ -403,13 +403,13 @@ def chat_with_model():
             
             # Check for quit commands
             if user_input.lower() in ['quit', 'exit', 'bye']:
-                print("\n👋 Goodbye! Thanks for chatting with A.R.C.A.N.E.")
+                print("\nGoodbye! Thanks for chatting with A.R.C.A.N.E.")
                 break
             
             # Check for clear command
             if user_input.lower() in ['clear', 'reset']:
                 conversation_history = []
-                print("🗑️  Conversation history cleared.")
+                print("Conversation history cleared.")
                 continue
             
             if not user_input:
@@ -426,7 +426,7 @@ def chat_with_model():
             if not seed_text:
                 seed_text = user_input
             
-            print("🧠 A.R.C.A.N.E. is thinking...")
+            print("A.R.C.A.N.E. is thinking...")
             
             # Generate response using the appropriate method
             if hybrid_model is not None:
@@ -462,15 +462,15 @@ def chat_with_model():
             conversation_history.append(f"A.R.C.A.N.E.: {improved_response}")
             
             # Display response
-            print(f"🤖 A.R.C.A.N.E.: {improved_response}")
+            print(f"A.R.C.A.N.E.: {improved_response}")
             
         except KeyboardInterrupt:
-            print("\n\n👋 Goodbye! Thanks for chatting with A.R.C.A.N.E.")
+            print("\n\nGoodbye! Thanks for chatting with A.R.C.A.N.E.")
             break
         except Exception as e:
-            print(f"❌ Error during chat: {e}")
+            print(f"Error during chat: {e}")
             fallback_response = generate_better_fallback_response()
-            print(f"🤖 A.R.C.A.N.E.: {fallback_response}")
+            print(f"A.R.C.A.N.E.: {fallback_response}")
 
 
 def main():
@@ -480,7 +480,7 @@ def main():
     try:
         chat_with_model()
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"Unexpected error: {e}")
         import traceback
         traceback.print_exc()
 

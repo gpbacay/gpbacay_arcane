@@ -10,7 +10,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input, Dense, Embedding, LSTM, GlobalAveragePooling1D, Dropout, LayerNormalization, Concatenate
 from tensorflow.keras import Model
 
-from gpbacay_arcane.layers import DenseGSER, BioplasticDenseLayer
+from gpbacay_arcane.layers import ResonantGSER, BioplasticDenseLayer
 
 
 class NeuromimeticLanguageModel:
@@ -18,7 +18,8 @@ class NeuromimeticLanguageModel:
     Neuromimetic Language Foundation Model
     
     A novel language model architecture that incorporates biological neural principles:
-    - Spiking neural dynamics via DenseGSER layers
+    - Hierarchical neural resonance and prospective alignment
+    - Spiking neural dynamics via ResonantGSER layers
     - Hebbian learning via BioplasticDenseLayer
     - Homeostatic plasticity for activity regulation
     - Temporal sequence processing via LSTM
@@ -57,28 +58,28 @@ class NeuromimeticLanguageModel:
                 name='embedding'
             )(inputs)
             
-            # First DenseGSER layer - Primary spiking neural processing
-            gser1 = DenseGSER(
+            # First ResonantGSER layer - Primary neural processing with Prospective Alignment
+            gser1 = ResonantGSER(
                 units=self.hidden_dim,
                 spectral_radius=0.9,
                 leak_rate=0.1,
                 spike_threshold=0.35,
                 activation='gelu',
-                name='dense_gser_1'
+                name='resonant_gser_1'
             )(embedded)
             
             # Layer normalization and dropout for stability
             gser1_norm = LayerNormalization(name='layer_norm_1')(gser1)
             gser1_drop = Dropout(0.15, name='dropout_1')(gser1_norm)
             
-            # Second DenseGSER layer - Secondary spiking neural processing
-            gser2 = DenseGSER(
+            # Second ResonantGSER layer - Secondary neural processing with Hierarchical Feedback
+            gser2 = ResonantGSER(
                 units=self.hidden_dim,
                 spectral_radius=0.8,
                 leak_rate=0.12,
                 spike_threshold=0.3,
                 activation='gelu',
-                name='dense_gser_2'
+                name='resonant_gser_2'
             )(gser1_drop)
             
             # LSTM for sequential temporal processing
