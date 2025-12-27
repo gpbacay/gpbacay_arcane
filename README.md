@@ -289,14 +289,21 @@ Input (16 tokens)
 ## Performance
 
 ### Training Results
-Recent benchmarks demonstrate that the **Resonant A.R.C.A.N.E.** model outperforms traditional deep architectures in both accuracy and stability:
+Recent benchmarks demonstrate that the **Resonant A.R.C.A.N.E.** model outperforms traditional deep architectures in both accuracy and stability across different domains.
 
+#### MNIST (10 Epochs)
+- **Test Accuracy**: **98.89%** (vs 98.76% for Deep LSTM)
+- **Test Loss**: **0.0391** (vs 0.0432 for Deep LSTM)
+
+#### Tiny Shakespeare (15 Epochs)
 - **Validation Accuracy**: **12.34%** (vs 10.69% for Deep LSTM)
 - **Validation Loss**: **5.9818** (vs 6.7895 for Deep LSTM)
-- **Perplexity**: Highly competitive for small-scale foundation models.
+
+### Key Metrics
 - **Stability**: Superior convergence in deep hierarchies due to prospective alignment.
-- **Training Time**: 10-15 minutes on GPU.
+- **Perplexity**: Highly competitive for small-scale foundation models.
 - **Model Size**: ~500K parameters.
+- **Inference Speed**: Fast execution after training phase.
 
 ### Text Generation Quality
 - **Conservative (T=0.6)**: Coherent, safe outputs

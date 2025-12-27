@@ -172,7 +172,11 @@ This orchestrator manages the complexity of the hierarchical exchange. It ensure
 3. **Synchronized Update**: The model only performs its final forward pass and backpropagation once the hierarchy has reached a state of relative resonance (defined by the number of cycles).
 
 ## Performance & Comparison
-In recent benchmarks comparing the A.R.C.A.N.E. Resonant model against a Deep Traditional LSTM (trained on 15,000 characters for 15 epochs):
+
+The A.R.C.A.N.E. Resonant model has been evaluated against deep traditional LSTM architectures across multiple datasets, demonstrating superior generalization and stability.
+
+### 1. Tiny Shakespeare (Sequence Prediction)
+In this benchmark (trained on 15,000 characters for 15 epochs), the Resonant model achieved significant improvements in both loss and accuracy:
 
 | Metric | Traditional Deep LSTM | **Resonant A.R.C.A.N.E.** |
 | :--- | :--- | :--- |
@@ -180,10 +184,20 @@ In recent benchmarks comparing the A.R.C.A.N.E. Resonant model against a Deep Tr
 | **Validation Loss** | 6.7895 | **5.9818** |
 | **Convergence** | Unstable | **Stable** |
 
+### 2. MNIST (Spatio-Temporal Digit Classification)
+MNIST digits were treated as sequences of 28 rows, emphasizing the model's ability to handle temporal feature extraction. After 10 epochs:
+
+| Metric | Traditional Deep LSTM | **Resonant A.R.C.A.N.E.** |
+| :--- | :--- | :--- |
+| **Test Accuracy** | 98.76% | **98.89%** |
+| **Test Loss** | 0.0432 | **0.0391** |
+| **Training Time** | ~947s | ~1518s |
+
 ### Key Findings:
-- **Superior Generalization**: The Resonant model achieved higher accuracy and significantly lower loss, indicating a better understanding of underlying text patterns.
-- **Stability in Depth**: Traditional deep models often suffer from gradient issues; the Resonant model maintains stability through its iterative alignment cycles.
-- **Deliberative Reasoning**: The resonance phase acts as an inherent check and balance system, similar to deliberative reasoning in humans, which is absent in standard feed-forward networks like Transformers.
+- **Superior Generalization**: Across both text and image sequences, the Resonant model achieved higher test accuracy and lower loss, indicating a better understanding of underlying patterns.
+- **Stability in Depth**: Traditional deep models often suffer from gradient issues; the Resonant model maintains stability through its iterative alignment cycles (Prospective Configuration).
+- **Deliberative Reasoning**: The resonance phase acts as an inherent check and balance system, similar to deliberative reasoning in humans, which is absent in standard feed-forward networks.
+- **Accuracy-Efficiency Trade-off**: The improved accuracy and stability come at the cost of higher training time due to the iterative resonance cycles performed during the "Thinking Phase."
 
 ## Implementation Example
 
