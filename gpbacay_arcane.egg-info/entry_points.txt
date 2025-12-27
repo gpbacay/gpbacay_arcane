@@ -1,0 +1,5 @@
+[console_scripts]
+gpbacay-arcane-about = gpbacay_arcane.cli_commands:about
+gpbacay-arcane-list-layers = gpbacay_arcane.cli_commands:list_layers
+gpbacay-arcane-list-models = gpbacay_arcane.cli_commands:list_models
+gpbacay-arcane-version = gpbacay_arcane.cli_commands:version

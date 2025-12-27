@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='gpbacay-arcane',
-    version='2.0.2',
+    version='3.0.0',
     author='Gianne P. Bacay',
     author_email='giannebacay2004@gmail.com',
     description='A neuromimetic language foundation model library with biologically-inspired neural mechanisms including spiking neural networks, Hebbian learning, and homeostatic plasticity',
