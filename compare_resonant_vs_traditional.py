@@ -1,11 +1,8 @@
 import os
 import numpy as np
 import tensorflow as tf
-import requests
-import re
 import time
-from tensorflow.keras.preprocessing.text import Tokenizer
-from tensorflow.keras.layers import Input, Embedding, Dense, LSTM, GlobalAveragePooling1D, Concatenate, LayerNormalization, Dropout
+from tensorflow.keras.layers import Input, Dense, LSTM, GlobalAveragePooling1D, LayerNormalization, Dropout, Reshape
 from tensorflow.keras import Model
 from gpbacay_arcane.layers import ResonantGSER, BioplasticDenseLayer
 from gpbacay_arcane.callbacks import NeuralResonanceCallback
@@ -13,50 +10,39 @@ from gpbacay_arcane.callbacks import NeuralResonanceCallback
 # Set stability policy
 tf.keras.mixed_precision.set_global_policy('float32')
 
-def download_data():
-    url = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
-    if not os.path.exists("shakespeare_small.txt"):
-        print("Downloading small dataset...")
-        response = requests.get(url)
-        # Use only a small portion for fast comparison
-        text = response.text[:50000]
-        with open("shakespeare_small.txt", "w", encoding="utf-8") as f:
-            f.write(text)
-    else:
-        with open("shakespeare_small.txt", "r", encoding="utf-8") as f:
-            text = f.read()
-    return text
+def prepare_mnist_data():
+    print("Loading MNIST dataset...")
+    (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
+    
+    # Normalize pixel values to [0, 1]
+    x_train = x_train.astype('float32') / 255.0
+    x_test = x_test.astype('float32') / 255.0
+    
+    # We will treat the 28x28 image as a sequence of 28 rows, each with 28 features
+    # This aligns with the temporal/sequential focus of the A.R.C.A.N.E. architecture
+    
+    # Ensure dataset size is multiple of batch size (32) for stateful/resonant layers if needed
+    train_limit = (len(x_train) // 32) * 32
+    test_limit = (len(x_test) // 32) * 32
+    
+    x_train, y_train = x_train[:train_limit], y_train[:train_limit]
+    x_test, y_test = x_test[:test_limit], y_test[:test_limit]
+    
+    return x_train, y_train, x_test, y_test
 
-def prepare_data(text, seq_len=16, vocab_size=1000):
-    text = text.lower()
-    text = re.sub(r'[^\w\s\.\,\!\?\:\;]', ' ', text)
-    text = re.sub(r'\s+', ' ', text)
-    
-    tokenizer = Tokenizer(num_words=vocab_size, oov_token="<UNK>", lower=True)
-    tokenizer.fit_on_texts([text])
-    sequences = tokenizer.texts_to_sequences([text])[0]
-    
-    X, y = [], []
-    for i in range(0, len(sequences) - seq_len, 3):
-        X.append(sequences[i:i + seq_len])
-        y.append(sequences[i + seq_len])
-    
-    return np.array(X), np.array(y), len(tokenizer.word_index) + 1
-
-def build_traditional_model(vocab_size, seq_len, embed_dim, hidden_dim):
-    inputs = Input(batch_shape=(32, seq_len))
-    x = Embedding(vocab_size, embed_dim)(inputs)
+def build_traditional_model(seq_len, feature_dim, hidden_dim):
+    inputs = Input(batch_shape=(32, seq_len, feature_dim))
+    x = LSTM(hidden_dim, return_sequences=True)(inputs)
     x = LSTM(hidden_dim, return_sequences=True)(x)
     x = GlobalAveragePooling1D()(x)
     x = Dense(hidden_dim, activation='relu')(x)
-    outputs = Dense(vocab_size, activation='softmax')(x)
-    return Model(inputs, outputs, name="Traditional_LSTM")
+    outputs = Dense(10, activation='softmax')(x)
+    return Model(inputs, outputs, name="Deep_Traditional_LSTM")
 
-def build_resonant_model(vocab_size, seq_len, embed_dim, hidden_dim):
-    inputs = Input(batch_shape=(32, seq_len))
-    x = Embedding(vocab_size, embed_dim)(inputs)
+def build_resonant_model(seq_len, feature_dim, hidden_dim):
+    inputs = Input(batch_shape=(32, seq_len, feature_dim))
     
-    # Resonant Layer 1
+    # First ResonantGSER layer - Processing spatial-temporal row dynamics
     x = ResonantGSER(
         units=hidden_dim,
         spectral_radius=0.9,
@@ -64,11 +50,11 @@ def build_resonant_model(vocab_size, seq_len, embed_dim, hidden_dim):
         spike_threshold=0.35,
         activation='gelu',
         name='resonant_1'
-    )(x)
+    )(inputs)
     
     x = LayerNormalization()(x)
     
-    # Resonant Layer 2
+    # Second ResonantGSER layer - Higher-level feature integration
     x = ResonantGSER(
         units=hidden_dim,
         spectral_radius=0.8,
@@ -78,10 +64,11 @@ def build_resonant_model(vocab_size, seq_len, embed_dim, hidden_dim):
         name='resonant_2'
     )(x)
     
+    # Temporal integration via LSTM
     x = LSTM(hidden_dim, return_sequences=True)(x)
     x = GlobalAveragePooling1D()(x)
     
-    # Hebbian/Bioplastic Layer
+    # Hebbian/Bioplastic Layer for final feature refinement
     x = BioplasticDenseLayer(
         units=hidden_dim,
         learning_rate=1e-3,
@@ -89,59 +76,36 @@ def build_resonant_model(vocab_size, seq_len, embed_dim, hidden_dim):
         name='bioplastic'
     )(x)
     
-    outputs = Dense(vocab_size, activation='softmax')(x)
+    outputs = Dense(10, activation='softmax')(x)
     return Model(inputs, outputs, name="Resonant_ARCANE")
 
 def run_comparison():
-    print("Starting A.R.C.A.N.E. Resonant vs Traditional Model Comparison")
-    print("=" * 70)
+    print("Starting A.R.C.A.N.E. Resonant vs Traditional Model Comparison on MNIST")
+    print("=" * 80)
     
     # 1. Data Setup
-    text = download_data()
-    X, y, vocab_size = prepare_data(text)
+    x_train, y_train, x_test, y_test = prepare_mnist_data()
     
-    # Use a subset for a more significant comparison
-    subset = 15000
-    X, y = X[:subset], y[:subset]
-    
-    # Ensure dataset size is multiple of batch size (32)
-    X = X[:(len(X) // 32) * 32]
-    y = y[:(len(y) // 32) * 32]
-    
-    split = int(0.8 * len(X))
-    # Ensure split is also multiple of 32
-    split = (split // 32) * 32
-    
-    X_train, X_val = X[:split], X[split:]
-    y_train, y_val = y[:split], y[split:]
+    # Use a subset for faster demonstration if needed, but MNIST is fast enough
+    # subset = 20000
+    # x_train, y_train = x_train[:subset], y_train[:subset]
     
     params = {
-        "vocab_size": vocab_size,
-        "seq_len": 16,
-        "embed_dim": 32,
+        "seq_len": 28,
+        "feature_dim": 28,
         "hidden_dim": 64
     }
     
-    # 2. Traditional Model (Updated to be deeper for fairness)
-    print("\nTraining Traditional LSTM Model (Deepened)...")
+    # 2. Traditional Model
+    print("\nTraining Deep Traditional LSTM Model...")
     trad_model = build_traditional_model(**params)
-    # Adding an extra layer to Traditional for fairness in depth
-    inputs_trad = Input(batch_shape=(32, 16))
-    x_trad = Embedding(vocab_size, 32)(inputs_trad)
-    x_trad = LSTM(64, return_sequences=True)(x_trad)
-    x_trad = LSTM(64, return_sequences=True)(x_trad) # Extra layer
-    x_trad = GlobalAveragePooling1D()(x_trad)
-    x_trad = Dense(64, activation='relu')(x_trad)
-    outputs_trad = Dense(vocab_size, activation='softmax')(x_trad)
-    trad_model = Model(inputs_trad, outputs_trad, name="Deep_Traditional_LSTM")
-    
     trad_model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     
     start_time = time.time()
     trad_history = trad_model.fit(
-        X_train, y_train,
-        validation_data=(X_val, y_val),
-        epochs=15,
+        x_train, y_train,
+        validation_data=(x_test, y_test),
+        epochs=10,
         batch_size=32,
         verbose=1
     )
@@ -152,36 +116,48 @@ def run_comparison():
     res_model = build_resonant_model(**params)
     res_model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     
-    # Resonance Callback with more cycles for deep alignment
-    resonance_cb = NeuralResonanceCallback(resonance_cycles=10)
+    # Resonance Callback with cycles for prospective alignment
+    resonance_cb = NeuralResonanceCallback(resonance_cycles=5) # 5 cycles is usually enough for MNIST
     
     start_time = time.time()
     res_history = res_model.fit(
-        X_train, y_train,
-        validation_data=(X_val, y_val),
-        epochs=15,
+        x_train, y_train,
+        validation_data=(x_test, y_test),
+        epochs=10,
         batch_size=32,
         callbacks=[resonance_cb],
         verbose=1
     )
     res_time = time.time() - start_time
     
-    # 4. Results
-    print("\n" + "=" * 70)
-    print("COMPARISON RESULTS (15 Epochs)")
-    print("=" * 70)
-    print(f"{'Metric':<20} | {'Traditional':<15} | {'Resonant':<15}")
-    print("-" * 70)
-    print(f"{'Final Train Acc':<20} | {trad_history.history['accuracy'][-1]:.4f}          | {res_history.history['accuracy'][-1]:.4f}")
-    print(f"{'Final Val Acc':<20} | {trad_history.history['val_accuracy'][-1]:.4f}          | {res_history.history['val_accuracy'][-1]:.4f}")
-    print(f"{'Final Val Loss':<20} | {trad_history.history['val_loss'][-1]:.4f}          | {res_history.history['val_loss'][-1]:.4f}")
-    print(f"{'Training Time':<20} | {trad_time:.2f}s           | {res_time:.2f}s")
-    print("-" * 70)
+    # 4. Results Comparison
+    print("\n" + "=" * 80)
+    print("FINAL COMPARISON RESULTS (MNIST - 10 Epochs)")
+    print("=" * 80)
+    print(f"{'Metric':<20} | {'Traditional LSTM':<20} | {'Resonant ARCANE':<20}")
+    print("-" * 80)
+    print(f"{'Final Train Acc':<20} | {trad_history.history['accuracy'][-1]:.4f}               | {res_history.history['accuracy'][-1]:.4f}")
+    print(f"{'Final Test Acc':<20} | {trad_history.history['val_accuracy'][-1]:.4f}               | {res_history.history['val_accuracy'][-1]:.4f}")
+    print(f"{'Final Test Loss':<20} | {trad_history.history['val_loss'][-1]:.4f}               | {res_history.history['val_loss'][-1]:.4f}")
+    print(f"{'Total Training Time':<20} | {trad_time:.2f}s                | {res_time:.2f}s")
+    print("-" * 80)
     
-    if res_history.history['val_accuracy'][-1] > trad_history.history['val_accuracy'][-1]:
-        print("Resonant Model outperformed Traditional Model in accuracy!")
+    res_acc = res_history.history['val_accuracy'][-1]
+    trad_acc = trad_history.history['val_accuracy'][-1]
+    
+    if res_acc > trad_acc:
+        diff = (res_acc - trad_acc) * 100
+        print(f"Resonant Model outperformed Traditional Model by {diff:.2f}% accuracy!")
+        print("The hierarchical resonance and prospective alignment provided better feature extraction.")
     else:
-        print("Traditional Model performed better/equal in this short run.")
+        print("Traditional Model performed better/equal in this specific configuration.")
+    
+    print("=" * 80)
+
+if __name__ == "__main__":
+    # Ensure we use CPU for this test to avoid local setup issues if GPU memory is tight
+    # with tf.device('/CPU:0'):
+    run_comparison()
 
 if __name__ == "__main__":
     run_comparison()
