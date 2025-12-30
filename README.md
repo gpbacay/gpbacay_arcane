@@ -8,8 +8,8 @@ A revolutionary neuromimetic language foundation model that incorporates biologi
 
 This is the **world's first neuromimetic language foundation model** that bridges neuroscience and natural language processing:
 
-- **Hierarchical Neural Resonance**: Bi-directional state alignment for prospective neural synchronization.
-- **ResonantGSER Layers**: Spiking neural dynamics with reservoir computing and feedback projections.
+- **Hierarchical Neural Resonance**: Bi-directional state alignment for prospective neural synchronization
+- **ResonantGSER Layers**: Spiking neural dynamics with reservoir computing and feedback projections
 - **BioplasticDenseLayer**: Hebbian learning and synaptic plasticity  
 - **Homeostatic Regulation**: Activity-dependent neural regulation
 - **Temporal Integration**: Sequential processing via LSTM and spiking dynamics
@@ -18,12 +18,12 @@ This is the **world's first neuromimetic language foundation model** that bridge
 ## Features
 
 ### Biological Neural Principles
-- **Neural Resonance**: Real-time state harmonization between hierarchical layers.
-- **Prospective Alignment**: Neural activity refinement before synaptic weight updates.
-- **Spiking Neural Networks**: Realistic neuron behavior with leak rates and thresholds.
-- **Hebbian Learning**: "Neurons that fire together, wire together."
-- **Homeostatic Plasticity**: Self-regulating neural activity.
-- **Reservoir Computing**: Dynamic temporal processing.
+- **Neural Resonance**: Real-time state harmonization between hierarchical layers
+- **Prospective Alignment**: Neural activity refinement before synaptic weight updates
+- **Spiking Neural Networks**: Realistic neuron behavior with leak rates and thresholds
+- **Hebbian Learning**: "Neurons that fire together, wire together"
+- **Homeostatic Plasticity**: Self-regulating neural activity
+- **Reservoir Computing**: Dynamic temporal processing
 
 ### Advanced Language Capabilities
 - **Multi-temperature Generation**: Conservative, balanced, and creative modes
@@ -31,28 +31,63 @@ This is the **world's first neuromimetic language foundation model** that bridge
 - **Context-aware Processing**: 16-token sequence understanding
 - **Adaptive Creativity**: Temperature-controlled output diversity
 
-## Installation & Setup
+## Installation
 
 ### Prerequisites
 - Python 3.11+
 - TensorFlow 2.12+
-- (Optional) Django 4.2+ for documentation interface
 
-### Installation Methods
+### Install from PyPI (Recommended)
 
-#### Option 1: Install from PyPI (Recommended)
 ```bash
 pip install gpbacay-arcane
 ```
 
-#### Option 2: Install from Source
+### Install from Source
+
 ```bash
-git clone https://github.com/yourusername/gpbacay_arcane.git
+git clone https://github.com/gpbacay/gpbacay_arcane.git
 cd gpbacay_arcane
 pip install -e .
 ```
 
-#### Basic Usage
+## Quick Start
+
+### Hierarchical Resonance Foundation Model (Recommended)
+
+```python
+from gpbacay_arcane import HierarchicalResonanceFoundationModel, NeuralResonanceCallback
+
+# Initialize the deep resonance model
+model = HierarchicalResonanceFoundationModel(
+    vocab_size=3000,
+    seq_len=32,
+    hidden_dim=128,
+    num_resonance_levels=4,  # 4-level hierarchy
+    resonance_factor=0.15,
+    use_temporal_coherence=True,
+    use_attention_fusion=True
+)
+
+# Build and compile
+model.build_model()
+model.compile_model(learning_rate=3e-4)
+
+# Train with Neural Resonance (the "Thinking Phase")
+resonance_cb = NeuralResonanceCallback(resonance_cycles=10)
+model.model.fit(X_train, y_train, callbacks=[resonance_cb])
+
+# Generate text
+generated = model.generate_text(
+    seed_text="the nature of",
+    tokenizer=tokenizer,
+    max_length=50,
+    temperature=0.8
+)
+```
+
+### Basic Neuromimetic Model
+
 ```python
 from gpbacay_arcane import NeuromimeticLanguageModel
 
@@ -64,6 +99,7 @@ model.compile_model()
 # Generate text (requires trained tokenizer)
 generated_text = model.generate_text(
     seed_text="artificial intelligence",
+    tokenizer=tokenizer,
     max_length=50,
     temperature=0.8
 )
@@ -72,11 +108,8 @@ print(generated_text)
 
 ## Usage
 
-### Core Python Package
+### Complete Training Example
 
-The `gpbacay-arcane` package provides the neuromimetic language model implementation:
-
-#### Complete Training and Usage Example
 ```python
 import numpy as np
 from gpbacay_arcane import NeuromimeticLanguageModel
@@ -111,7 +144,8 @@ generated_text = model.generate_text(
 print(f"Generated: {generated_text}")
 ```
 
-#### Using Individual Neural Layers
+### Using Individual Neural Layers
+
 ```python
 from gpbacay_arcane.layers import ResonantGSER, BioplasticDenseLayer
 from tensorflow.keras.layers import Input
@@ -143,10 +177,9 @@ hebbian_layer = BioplasticDenseLayer(
 custom_model = Model(inputs=inputs, outputs=hebbian_layer)
 ```
 
-#### Training with Neural Resonance
-```python
-# python train_neuromimetic_lm.py
+### Training with Neural Resonance
 
+```python
 from gpbacay_arcane.callbacks import NeuralResonanceCallback, DynamicSelfModelingReservoirCallback
 
 # 1. Add resonance callback to synchronize hierarchical layers
@@ -163,11 +196,8 @@ modeling_cb = DynamicSelfModelingReservoirCallback(
 model.fit(X_train, y_train, callbacks=[resonance_cb, modeling_cb])
 ```
 
-**Note**: All trained models are automatically saved to the `/Models` folder for easy organization and access.
+### Multi-Temperature Text Generation
 
-### Advanced Features
-
-#### Multi-Temperature Text Generation
 ```python
 # Conservative generation (coherent, safe)
 conservative = model.generate_text(
@@ -194,7 +224,93 @@ creative = model.generate_text(
 )
 ```
 
-#### Model Information and Statistics
+## Hierarchical Neural Resonance
+
+The **HierarchicalResonanceFoundationModel** implements a revolutionary bi-directional neural architecture for deliberative "System 2" reasoning.
+
+### What is Neural Resonance?
+
+Unlike traditional feed-forward networks that process inputs in a single pass, Neural Resonance introduces a **"Thinking Phase"** where:
+
+1. **Higher layers project feedback** (expectations) downward to lower layers
+2. **Lower layers harmonize** their internal states to match those expectations
+3. **Multiple resonance cycles** align the entire hierarchy before weight updates
+
+This mimics the brain's predictive coding mechanism, where perception involves iterative top-down predictions and bottom-up error correction.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Prospective Configuration** | Neural activities optimized before weight updates |
+| **Bi-directional Feedback** | Higher layers send expectations to lower layers |
+| **Cross-level Skip Connections** | Multi-scale information flow |
+| **Temporal Coherence** | Distills temporal dynamics into coherence vectors |
+| **Attention Fusion** | Multi-pathway aggregation with self-attention |
+| **BCM Metaplasticity** | Bienenstock-Cooper-Munro sliding threshold learning |
+
+### Training with Resonance Cycles
+
+```python
+from gpbacay_arcane import (
+    HierarchicalResonanceFoundationModel,
+    NeuralResonanceCallback,
+    DynamicSelfModelingReservoirCallback
+)
+
+# Create the model with 4 resonance levels
+model = HierarchicalResonanceFoundationModel(
+    vocab_size=5000,
+    seq_len=32,
+    hidden_dim=128,
+    num_resonance_levels=4,
+    resonance_factor=0.15
+)
+model.build_model()
+model.compile_model()
+
+# Neural Resonance Callback - orchestrates the "Thinking Phase"
+# More cycles = deeper deliberation but slower training
+resonance_cb = NeuralResonanceCallback(
+    resonance_cycles=10,  # 5-15 recommended
+    learning_rate=0.01
+)
+
+# Optional: Dynamic reservoir adaptation
+reservoir_cb = DynamicSelfModelingReservoirCallback(
+    reservoir_layer=model.get_resonant_layers()[0],
+    performance_metric='accuracy',
+    target_metric=0.95,
+    growth_rate=10
+)
+
+# Train with resonance
+model.model.fit(
+    X_train, y_train,
+    validation_data=(X_val, y_val),
+    epochs=20,
+    callbacks=[resonance_cb, reservoir_cb]
+)
+
+# View detailed model information
+model.summary()
+```
+
+### When to Use Hierarchical Resonance
+
+✅ **Use when:**
+- You need deliberative reasoning over complex patterns
+- Training stability in very deep networks is important
+- You want biologically-plausible learning dynamics
+- Interpretability of internal representations matters
+
+⚠️ **Consider trade-offs:**
+- Training is slower due to resonance cycles
+- Higher memory usage for internal state tracking
+- Best suited for medium-sized models and datasets
+
+### Model Information and Statistics
+
 ```python
 # Get model architecture information
 model_info = model.get_model_info()
@@ -202,7 +318,7 @@ print(f"Model: {model_info['name']}")
 print(f"Features: {model_info['features']}")
 print(f"Parameters: {model_info['parameters']}")
 
-# Access bioplastic layer statistics (if using BioplasticDenseLayer)
+# Access bioplastic layer statistics
 for layer in model.model.layers:
     if hasattr(layer, 'get_plasticity_stats'):
         stats = layer.get_plasticity_stats()
@@ -210,25 +326,12 @@ for layer in model.model.layers:
         print(f"Synaptic density: {stats['synaptic_density']:.3f}")
 ```
 
-### Web Interface (Documentation Only)
+### Ollama Integration (Optional)
 
-A Django web interface is included for **documentation and demonstration purposes only**. The actual functionality is accessed through the Python package:
-
-```bash
-# Run documentation interface (optional)
-cd arcane_project
-python manage.py runserver
-# Visit http://localhost:8000 for demonstrations
-```
-
-**Note**: The web interface is for showcasing the model's capabilities. For production use, integrate the `gpbacay-arcane` package directly into your Python applications.
-
-### Create A.R.C.A.N.E. Foundation Model with Ollama
-
-**Create a neuromimetic foundation small language model** by combining Ollama's llama3.2:1b with A.R.C.A.N.E.'s biological neural mechanisms:
+Create a neuromimetic foundation model by combining Ollama's llama3.2:1b with A.R.C.A.N.E.'s biological neural mechanisms:
 
 ```bash
-# Install dependencies
+# Install optional dependencies
 pip install ollama sentence-transformers
 
 # Install and pull Ollama model
@@ -236,14 +339,8 @@ pip install ollama sentence-transformers
 ollama pull llama3.2:1b
 
 # Create the foundation model
-python create_foundation_model.py
+python examples/create_foundation_model.py
 ```
-
-This creates a single, comprehensive neuromimetic foundation model that:
-- Combines Ollama's pre-trained knowledge with biological neural dynamics
-- Features spiking neural networks and Hebbian learning
-- Automatically saves to `/Models` folder
-- Provides a foundation for neuromimetic language modeling
 
 ## Architecture
 
@@ -266,15 +363,15 @@ Input (16 tokens)
 ### Key Innovations
 
 1. **Neural Resonance (ResonantGSER)**:
-   - Bi-directional state alignment via feedback projections.
-   - Prospective neural synchronization before synaptic updates.
-   - Minimizes internal representation divergence for stable learning.
+   - Bi-directional state alignment via feedback projections
+   - Prospective neural synchronization before synaptic updates
+   - Minimizes internal representation divergence for stable learning
    - **[Detailed Resonance Documentation](docs/NEURAL_RESONANCE.md)**
 
 2. **GSER (Gated Spiking Elastic Reservoir)**:
-   - Combines reservoir computing with spiking neural dynamics.
-   - Spectral radius control for memory vs. dynamics tradeoff.
-   - Leak rate and spike threshold for biological realism.
+   - Combines reservoir computing with spiking neural dynamics
+   - Spectral radius control for memory vs. dynamics tradeoff
+   - Leak rate and spike threshold for biological realism
 
 3. **BioplasticDenseLayer**:
    - Implements Hebbian learning rule
@@ -286,10 +383,49 @@ Input (16 tokens)
    - LSTM for sequential processing
    - Global pooling for feature extraction
 
+## Available Models
+
+| Model | Description |
+|-------|-------------|
+| `HierarchicalResonanceFoundationModel` | Deep neuromimetic model with multi-level resonance hierarchy, bi-directional feedback, and "System 2" reasoning |
+| `NeuromimeticLanguageModel` | Standard neuromimetic language model with ResonantGSER and Hebbian learning |
+
+## Available Layers
+
+| Layer | Description |
+|-------|-------------|
+| `GSER` | Gated Spiking Elastic Reservoir with dynamic reservoir sizing |
+| `DenseGSER` | Dense layer with spiking dynamics and gating mechanisms |
+| `ResonantGSER` | Hierarchical resonant layer with bi-directional feedback |
+| `BioplasticDenseLayer` | Hebbian learning with homeostatic plasticity |
+| `HebbianHomeostaticNeuroplasticity` | Simplified Hebbian learning layer |
+| `RelationalConceptModeling` | Multi-head attention for concept extraction |
+| `RelationalGraphAttentionReasoning` | Graph attention for relational reasoning |
+| `MultiheadLinearSelfAttentionKernalization` | Linear attention with kernel approximation |
+| `LatentTemporalCoherence` | Temporal coherence distillation |
+| `PositionalEncodingLayer` | Sinusoidal positional encoding |
+
+## CLI Commands
+
+```bash
+# Show library information
+gpbacay-arcane-about
+
+# List available models
+gpbacay-arcane-list-models
+
+# List available layers
+gpbacay-arcane-list-layers
+
+# Show version
+gpbacay-arcane-version
+```
+
 ## Performance
 
 ### Training Results
-Recent benchmarks demonstrate that the **Resonant A.R.C.A.N.E.** model outperforms traditional deep architectures in both accuracy and stability across different domains.
+
+Recent benchmarks demonstrate that the **Resonant A.R.C.A.N.E.** model outperforms traditional deep architectures in both accuracy and stability.
 
 #### MNIST (10 Epochs)
 - **Test Accuracy**: **98.89%** (vs 98.76% for Deep LSTM)
@@ -300,42 +436,19 @@ Recent benchmarks demonstrate that the **Resonant A.R.C.A.N.E.** model outperfor
 - **Validation Loss**: **5.9818** (vs 6.7895 for Deep LSTM)
 
 ### Key Metrics
-- **Stability**: Superior convergence in deep hierarchies due to prospective alignment.
-- **Perplexity**: Highly competitive for small-scale foundation models.
-- **Model Size**: ~500K parameters.
-- **Inference Speed**: Fast execution after training phase.
+- **Stability**: Superior convergence in deep hierarchies due to prospective alignment
+- **Perplexity**: Highly competitive for small-scale foundation models
+- **Model Size**: ~500K parameters
+- **Inference Speed**: Fast execution after training phase
 
 ### Text Generation Quality
 - **Conservative (T=0.6)**: Coherent, safe outputs
 - **Balanced (T=0.9)**: Rich vocabulary, creative phrasing
 - **Creative (T=1.2)**: Diverse, experimental language
 
-## Deployment
-
-### Production Deployment
-
-The application is production-ready with support for:
-- **Heroku**: One-click deployment
-- **Railway**: Simple git-based deployment  
-- **Render**: Automatic scaling
-- **Vercel**: Serverless deployment
-
-See [deploy.md](deploy.md) for detailed deployment instructions.
-
-### Environment Configuration
-```bash
-# Required environment variables
-SECRET_KEY=your-django-secret-key
-DEBUG=False
-CUSTOM_DOMAIN=your-domain.com
-
-# Optional database (defaults to SQLite)
-DATABASE_URL=postgres://user:pass@host:port/db
-```
-
 ## Research Applications
 
-This model serves as a foundation for research in:
+This library serves as a foundation for research in:
 
 - **Computational Neuroscience**: Studying biological neural principles
 - **Cognitive Modeling**: Understanding language and consciousness
@@ -346,11 +459,11 @@ This model serves as a foundation for research in:
 
 ### Novel Contributions
 
-1. **First Neuromimetic Language Model**: Bridges neuroscience and NLP.
-2. **Hierarchical Neural Resonance**: Novel state alignment mechanism for deep models. **[Read the technical whitepaper](docs/NEURAL_RESONANCE.md)**.
-3. **Prospective Learning**: Activity refinement before weight updates (Prospective Configuration).
-4. **Biological Learning Rules**: Hebbian plasticity integrated with spiking dynamics.
-5. **Self-Modeling Reservoirs**: Structural neurogenesis and synaptic pruning.
+1. **First Neuromimetic Language Model**: Bridges neuroscience and NLP
+2. **Hierarchical Neural Resonance**: Novel state alignment mechanism for deep models
+3. **Prospective Learning**: Activity refinement before weight updates
+4. **Biological Learning Rules**: Hebbian plasticity integrated with spiking dynamics
+5. **Self-Modeling Reservoirs**: Structural neurogenesis and synaptic pruning
 
 ### Publications & Citations
 
@@ -359,6 +472,30 @@ This work represents groundbreaking research suitable for:
 - **Neural Networks**
 - **IEEE Transactions on Neural Networks**
 - **Conference on Neural Information Processing Systems (NeurIPS)**
+
+## Project Structure
+
+```
+gpbacay_arcane/
+├── gpbacay_arcane/          # Core library
+│   ├── __init__.py          # Module exports
+│   ├── layers.py            # Neural network layers
+│   ├── models.py            # NeuromimeticLanguageModel
+│   ├── callbacks.py         # Training callbacks
+│   ├── cli_commands.py      # CLI interface
+│   └── ollama_integration.py # Ollama integration
+├── examples/                # Usage examples
+│   ├── train_neuromimetic_lm.py
+│   ├── create_foundation_model.py
+│   └── ...
+├── tests/                   # Test files
+├── docs/                    # Documentation
+├── data/                    # Sample data
+├── Models/                  # Saved models directory
+├── setup.py                 # Package configuration
+├── requirements.txt         # Dependencies
+└── README.md
+```
 
 ## Contributing
 
@@ -378,7 +515,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 - **Neuroscience Research**: Inspired by decades of brain research
 - **Reservoir Computing**: Building on echo state network principles  
 - **Hebbian Learning**: Following Donald Hebb's groundbreaking work
-- **Open Source Community**: TensorFlow, Django, and Python ecosystems
+- **Open Source Community**: TensorFlow and Python ecosystems
 
 ## Contact
 
