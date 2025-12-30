@@ -488,69 +488,75 @@ class DenseGSER(Layer):
 class ResonantGSER(DenseGSER):
     """
     A Hierarchical Resonant Layer that facilitates bi-directional information flow.
-    It maintains internal representation and divergence signals to enable 
-    prospective state alignment and feedback loops within the A.R.C.A.N.E. framework.
+    It incorporates resonance-based modulation of neural activation through learned
+    resonance parameters within the A.R.C.A.N.E. framework.
+    
+    Key Features:
+    - Spiking neural dynamics from DenseGSER
+    - Learnable resonance modulation parameters
+    - Feedback projection capability for hierarchical resonance
+    
+    Note: The resonance harmonization between layers is orchestrated externally
+    by the NeuralResonanceCallback during training.
     """
     def __init__(self, units, resonance_factor=0.1, **kwargs):
         super(ResonantGSER, self).__init__(units, **kwargs)
         self.resonance_factor = resonance_factor
-        self.internal_representation = None
-        self.prediction_divergence = None
 
     def build(self, input_shape):
         super().build(input_shape)
-        # Internal state tracking for resonant harmonization
-        # Dynamically determine shape from input_shape (e.g., [batch, units] or [batch, seq, units])
-        state_shape = list(input_shape)
-        state_shape[-1] = self.units
         
-        self.internal_representation = self.add_weight(
-            name=f"{self.name}_internal_rep",
-            shape=tuple(state_shape),
-            initializer="zeros",
-            trainable=False
+        # Resonance modulation weights - learned parameters that modulate the output
+        # based on the resonance principle
+        self.resonance_gate = self.add_weight(
+            name='resonance_gate',
+            shape=(self.units,),
+            initializer=tf.keras.initializers.Constant(1.0),
+            trainable=True
         )
-        self.prediction_divergence = self.add_weight(
-            name=f"{self.name}_divergence",
-            shape=tuple(state_shape),
-            initializer="zeros",
+        
+        self.resonance_bias = self.add_weight(
+            name='resonance_bias',
+            shape=(self.units,),
+            initializer=tf.keras.initializers.Zeros(),
+            trainable=True
+        )
+        
+        # Feedback projection weights for downward projection
+        self.feedback_weights = self.add_weight(
+            name='feedback_weights',
+            shape=(self.units, self.input_dim),
+            initializer='glorot_uniform',
             trainable=False
         )
 
     def project_feedback(self, representation=None):
-        """Generates a downward projection for lower-level harmonization."""
-        rep = representation if representation is not None else self.internal_representation
-        # Project current internal state back through the input weights
-        return tf.matmul(rep, tf.transpose(self.input_weights))
-
-    def harmonize_states(self, external_projection):
         """
-        Aligns the internal representation by minimizing divergence from external signals.
-        Part of the A.R.C.A.N.E. prospective alignment mechanism.
+        Generates a downward projection for lower-level harmonization.
+        Used by NeuralResonanceCallback during the Thinking Phase.
         """
-        if external_projection is not None:
-            # Calculate divergence: delta = representation - projection
-            divergence = self.internal_representation - external_projection
-            self.prediction_divergence.assign(divergence)
-            
-            # Adjust internal state to reduce resonance divergence
-            adjustment = -self.resonance_factor * divergence
-            self.internal_representation.assign_add(adjustment)
+        if representation is None:
+            return None
+        # Project through feedback weights
+        return tf.matmul(representation, self.feedback_weights)
 
     def call(self, inputs, training=None):
-        # Primary neural activation pass
+        # Convert to float32 for computation
+        inputs = tf.cast(inputs, tf.float32)
+        
+        # Primary neural activation pass through DenseGSER
         activation = super().call(inputs)
         
-        if training:
-            # Synchronize internal representation with current activation
-            self.internal_representation.assign(activation)
-            
-            # Incorporate prospective divergence as a corrective signal
-            # This implements a form of 'Neural Resonance' where the output
-            # is adjusted based on top-down alignment signals from the previous cycle.
-            return activation - self.resonance_factor * self.prediction_divergence
+        # Apply resonance modulation
+        # The resonance gate learns to amplify/suppress certain features
+        # The resonance_factor controls the strength of this modulation
+        resonance_modulation = tf.sigmoid(self.resonance_gate) * self.resonance_factor
         
-        return activation
+        # Modulated output: combines base activation with resonance-adjusted version
+        # This creates a "resonant" response pattern
+        modulated = activation * (1.0 + resonance_modulation) + self.resonance_bias
+        
+        return modulated
 
     def get_config(self):
         config = super().get_config()

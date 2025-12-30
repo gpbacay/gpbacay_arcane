@@ -10,7 +10,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import (
     Input, Dense, Embedding, LSTM, GlobalAveragePooling1D, 
     Dropout, LayerNormalization, Concatenate, Add, 
-    GlobalMaxPooling1D, BatchNormalization, RNN
+    GlobalMaxPooling1D, BatchNormalization, RNN, Multiply
 )
 from tensorflow.keras import Model
 
@@ -453,21 +453,15 @@ class HierarchicalResonanceFoundationModel:
                 name='temporal_lstm'
             )(current)
             
-            # === Dynamic Reservoir Processing ===
-            # RNN with GSER cell for spiking dynamics
-            gser_cell = GSER(
-                input_dim=self.hidden_dim,
-                initial_reservoir_size=self.hidden_dim,
-                max_dynamic_reservoir_dim=self.hidden_dim * 2,
+            # === Dense Reservoir Processing ===
+            # Use DenseGSER for spiking dynamics (simpler than RNN wrapper)
+            gser_out = DenseGSER(
+                units=self.hidden_dim,
                 spectral_radius=0.9,
                 leak_rate=0.1,
                 spike_threshold=0.3,
-                name='gser_cell'
-            )
-            gser_rnn = RNN(
-                gser_cell, 
-                return_sequences=True,
-                name='gser_reservoir'
+                activation='gelu',
+                name='dense_gser_reservoir'
             )(lstm_out)
             
             # === Temporal Coherence (Optional) ===
@@ -477,7 +471,7 @@ class HierarchicalResonanceFoundationModel:
                 temporal_coherence = LatentTemporalCoherence(
                     d_coherence=coherence_dim,
                     name='temporal_coherence'
-                )(gser_rnn)
+                )(gser_out)
             
             # === Multi-Pathway Feature Extraction ===
             pathways = []
@@ -495,7 +489,7 @@ class HierarchicalResonanceFoundationModel:
             pathways.append(avg_pool_lstm)
             
             # Pathway 4: GSER reservoir features
-            avg_pool_gser = GlobalAveragePooling1D(name='avg_pool_gser')(gser_rnn)
+            avg_pool_gser = GlobalAveragePooling1D(name='avg_pool_gser')(gser_out)
             pathways.append(avg_pool_gser)
             
             # Pathway 5: Multi-level skip connection fusion
@@ -516,26 +510,22 @@ class HierarchicalResonanceFoundationModel:
                 pathways.append(temporal_coherence)
             
             # === Pathway Fusion ===
-            if self.use_attention_fusion and len(pathways) > 2:
-                # Stack pathways for attention-based fusion
-                pathway_stack = tf.stack(pathways, axis=1)  # (batch, num_pathways, features)
-                
-                # Self-attention over pathways
-                attention_fusion = MultiheadLinearSelfAttentionKernalization(
-                    d_model=self.hidden_dim,
-                    num_heads=4,
-                    dropout_rate=self.dropout_rate,
-                    name='pathway_attention'
-                )(pathway_stack)
-                
-                # Aggregate attention output
-                fused = GlobalAveragePooling1D(name='attention_aggregate')(attention_fusion)
-            else:
-                # Simple concatenation fusion
-                fused = Concatenate(name='pathway_fusion')(pathways)
+            # Concatenate all pathways
+            fused = Concatenate(name='pathway_fusion')(pathways)
+            
+            # Dense projection for attention-like mixing
+            if self.use_attention_fusion:
+                # Use dense gating for attention-like behavior
+                gate = Dense(
+                    fused.shape[-1] if fused.shape[-1] else self.hidden_dim * 4,
+                    activation='sigmoid',
+                    name='pathway_gate'
+                )(fused)
+                fused = Multiply(name='gated_fusion')([fused, gate])
             
             # === Bioplastic Processing ===
             # Hebbian learning with homeostatic plasticity
+            # Use 'l2' normalization instead of 'adaptive' to avoid dimension issues
             bioplastic1 = BioplasticDenseLayer(
                 units=self.hidden_dim * 2,
                 learning_rate=1e-3,
@@ -544,6 +534,7 @@ class HierarchicalResonanceFoundationModel:
                 homeostatic_rate=5e-5,
                 bcm_tau=800.0,
                 activation='gelu',
+                normalization='l2',  # Use l2 norm to avoid dimension mismatch
                 dropout_rate=self.dropout_rate,
                 name='bioplastic_1'
             )(fused)
@@ -556,6 +547,7 @@ class HierarchicalResonanceFoundationModel:
                 homeostatic_rate=3e-5,
                 bcm_tau=1000.0,
                 activation='gelu',
+                normalization='l2',  # Use l2 norm to avoid dimension mismatch
                 dropout_rate=self.dropout_rate / 2,
                 name='bioplastic_2'
             )(bioplastic1)
