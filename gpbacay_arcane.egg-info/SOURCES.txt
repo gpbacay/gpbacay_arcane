@@ -13,3 +13,7 @@ gpbacay_arcane.egg-info/dependency_links.txt
 gpbacay_arcane.egg-info/entry_points.txt
 gpbacay_arcane.egg-info/requires.txt
 gpbacay_arcane.egg-info/top_level.txt
+tests/test_arcane_foundation.py
+tests/test_concise_responses.py
+tests/test_foundation_model.py
+tests/test_ollama.py

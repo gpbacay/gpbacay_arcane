@@ -15,32 +15,38 @@ from .cli_commands import about
 
 # Convenience re-exports for layers
 from .layers import (
-    # Core reservoir layers
-    GSER,
     DenseGSER,
     ResonantGSER,
-    # Bioplastic layers
     BioplasticDenseLayer,
     HebbianHomeostaticNeuroplasticity,
-    # Attention and concept layers
     RelationalConceptModeling,
     RelationalGraphAttentionReasoning,
-    MultiheadLinearSelfAttentionKernalization,
-    # Temporal and positional layers
     LatentTemporalCoherence,
     PositionalEncodingLayer,
-    # Utility layers
     ExpandDimensionLayer,
-    SpatioTemporalSummaryMixingLayer,
     SpatioTemporalSummarization,
 )
+
+# Convenience re-exports for mechanisms
+from .mechanisms import (
+    GSER,
+    ResonantGSERCell,
+    MultiheadLinearSelfAttentionKernalization,
+    SpatioTemporalSummaryMixingLayer,
+)
+
 
 # Convenience re-exports for models  
 from .models import (
     NeuromimeticLanguageModel,
-    HierarchicalResonanceFoundationModel,
     load_neuromimetic_model,
 )
+
+# Convenience re-exports for foundational models
+from .foundational_models import (
+    HierarchicalResonanceFoundationModel,
+)
+
 
 # Convenience re-exports for callbacks
 from .callbacks import (

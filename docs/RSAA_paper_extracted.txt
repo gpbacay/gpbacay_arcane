@@ -1,0 +1,177 @@
+Total pages: 4
+================================================================================
+
+================================================================================
+PAGE 1
+================================================================================
+
+Closing the Alignment Gap: The Resonant State Alignment
+Algorithm (RSAA) for Deliberative Intelligence
+Gianne P . Bacay [A.R.C.A.N.E. Research. Email: giannebacay2004@gmail.com]
+Abstract
+Traditional feed-forward architectures suf fer from a fundamental limitation: information flows in one direction,
+preventing lower layers from revising their representations based on higher-level context. This creates an
+Alignment Gap  between local feature extraction and global semantic coherence. Backpropagation addresses this
+only retrospectively , adjusting weights after errors propagate to the output, but it cannot refine internal states in
+real-time before a response is committed. To solve this problem, I developed the Resonant State Alignment
+Algorithm (RSAA) , which closes this gap by enabling hierarchical systems to achieve internal coherence
+prospectively  through iterative bi-directional state refinement. RSAA  decouples state alignment from weight
+modification: layers first "resonate" to reach mutual consistency , then optionally update weights based on the
+aligned states. This is the first formalization of a deliberative alignment mechanism that allows computational
+systems to "think" before responding. The algorithm is substrate-agnostic, applying beyond neural networks to
+quantum variational circuits, cybernetic control systems, and multi-agent coordination.
+1. Introduction
+In a hierarchical computational system H with L layers, each layer i∈{1,…,L} maintains an internal state
+representation Si∈Rdi. Traditional neural architectures process information in a single feed-forward pass,
+mapping inputs to outputs without any opportunity for layers to "re-evaluate" their conclusions based on higher-
+level context. This unidirectional flow creates a significant Alignment Gap : a disconnect between low-level feature
+extraction and high-level contextual constraints.
+The textbook approach to neural learning, backpropagation, combined with advanced optimizers such as Adam or
+SGD with momentum, solves the credit assignment problem by propagating a global error signal backward
+through the network. However , this approach is:
+For biological neural systems, the neocortex is organized into a hierarchy where every feed-forward connection is
+matched by a feedback connection. Predictive Coding theory suggests that the brain constantly generates top-
+down predictions about what lower-level inputs should  be, and learning occurs when these predictions fail to
+match reality .
+1.1 Main Results
+In this paper , I present the Resonant State Alignment Algorithm (RSAA), a formal algorithm for closing the
+Alignment Gap through iterative state refinement, enabling deliberative intelligence in hierarchical systems.
+Theorem 1.1.  There exists a deterministic algorithm that takes O(N⋅L) time to achieve Prospective Configuration
+in a hierarchy H of L layers, where N is the number of resonance cycles. The algorithm operates solely on
+internal state activations {S1,…,SL} without modifying synaptic weights W.
+Note that the algorithm is substrate-agnostic; it applies equally to artificial neural networks, quantum variational
+circuits, cybernetic control systems, and multi-agent coordination mechanisms.1. Retrospective : It identifies errors after an output is generated.
+2. Global : It requires a complete forward pass before any correction can occur .
+3. Biologically Implausible : The brain does not utilize such global error signals.
+
+================================================================================
+PAGE 2
+================================================================================
+
+1.2 Technical Overview
+Broadly speaking, there are two traditional paradigms for neural computation:
+My approach merges these two paradigms through a Resonance Loop  technique. At any point during the
+execution of RSAA, each layer maintains a "state" Si that represents its current interpretation of the input. A higher
+layer i can "project" its expectation Pi→i−1 to the layer below , and the lower layer i−1 can "harmonize" its state to
+reduce the divergence Δi−1=Si−1−Pi→i−1.
+The key insight is that by iterating this projection-harmonization cycle N times before  any weight update or output
+commitment, the hierarchy reaches an equilibrium state where all layers are mutually consistent. I call this
+equilibrium Resonance .
+My most essential idea is the separation of state alignment  from weight modification . Traditional learning
+conflates these two processes: the only way to reduce error is to change weights. RSAA  decouples them: states
+are first aligned (Prospective Configuration), and only then are weights optionally updated based on the aligned
+states. This yields several benefits:
+2. Preliminaries
+Definition 2.1 (Resonant Hierarchy).  A Resonant Hierarchy H is an ordered set of L layers, where each layer i
+maintains:
+Definition 2.2 (Feedback Projection).  For a layer i, the Feedback Projection to layer i−1 is:
+Pi→i−1=f(i)
+proj(Si;Wi,proj)
+In the A.R.C.A.N.E. implementation, this is typically the matrix transpose of the input weights:
+Pi→i−1=Si⋅WT
+i
+Definition 2.3 (Prediction Divergence).  The Prediction Divergence at layer i−1 is the signed dif ference
+between its current state and the expectation projected from above:
+Δi−1=Si−1−Pi→i−1
+Definition 2.4 (Global Divergence).  The Global Divergence D of a hierarchy H is the sum of squared local
+divergences:
+D=L−1
+∑
+i=1∥Δi∥2
+Definition 2.5 (Resonance).  A hierarchy H is said to be in Resonance when D<ϵ for some threshold ϵ>0.Feed-Forward Inference : Information flows from input to output in a single pass. This is computationally
+efficient but lacks deliberative capacity .
+Backpropagation Learning : A global error signal propagates backward to adjust weights. This is ef fective for
+learning but does not refine activations in real-time.
+Stability : Local corrections prevent gradient explosion/vanishing.
+Deliberation : The system can "think" before committing to an output.
+Biological Plausibility : The mechanism mirrors neocortical feedback loops.
+An internal state Si∈Rdi.
+A projection function f(i)
+proj:Rdi→Rdi−1.
+A harmonization rate γi∈(0,1].
+
+================================================================================
+PAGE 3
+================================================================================
+
+3. The RSAA Algorithm
+3.1 State Harmonization
+The core operation of RSAA  is the State Harmonization update rule.
+Lemma 3.1 (Harmonization Update).  Given a layer i−1 with state S(t)
+i−1 and an incoming projection Pi→i−1, the
+harmonized state at cycle t+1 is:
+S(t+1)
+i−1=S(t)
+i−1−γ⋅Δ(t)
+i−1
+where γ∈(0,1] is the Resonance Factor .
+Proof.  The update directly minimizes the local divergence ∥Δi−1∥2 via gradient descent on the state variable Si−1.
+Since Δi−1=Si−1−Pi→i−1, the gradient with respect to Si−1 is ∇Si−1∥Δi−1∥2=2Δi−1. A gradient descent step
+with learning rate γ/2 yields the update rule. □
+3.2 Convergence
+Theorem 3.2 (Convergence of RSAA).  For a Resonant Hierarchy H with fixed projections {Pi→i−1}, the RSAA
+update rule converges to D=0 as N→∞, provided γ∈(0,1].
+Proof.  At each cycle, the local divergence ∥Δ(t+1)
+i−1∥2=∥(1−γ)Δ(t)
+i−1∥2=(1−γ)2∥Δ(t)
+i−1∥2. Since (1−γ)2<1 for
+γ∈(0,1], the divergence decreases geometrically . Summing over all layers, D(t+1)≤(1−γ)2D(t), which
+converges to 0. □
+3.3 Algorithmic Flow
+Algorithm 1: Resonant State Alignment
+Input: Hierarchy H, Input x, Cycles N, Threshold epsilon
+Output: Aligned states {S_1, ..., S_L}
+1.  [Forward Initialization]
+Perform feed-forward pass to populate {S_1, ..., S_L}.
+2.  [Resonance Loop]
+for t = 1 to N do:
+// Step A: Project (Top-Down)
+for i = L down to 2 do:
+P_{i -> i-1} = f_proj(S_i; W_i)
+end for
+// Step B: Harmonize (Bottom-Up)
+for i = 1 to L-1 do:
+Delta_i = S_i - P_{i+1 -> i}
+S_i = S_i - gamma * Delta_i
+end for
+// Step C: Check Convergence
+D = sum of ||Delta_i||^2
+if D < epsilon then break
+end for
+
+================================================================================
+PAGE 4
+================================================================================
+
+4. Substrate Agnosticism
+A key property of RSAA  is that it operates on abstract principles (state-space negotiation, local correction
+dynamics, stability-driven refinement) rather than assumptions unique to artificial neural networks.
+Corollary 4.1.  RSAA  can be instantiated in any system S that satisfies:
+This includes:
+5. Conclusion
+The Resonant State Alignment Algorithm (RSAA) closes the Alignment Gap by providing a rigorous mathematical
+basis for deliberative intelligence. By treating alignment as a dynamic convergence process rather than a static
+mapping, RSAA  allows computational systems to achieve internal coherence before committing to an output. The
+decoupling of state alignment from weight modification represents a paradigm shift from purely retrospective
+learning toward prospective, self-modeling computation. This work demonstrates that deliberative intelligence, the
+capacity to "think" before responding, can be formally achieved through iterative resonant state refinement.
+References3.  [Final Inference]
+Return output Y = f_output(S_L)
+1. S maintains adjustable internal states {Si}.
+2. S supports a projection operation between state levels.
+3. S supports an additive update operation on states.
+Quantum Computing : Variational state stabilization in VQE/QAOA  circuits.
+Cybernetics : Maintaining equilibrium in feedback-rich physical systems.
+Multi-Agent Systems : Achieving collective agreement through decentralized resonance.
+Symbolic AI: Enforcing semantic consistency between logical representations.
+[ART87] Carpenter , G. A., & Grossberg, S. (1987). A massively parallel architecture for a self-organizing neural
+pattern recognition machine. Computer V ision, Graphics, and Image Processing , 37(1), 54-1 15.
+[PC99] Rao, R. P ., & Ballard, D. H. (1999). Predictive coding in the visual cortex: a functional interpretation of
+some extra-classical receptive-field ef fects. Nature Neuroscience , 2(1), 79-87.
+[FEP10] Friston, K. (2010). The free-energy principle: a unified brain theory? Nature Reviews Neuroscience ,
+11(2), 127-138.
+[PC21] Millidge, B., Tschantz, A., & Buckley , C. L. (2021). Predictive Coding Approximates Backprop along
+Arbitrary Computation Graphs. Neural Computation , 34(6), 1329-1368.
+[HEB49] Hebb, D. O. (1949). The Organization of Behavior . Wiley .
+[BP86] Rumelhart, D. E., Hinton, G. E., & Williams, R. J. (1986). Learning representations by back-
+propagating errors. Nature , 323(6088), 533-536.
