@@ -133,7 +133,7 @@ graph LR
 
 ### Advantages (An Alternative to Transformers)
 
-While Transformer models currently dominate natural language processing, Hierarchical Neural Resonance offers a fundamentally different and in many ways superior approach to intelligence and information processing:
+While Transformer models currently dominate complex semantic tasks, Hierarchical Neural Resonance offers a fundamentally different and in many ways superior approach to intelligence and information processing:
 
 1. **System 2 Reasoning**: Transformers are purely feed-forward. They take an input and pass it through layers of attention to get an output without any internal "reflection." Resonant models perform iterative internal cycles to align hierarchical states, mimicking the brain's ability to deliberate before responding.
 
@@ -267,7 +267,7 @@ The benchmark evaluates:
 - Validation accuracy and loss
 - Training time and parameter count
 - Convergence speed and stability metrics
-- Text generation quality comparison
+- Semantic generation quality comparison
 
 ## Scientific Context
 This mechanism is based on the principle that the brain is a **prediction engine**. It doesn't just process input; it constantly generates top-down predictions about what the input *should* be. Learning occurs not just when we see something new, but when our internal predictions fail to match reality (**Prediction Divergence**).

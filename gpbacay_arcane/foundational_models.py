@@ -47,18 +47,6 @@ class HierarchicalResonanceFoundationModel:
         self.model = None
         self.resonant_layers = []
         
-    def _create_resonance_level(self, x, level_idx, units, resonance_factor, spike_threshold):
-        resonant = ResonantGSER(
-            units=units,
-            spike_threshold=spike_threshold,
-            resonance_factor=resonance_factor,
-            return_sequences=True,
-            name=f'resonant_level_{level_idx}'
-        )(x)
-        self.resonant_layers.append(resonant)
-        normed = LayerNormalization(epsilon=1e-6, name=f'layer_norm_{level_idx}')(resonant)
-        dropped = Dropout(self.dropout_rate, name=f'dropout_{level_idx}')(normed)
-        return dropped, resonant
     
     def build_model(self):
         self.resonant_layers = []
@@ -80,20 +68,58 @@ class HierarchicalResonanceFoundationModel:
             
             level_outputs = []
             skip_connections = []
+            resonant_layer_objects = []  # Store actual layer objects for hierarchy setup
             current = projected
+            
             for level in range(self.num_resonance_levels):
                 # Calculate level-specific parameters
                 # Higher levels have higher resonance for deeper deliberation
                 resonance_factor = self.resonance_factor + (level * 0.05)
                 spike_threshold = 0.4 - (level * 0.05)
                 level_units = self.hidden_dim
-                level_out, raw_resonant = self._create_resonance_level(current, level, level_units, resonance_factor, spike_threshold)
-                level_outputs.append(level_out)
-                skip_connections.append(raw_resonant)
+                
+                # Create resonant layer with RSAA parameters
+                resonant_layer = ResonantGSER(
+                    units=level_units,
+                    spike_threshold=spike_threshold,
+                    resonance_factor=resonance_factor,
+                    resonance_cycles=3,  # N cycles per forward pass
+                    convergence_epsilon=1e-4,
+                    return_sequences=True,
+                    name=f'resonant_level_{level}'
+                )
+                
+                # Apply the layer
+                level_out = resonant_layer(current)
+                
+                # Store references
+                resonant_layer_objects.append(resonant_layer)
+                self.resonant_layers.append(level_out)
+                
+                # Normalization and dropout
+                normed = LayerNormalization(epsilon=1e-6, name=f'layer_norm_{level}')(level_out)
+                dropped = Dropout(self.dropout_rate, name=f'dropout_{level}')(normed)
+                
+                level_outputs.append(dropped)
+                skip_connections.append(level_out)
+                
                 if level > 0:
-                    current = Add(name=f'skip_add_{level}')([level_out, current])
+                    current = Add(name=f'skip_add_{level}')([dropped, current])
                 else:
-                    current = level_out
+                    current = dropped
+            
+            # === Establish Hierarchical Feedback Connections ===
+            # Wire up the resonant layers to enable top-down/bottom-up communication
+            for i in range(len(resonant_layer_objects)):
+                if i > 0:
+                    # Set lower layer reference
+                    resonant_layer_objects[i].set_lower_layer(resonant_layer_objects[i-1])
+                if i < len(resonant_layer_objects) - 1:
+                    # Set higher layer reference
+                    resonant_layer_objects[i].set_higher_layer(resonant_layer_objects[i+1])
+            
+            # Store for external access
+            self.resonant_layer_objects = resonant_layer_objects
             
             lstm_out = LSTM(self.hidden_dim, return_sequences=True, dropout=self.dropout_rate, recurrent_dropout=self.dropout_rate / 2, name='temporal_lstm')(current)
             gser_out = DenseGSER(units=self.hidden_dim, spectral_radius=0.9, leak_rate=0.1, spike_threshold=0.3, activation='gelu', name='dense_gser_reservoir')(lstm_out)
@@ -124,6 +150,48 @@ class HierarchicalResonanceFoundationModel:
             outputs = Dense(self.vocab_size, activation='softmax', name='language_output')(dense_out)
             self.model = Model(inputs=inputs, outputs=outputs, name='hierarchical_resonance_foundation_model')
         return self.model
+    
+    def run_resonance_cycle(self, num_cycles=1):
+        """
+        Execute the full RSAA algorithm across the hierarchy.
+        
+        This implements Algorithm 1 from the RSAA paper:
+        1. Project (Top-Down): Higher layers send expectations to lower layers
+        2. Harmonize (Bottom-Up): Lower layers adjust to reduce divergence
+        3. Check Convergence: Monitor global divergence
+        
+        Args:
+            num_cycles: Number of full hierarchy resonance cycles to run
+        
+        Returns:
+            List of divergence values for each cycle
+        """
+        if not hasattr(self, 'resonant_layer_objects'):
+            raise ValueError("Model must be built before running resonance cycles")
+        
+        divergences = []
+        
+        for cycle in range(num_cycles):
+            # Step A: Project (Top-Down) - from highest to lowest
+            for i in range(len(self.resonant_layer_objects) - 1, 0, -1):
+                self.resonant_layer_objects[i].propagate_feedback_to_lower()
+            
+            # Step B: Harmonize (Bottom-Up) - implicit in next forward pass
+            # The harmonization happens automatically when the model processes data
+            # because each cell now has its resonance_alignment set
+            
+            # Step C: Check Convergence
+            cycle_divergence = sum([
+                layer.get_divergence() 
+                for layer in self.resonant_layer_objects
+            ])
+            divergences.append(cycle_divergence)
+            
+            # Early stopping if converged
+            if cycle_divergence < self.resonant_layer_objects[0]._cell.convergence_epsilon:
+                break
+        
+        return divergences
     
     def compile_model(self, learning_rate=5e-4):
         if self.model is None: raise ValueError("Build model first.")

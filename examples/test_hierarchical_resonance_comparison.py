@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from gpbacay_arcane import (
     HierarchicalResonanceFoundationModel,
-    NeuromimeticLanguageModel,
+    NeuromimeticSemanticModel,
     NeuralResonanceCallback,
 )
 
@@ -217,10 +217,10 @@ def run_comparison_test():
     
     # ========== Model 2: NeuromimeticLanguageModel (Standard) ==========
     print("\n" + "-" * 80)
-    print(" MODEL 2: NeuromimeticLanguageModel (Standard A.R.C.A.N.E.)")
+    print(" MODEL 2: NeuromimeticSemanticModel (Standard A.R.C.A.N.E.)")
     print("-" * 80)
     
-    neuro_model = NeuromimeticLanguageModel(
+    neuro_model = NeuromimeticSemanticModel(
         vocab_size=actual_vocab,
         seq_len=SEQ_LEN,
         embed_dim=EMBED_DIM,
@@ -334,7 +334,7 @@ def run_comparison_test():
     
     # ========== Text Generation Comparison ==========
     print("\n" + "=" * 80)
-    print("   TEXT GENERATION COMPARISON")
+    print("   SEMANTIC GENERATION COMPARISON")
     print("=" * 80)
     
     test_prompts = ["the king", "we shall", "to be"]

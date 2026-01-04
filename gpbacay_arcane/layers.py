@@ -33,16 +33,102 @@ class DenseGSER(tf.keras.layers.Layer):
         return tf.nn.gelu(tf.matmul(inputs, self.kernel) + self.bias)
 
 class ResonantGSER(tf.keras.layers.RNN):
+    """
+    Wrapper layer for ResonantGSERCell implementing hierarchical resonance.
+    """
     def __init__(self, units, resonance_factor=0.1, spike_threshold=0.5, 
+                 resonance_cycles=3, convergence_epsilon=1e-4,
                  return_sequences=False, return_state=False, **kwargs):
-        self._cell = ResonantGSERCell(units, resonance_factor=resonance_factor, spike_threshold=spike_threshold)
-        super(ResonantGSER, self).__init__(self._cell, return_sequences=return_sequences, return_state=return_state, **kwargs)
-        self.units = units
+        
+        if hasattr(units, 'state_size'):
+            cell = units
+            self.units = getattr(cell, 'units', None)
+        else:
+            self.units = units
+            cell = ResonantGSERCell(
+                units, 
+                resonance_factor=resonance_factor, 
+                spike_threshold=spike_threshold,
+                resonance_cycles=resonance_cycles,
+                convergence_epsilon=convergence_epsilon
+            )
+        
+        super(ResonantGSER, self).__init__(
+            cell, 
+            return_sequences=return_sequences, 
+            return_state=return_state, 
+            **kwargs
+        )
         self.resonance_factor = resonance_factor
+        self.resonance_cycles = resonance_cycles
+        # Use names instead of direct object references to avoid recursion errors
+        self.higher_layer_name = None
+        self.lower_layer_name = None
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "units": self.units,
+            "resonance_factor": self.resonance_factor,
+            "resonance_cycles": self.resonance_cycles
+        })
+        return config
+    
+    def set_higher_layer(self, layer):
+        self.higher_layer_name = layer.name if layer else None
+    
+    def set_lower_layer(self, layer):
+        self.lower_layer_name = layer.name if layer else None
+    
     def project_feedback(self, representation=None):
-        return tf.matmul(representation if representation is not None else self._cell.last_h, self._cell.feedback_weights)
+        """
+        Top-Down Projection: P_{i→i-1} = f_proj(S_i; W_i)
+        
+        Projects the current layer's representation down to the lower layer.
+        If no representation is provided, uses the cell's last hidden state.
+        """
+        if representation is None:
+            # Use the cell's tracked state
+            representation = tf.expand_dims(self._cell.last_h, 0)
+        
+        # Use the cell's projection function
+        projection = self._cell.project_feedback(representation)
+        return projection
+    
     def harmonize_states(self, projection):
+        """
+        Bottom-Up Harmonization: Receive top-down projection and set alignment target.
+        
+        This sets the resonance_alignment which will be used in the next forward pass
+        to guide the iterative harmonization loop.
+        """
+        # Squeeze to match the alignment shape if needed
+        if len(projection.shape) > 1:
+            projection = tf.squeeze(projection, axis=0)
+        
         self._cell.resonance_alignment.assign(projection)
+    
+    def get_divergence(self):
+        """Get the current global divergence metric from the cell."""
+        return self._cell.global_divergence.numpy()
+    
+    def propagate_feedback_to_lower(self):
+        """
+        Propagate this layer's state as a top-down projection to the lower layer.
+        This implements the "Project (Top-Down)" step from Algorithm 1.
+        """
+        if self._lower_layer is not None:
+            projection = self.project_feedback()
+            self._lower_layer.harmonize_states(projection)
+    
+    def receive_feedback_from_higher(self):
+        """
+        Receive and apply top-down projection from the higher layer.
+        This implements the "Harmonize (Bottom-Up)" step from Algorithm 1.
+        """
+        if self._higher_layer is not None:
+            projection = self._higher_layer.project_feedback()
+            self.harmonize_states(projection)
 
 class RelationalConceptModeling(tf.keras.layers.Layer):
     def __init__(self, d_model, num_heads, **kwargs):
@@ -75,6 +161,21 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
         self.normalization_type = normalization
         self.dropout_rate = dropout_rate
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "units": self.units,
+            "learning_rate": self.learning_rate,
+            "anti_hebbian_rate": self.anti_hebbian_rate,
+            "target_avg": self.target_avg,
+            "homeostatic_rate": self.homeostatic_rate,
+            "bcm_tau": self.bcm_tau,
+            "activation": tf.keras.activations.serialize(self.activation),
+            "normalization": self.normalization_type,
+            "dropout_rate": self.dropout_rate
+        })
+        return config
 
     def build(self, input_shape):
         self.kernel = self.add_weight(
@@ -133,6 +234,13 @@ class SpatioTemporalSummarization(tf.keras.layers.Layer):
         self.mixing = SpatioTemporalSummaryMixingLayer(d_model)
     def call(self, inputs):
         return self.mixing(inputs)
+    def get_config(self):
+        config = super().get_config()
+        # Since self.mixing is created in __init__ with d_model, 
+        # we should probably pass it back if we want to be perfect, 
+        # but let's just make sure it serializes.
+        config.update({"d_model": self.mixing.d_model})
+        return config
 
 class PositionalEncodingLayer(tf.keras.layers.Layer):
     def __init__(self, max_position, d_model, **kwargs):

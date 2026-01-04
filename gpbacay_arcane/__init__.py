@@ -1,5 +1,5 @@
 """
-gpbacay_arcane - A.R.C.A.N.E. Neuromimetic Language Foundation Model
+gpbacay_arcane - A.R.C.A.N.E. Neuromimetic Semantic Foundation Model
 
 Augmented Reconstruction of Consciousness through Artificial Neural Evolution
 
@@ -38,7 +38,7 @@ from .mechanisms import (
 
 # Convenience re-exports for models  
 from .models import (
-    NeuromimeticLanguageModel,
+    NeuromimeticSemanticModel,
     load_neuromimetic_model,
 )
 
@@ -71,7 +71,7 @@ CoherentThoughtModel = NeuromimeticLanguageModel
 
 __version__ = "3.0.0"
 __author__ = "Gianne P. Bacay"
-__description__ = "Neuromimetic Language Foundation Model with Biologically-Inspired Neural Mechanisms"
+__description__ = "Neuromimetic Semantic Foundation Model with Biologically-Inspired Neural Mechanisms"
 __all__ = [
     # Layers
     "GSER",
@@ -88,7 +88,7 @@ __all__ = [
     "SpatioTemporalSummaryMixingLayer",
     "SpatioTemporalSummarization",
     # Models
-    "NeuromimeticLanguageModel",
+    "NeuromimeticSemanticModel",
     "HierarchicalResonanceFoundationModel",
     "load_neuromimetic_model",
     # Callbacks

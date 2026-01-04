@@ -152,13 +152,21 @@ class ResonantGSERCell(Layer):
     Cell for the Resonant Gated Spiking Elastic Reservoir (ResonantGSER).
     Combines the robust gated updates of an LSTM with the biomimetic
     spiking of GSER and the deliberative resonance of the RSAA framework.
+    
+    Implements Algorithm 1 from the RSAA paper:
+    1. Forward Initialization - Standard LSTM pass
+    2. Resonance Loop - Iterative top-down projection and bottom-up harmonization
+    3. Final Inference - Output aligned state with spiking
     """
-    def __init__(self, units, resonance_factor=0.1, spike_threshold=0.5, **kwargs):
+    def __init__(self, units, resonance_factor=0.1, spike_threshold=0.5, 
+                 resonance_cycles=3, convergence_epsilon=1e-4, **kwargs):
         super(ResonantGSERCell, self).__init__(**kwargs)
         self.units = units
         self.resonance_factor = resonance_factor
         self.spike_threshold = spike_threshold
-        self.state_size = [units, units] # [h, c]
+        self.resonance_cycles = resonance_cycles  # N in the RSAA paper
+        self.convergence_epsilon = convergence_epsilon  # ε for early stopping
+        self.state_size = [units, units]  # [h, c]
         self.output_size = units
         self.lstm_cell = tf.keras.layers.LSTMCell(units)
         
@@ -166,9 +174,12 @@ class ResonantGSERCell(Layer):
         # Handle symbolic or undefined feature dimension in Functional API
         input_dim = input_shape[-1]
         if input_dim is None:
-            # Fallback for complex Functional model initialization
             input_dim = self.units 
+        
+        # Build the LSTM cell
         self.lstm_cell.build((None, int(input_dim)))
+        
+        # Resonance modulation parameters (trainable)
         self.resonance_gate = self.add_weight(
             name='resonance_gate', shape=(self.units,),
             initializer=tf.keras.initializers.Constant(1.0), trainable=True
@@ -177,38 +188,153 @@ class ResonantGSERCell(Layer):
             name='resonance_bias', shape=(self.units,),
             initializer=tf.keras.initializers.Zeros(), trainable=True
         )
+        
+        # Top-down projection alignment (non-trainable, updated during resonance)
         self.resonance_alignment = self.add_weight(
             name='resonance_alignment', shape=(self.units,),
             initializer='zeros', trainable=False
         )
-        input_dim = input_shape[-1]
-        if input_dim is None:
-            input_dim = self.units
+        
+        # Feedback projection weights (trainable) - for top-down expectations
         self.feedback_weights = self.add_weight(
             name='feedback_weights', shape=(self.units, int(input_dim)),
             initializer='glorot_uniform', trainable=True
         )
+        
+        # Projection head for feedback (trainable) - maps h_t to projection space
+        self.projection_kernel = self.add_weight(
+            name='projection_kernel', shape=(self.units, self.units),
+            initializer='glorot_uniform', trainable=True
+        )
+        self.projection_bias = self.add_weight(
+            name='projection_bias', shape=(self.units,),
+            initializer='zeros', trainable=True
+        )
+        
+        # Track last hidden state for external access
         self.last_h = self.add_weight(
             name='last_h', shape=(self.units,),
             initializer='zeros', trainable=False
         )
+        
+        # Track global divergence for monitoring
+        self.global_divergence = self.add_weight(
+            name='global_divergence', shape=(),
+            initializer='zeros', trainable=False
+        )
+        
         self.built = True
+    
+    def project_feedback(self, state):
+        """
+        Top-Down Projection: P_{i→i-1} = f_proj(S_i; W_i)
+        Projects current state to expectation for lower layer.
+        """
+        # Apply learned projection transformation
+        projection = tf.matmul(state, self.projection_kernel) + self.projection_bias
+        return projection
+    
+    def compute_divergence(self, current_state, projection):
+        """
+        Prediction Divergence: Δ_{i-1} = S_{i-1} - P_{i→i-1}
+        Computes the signed difference between current state and top-down expectation.
+        """
+        divergence = current_state - projection
+        return divergence
+    
+    def harmonize_state(self, current_state, divergence, gamma):
+        """
+        State Harmonization: S^{t+1}_{i-1} = S^{t}_{i-1} - γ·Δ^{t}_{i-1}
+        Updates state to reduce divergence from top-down projection.
+        """
+        harmonized = current_state - gamma * divergence
+        return harmonized
+    
+    def resonance_loop(self, h_initial, projection_from_above=None):
+        """
+        Implements the Resonance Loop (Algorithm 1, Step 2) from RSAA paper.
+        """
+        h_current = h_initial
+        gamma = self.resonance_factor
         
-    def call(self, inputs, states):
-        h_lstm, [h_new, c_new] = self.lstm_cell(inputs, states)
+        if projection_from_above is not None:
+            # Iterative synchronization
+            for _ in range(self.resonance_cycles):
+                delta = self.compute_divergence(h_current, projection_from_above)
+                # Divergence check (avoiding early break for graph compatibility)
+                h_current = self.harmonize_state(h_current, delta, gamma)
+            
+            # Final divergence update after loop
+            final_delta = self.compute_divergence(h_current, projection_from_above)
+            divergence_magnitude = tf.reduce_mean(tf.square(final_delta))
+            self.global_divergence.assign(divergence_magnitude)
+        
+        return h_current
+        
+    def call(self, inputs, states, **kwargs):
+        """
+        Forward pass implementing full RSAA algorithm.
+        """
+        # Handle states whether they are list or tuple
+        if isinstance(states, (list, tuple)):
+            h_prev = states[0]
+            c_prev = states[1]
+        else:
+            h_prev = states
+            c_prev = None # Should not happen with LSTMCell
+            
+        training = kwargs.get('training')
+        
+        # === Step 1: Forward Initialization ===
+        # Standard LSTM forward pass
+        h_lstm, new_states = self.lstm_cell(inputs, states, training=training)
+        h_new = new_states[0]
+        c_new = new_states[1]
+        
+        # === Step 2: Resonance Loop ===
+        projection_from_above = self.resonance_alignment
+        h_resonated = self.resonance_loop(h_new, projection_from_above)
+        
+        # === Step 3: Apply Resonance Modulation ===
         res_mod = tf.sigmoid(self.resonance_gate) * self.resonance_factor
-        h_aligned = h_new * (1.0 + res_mod) + self.resonance_bias + self.resonance_alignment
-        spikes = tf.cast(tf.greater(h_aligned, self.spike_threshold), dtype=tf.float32)
-        h_final = tf.where(spikes > 0, h_aligned - self.spike_threshold, h_aligned)
-        self.last_h.assign(tf.reduce_mean(h_final, axis=0))
-        return h_final, [h_final, c_new]
+        h_modulated = h_resonated * (1.0 + res_mod) + self.resonance_bias
         
+        # === Step 4: Spiking Mechanism ===
+        spikes = tf.cast(tf.greater(h_modulated, self.spike_threshold), dtype=tf.float32)
+        h_final = tf.where(spikes > 0, h_modulated - self.spike_threshold, h_modulated)
+        
+        # === Step 5: Track State ===
+        # Use tf.cond to safely assign in graph mode if needed, 
+        # but assign is generally ok on non-trainable variables.
+        self.last_h.assign(tf.reduce_mean(h_final, axis=0))
+        
+        return h_final, [h_final, c_new]
+    
+    def get_projection(self):
+        """
+        External interface to get top-down projection for lower layers.
+        Returns the projection based on the last processed state.
+        """
+        # Use the tracked last_h to compute projection
+        batch_size = 1  # For stateless projection
+        last_h_expanded = tf.expand_dims(self.last_h, 0)
+        return self.project_feedback(last_h_expanded)
+        
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
+        if batch_size is None and inputs is not None:
+            batch_size = tf.shape(inputs)[0]
+        dtype = dtype or tf.float32
+        return [tf.zeros((batch_size, self.units), dtype=dtype),
+                tf.zeros((batch_size, self.units), dtype=dtype)]
+
     def get_config(self):
         config = super().get_config()
         config.update({
             "units": self.units,
             "resonance_factor": self.resonance_factor,
-            "spike_threshold": self.spike_threshold
+            "spike_threshold": self.spike_threshold,
+            "resonance_cycles": self.resonance_cycles,
+            "convergence_epsilon": self.convergence_epsilon
         })
         return config
 

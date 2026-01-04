@@ -1,5 +1,6 @@
 import PyPDF2
 import sys
+import os
 
 def extract_text_from_pdf(pdf_path, output_path):
     try:
@@ -8,6 +9,7 @@ def extract_text_from_pdf(pdf_path, output_path):
             num_pages = len(pdf_reader.pages)
             
             full_text = []
+            full_text.append(f"Source: {pdf_path}\n")
             full_text.append(f"Total pages: {num_pages}\n")
             full_text.append("=" * 80 + "\n")
             
@@ -31,6 +33,12 @@ def extract_text_from_pdf(pdf_path, output_path):
         print(f"Error reading PDF: {str(e)}")
 
 if __name__ == "__main__":
-    pdf_path = r"c:\Users\Gianne Bacay\Desktop\project test\gpbacay_arcane\docs\RSAA‎_paper‎.pdf"
-    output_path = r"c:\Users\Gianne Bacay\Desktop\project test\gpbacay_arcane\docs\RSAA_paper_extracted.txt"
+    if len(sys.argv) > 2:
+        pdf_path = sys.argv[1]
+        output_path = sys.argv[2]
+    else:
+        # Fallback to hardcoded paths if no args provided
+        pdf_path = r"c:\Users\Gianne Bacay\Desktop\project test\gpbacay_arcane\docs\VL-JEPA Joint Embedding Predictive Architecture for Vision-language.pdf"
+        output_path = r"c:\Users\Gianne Bacay\Desktop\project test\gpbacay_arcane\docs\VLJEPA_extracted.txt"
+    
     extract_text_from_pdf(pdf_path, output_path)

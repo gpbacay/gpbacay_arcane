@@ -2,11 +2,11 @@
 """
 A.R.C.A.N.E. Foundation Small Language Model Creator
 
-This script creates a single neuromimetic foundation small language model by combining:
+This script creates a single neuromimetic foundation small semantic model by combining:
 - Ollama's llama3.2:1b pre-trained knowledge
 - A.R.C.A.N.E.'s biological neural mechanisms (spiking dynamics, Hebbian learning)
 
-The model is saved to /Models folder as required.
+The model is saved to the /Models folder as required.
 
 Author: Gianne P. Bacay
 Project: A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
@@ -82,7 +82,7 @@ def create_foundation_model_demo():
     """Create a foundation model for demonstration (works without Ollama)."""
     print("\n🏢 Creating Demo Foundation Model (without Ollama dependency)...")
     
-    from gpbacay_arcane import NeuromimeticLanguageModel
+    from gpbacay_arcane import NeuromimeticSemanticModel
     from tensorflow.keras.preprocessing.text import Tokenizer
     import numpy as np
     
@@ -142,8 +142,8 @@ def create_foundation_model_demo():
 
 
 def main():
-    """Create the A.R.C.A.N.E. Foundation Small Language Model."""
-    print("🧠 A.R.C.A.N.E. Foundation Small Language Model Creator")
+    """Create the A.R.C.A.N.E. Foundation Small Semantic Model."""
+    print("🧠 A.R.C.A.N.E. Foundation Small Semantic Model Creator")
     print("=" * 60)
     
     # Check if user wants demo or full Ollama integration
@@ -196,7 +196,7 @@ def main():
         vocab_size=4000,  # Larger vocabulary for foundation model
         embed_dim=384,    # Enhanced embedding dimension
         seq_len=48,       # Longer sequence length for better context
-        model_name="arcane_foundation_small_lm"
+        model_name="arcane_foundation_small_sm"
     )
     
     # Generate comprehensive training data
@@ -262,11 +262,11 @@ def main():
         print(f"Output: {generated}")
         print("-" * 50)
     
-    print("\n🎉 A.R.C.A.N.E. Foundation Small Language Model Created Successfully!")
+    print("\n🎉 A.R.C.A.N.E. Foundation Small Semantic Model Created Successfully!")
     print(f"📂 Model Location: {save_path}")
-    print(f"🧠 Type: Neuromimetic Foundation Model")
+    print(f"🧠 Type: Neuromimetic Semantic Foundation Model")
     print(f"⚡ Features: Spiking Neural Dynamics + Hebbian Learning")
-    print(f"🤖 Base: Ollama llama3.2:1b + A.R.C.A.N.E. Neural Components")
+    print(f"🤖 Base: Ollama llama3.2:1b + A.R.C.A.N.E. Semantic Components")
 
 
 if __name__ == "__main__":

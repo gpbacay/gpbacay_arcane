@@ -1,12 +1,12 @@
-# A.R.C.A.N.E. - Neuromimetic Language Foundation Model
+# A.R.C.A.N.E. - Neuromimetic Semantic Foundation Model
 
 **Augmented Reconstruction of Consciousness through Artificial Neural Evolution**
 
-A revolutionary neuromimetic language foundation model that incorporates biological neural principles including hierarchical resonance, spiking neural dynamics, Hebbian learning, and homeostatic plasticity.
+A revolutionary neuromimetic semantic foundation model that incorporates biological neural principles including hierarchical resonance, spiking neural dynamics, Hebbian learning, and homeostatic plasticity.
 
 ## What Makes This Unique
 
-This is the **world's first neuromimetic language foundation model** that bridges neuroscience and natural language processing:
+This is the **world's first neuromimetic semantic foundation model** that bridges neuroscience and artificial intelligence to enable advanced semantic understanding:
 
 - **Hierarchical Neural Resonance**: Bi-directional state alignment for prospective neural synchronization
 - **ResonantGSER Layers**: Spiking neural dynamics with reservoir computing and feedback projections
@@ -25,10 +25,10 @@ This is the **world's first neuromimetic language foundation model** that bridge
 - **Homeostatic Plasticity**: Self-regulating neural activity
 - **Reservoir Computing**: Dynamic temporal processing
 
-### Advanced Language Capabilities
+### Advanced Semantic Capabilities
 - **Multi-temperature Generation**: Conservative, balanced, and creative modes
 - **Nucleus Sampling**: High-quality text generation
-- **Context-aware Processing**: 16-token sequence understanding
+- **Context-aware Processing**: Enhanced semantic understanding across various data types
 - **Adaptive Creativity**: Temperature-controlled output diversity
 
 ## Installation
