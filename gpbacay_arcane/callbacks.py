@@ -8,10 +8,11 @@ class NeuralResonanceCallback(Callback):
     to align internal states across the semantic hierarchy, fostering a Unified Multi-Modal Semantic Space
     and enhancing the Abstraction of Surface-Level Conceptual Variability before synaptic weights are modified.
     """
-    def __init__(self, resonance_cycles=5, learning_rate=0.01):
+    def __init__(self, resonance_cycles=5, learning_rate=0.01, resonant_layers=None):
         super(NeuralResonanceCallback, self).__init__()
         self.resonance_cycles = resonance_cycles
         self.lr = learning_rate
+        self.resonant_layers = resonant_layers
 
     def on_train_batch_begin(self, batch, logs=None):
         """
@@ -22,11 +23,16 @@ class NeuralResonanceCallback(Callback):
         if not hasattr(self, 'model') or self.model is None:
             return
 
-        # Identify ResonantGSER layers in the architecture
-        resonant_layers = []
-        for layer in self.model.layers:
-            if 'ResonantGSER' in str(type(layer)):
-                resonant_layers.append(layer)
+        if self.resonant_layers:
+            resonant_layers = self.resonant_layers
+        else:
+            # Identify ResonantGSER layers in the architecture
+            resonant_layers = []
+            for layer in self.model.layers:
+                if 'ResonantGSER' in str(type(layer)):
+                    resonant_layers.append(layer)
+            # Sort resonant layers to ensure correct hierarchical processing
+            resonant_layers.sort(key=lambda x: x.name)
         
         if not resonant_layers:
             return

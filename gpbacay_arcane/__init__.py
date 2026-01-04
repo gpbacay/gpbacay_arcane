@@ -65,9 +65,9 @@ except ImportError:
     pass
 
 # Legacy model aliases (deprecated but maintained for compatibility)
-DSTSMGSER = NeuromimeticLanguageModel
-GSERModel = NeuromimeticLanguageModel
-CoherentThoughtModel = NeuromimeticLanguageModel
+DSTSMGSER = NeuromimeticSemanticModel
+GSERModel = NeuromimeticSemanticModel
+CoherentThoughtModel = NeuromimeticSemanticModel
 
 __version__ = "3.0.0"
 __author__ = "Gianne P. Bacay"

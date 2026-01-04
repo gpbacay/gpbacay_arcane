@@ -145,10 +145,10 @@ class ResonantGSER(tf.keras.layers.RNN):
         """
         if representation is None:
             # Use the cell's tracked state
-            representation = tf.expand_dims(self._cell.last_h, 0)
+            representation = tf.expand_dims(self.cell.last_h, 0)
         
         # Use the cell's projection function
-        projection = self._cell.project_feedback(representation)
+        projection = self.cell.project_feedback(representation)
         return projection
     
     def harmonize_states(self, projection):
@@ -162,29 +162,11 @@ class ResonantGSER(tf.keras.layers.RNN):
         if len(projection.shape) > 1:
             projection = tf.squeeze(projection, axis=0)
         
-        self._cell.resonance_alignment.assign(projection)
+        self.cell.resonance_alignment.assign(projection)
     
     def get_divergence(self):
         """Get the current global divergence metric from the cell."""
-        return self._cell.global_divergence.numpy()
-    
-    def propagate_feedback_to_lower(self):
-        """
-        Propagate this layer's state as a top-down projection to the lower layer.
-        This implements the "Project (Top-Down)" step from Algorithm 1.
-        """
-        if self._lower_layer is not None:
-            projection = self.project_feedback()
-            self._lower_layer.harmonize_states(projection)
-    
-    def receive_feedback_from_higher(self):
-        """
-        Receive and apply top-down projection from the higher layer.
-        This implements the "Harmonize (Bottom-Up)" step from Algorithm 1.
-        """
-        if self._higher_layer is not None:
-            projection = self._higher_layer.project_feedback()
-            self.harmonize_states(projection)
+        return self.cell.global_divergence.numpy()
 
 class RelationalConceptModeling(tf.keras.layers.Layer):
     """
