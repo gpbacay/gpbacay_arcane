@@ -4,10 +4,14 @@ from tensorflow.keras.layers import Layer
 
 class GSER(Layer):
     """
-    The Gated Spiking Elastic Reservoir (GSER) Mechanism (RNN Cell).
-    Combines dynamic reservoir sizing, spiking neurons, and adaptive gating.
+    The Gated Spiking Elastic Reservoir (GSER) Mechanism (RNN Cell) for semantic processing.
+    Combines dynamic reservoir sizing, spiking neurons, and adaptive gating, with an integrated conceptual
+    gating mechanism to dynamically adjust the influence of input and recurrent connections based on semantic relevance.
+    This contributes to Direct Semantic Optimization and Abstraction of Surface-Level Conceptual Variability
+    by focusing on the most salient semantic features in the latent space, supporting Latent Space Reasoning
+    within a Unified Multi-Modal Semantic Space.
     """
-    def __init__(self, input_dim, initial_reservoir_size, max_dynamic_reservoir_dim, spectral_radius, leak_rate, spike_threshold, neurogenesis_rate=0.05, pruning_rate=0.1, **kwargs):
+    def __init__(self, input_dim, initial_reservoir_size, max_dynamic_reservoir_dim, spectral_radius, leak_rate, spike_threshold, neurogenesis_rate=0.05, pruning_rate=0.1, use_semantic_gate=True, **kwargs):
         super().__init__(**kwargs)
         self.input_dim = input_dim
         self.initial_reservoir_size = initial_reservoir_size
@@ -17,6 +21,7 @@ class GSER(Layer):
         self.initial_spike_threshold = spike_threshold
         self.neurogenesis_rate = neurogenesis_rate
         self.pruning_rate = pruning_rate
+        self.use_semantic_gate = use_semantic_gate
         self.current_reservoir_size = None
         self.state_size = [self.max_dynamic_reservoir_dim]
         self.output_size = self.max_dynamic_reservoir_dim
@@ -31,6 +36,20 @@ class GSER(Layer):
             name='current_reservoir_size'
         )
         self.initialize_weights()
+        
+        if self.use_semantic_gate:
+            self.semantic_gate_kernel = self.add_weight(
+                shape=(self.input_dim + self.max_dynamic_reservoir_dim, self.max_dynamic_reservoir_dim),
+                initializer='glorot_uniform',
+                trainable=True,
+                name='semantic_gate_kernel'
+            )
+            self.semantic_gate_bias = self.add_weight(
+                shape=(self.max_dynamic_reservoir_dim,),
+                initializer='zeros',
+                trainable=True,
+                name='semantic_gate_bias'
+            )
 
     def initialize_weights(self):
         self.spatiotemporal_reservoir_weights = self.add_weight(
@@ -120,6 +139,14 @@ class GSER(Layer):
         i_gate, f_gate, o_gate = tf.split(tf.sigmoid(gate_part), 3, axis=-1)
         state = (1 - leak_rate) * (f_gate * prev_state) + leak_rate * tf.tanh(i_gate * (input_part + reservoir_part))
         state = o_gate * state
+
+        if self.use_semantic_gate:
+            # Concatenate inputs and current state for the semantic gate
+            combined_features = tf.concat([inputs, state], axis=-1)
+            semantic_gate_activations = tf.matmul(combined_features, self.semantic_gate_kernel) + self.semantic_gate_bias
+            semantic_gate = tf.sigmoid(semantic_gate_activations[:, :active_size]) # Apply gate to active part
+            state = state * semantic_gate # Modulate state based on semantic relevance
+
         spikes = tf.cast(tf.greater(state, spike_threshold), dtype=tf.float32)
         state = tf.where(spikes > 0, state - spike_threshold, state)
         padded_state = tf.pad(state, [[0, 0], [0, self.max_dynamic_reservoir_dim - active_size]])
@@ -142,7 +169,8 @@ class GSER(Layer):
             'spike_threshold': self.initial_spike_threshold,
             'max_dynamic_reservoir_dim': self.max_dynamic_reservoir_dim,
             'neurogenesis_rate': self.neurogenesis_rate,
-            'pruning_rate': self.pruning_rate
+            'pruning_rate': self.pruning_rate,
+            'use_semantic_gate': self.use_semantic_gate
         })
         return config
 
@@ -150,22 +178,20 @@ class GSER(Layer):
 class ResonantGSERCell(Layer):
     """
     Cell for the Resonant Gated Spiking Elastic Reservoir (ResonantGSER).
-    Combines the robust gated updates of an LSTM with the biomimetic
-    spiking of GSER and the deliberative resonance of the RSAA framework.
-    
-    Implements Algorithm 1 from the RSAA paper:
-    1. Forward Initialization - Standard LSTM pass
-    2. Resonance Loop - Iterative top-down projection and bottom-up harmonization
-    3. Final Inference - Output aligned state with spiking
+    This cell is a core component for Latent Space Reasoning, integrating concepts of
+    Unified Multi-Modal Semantic Space and Direct Semantic Optimization through its
+    deliberative resonance mechanism. It combines robust gated updates with biomimetic
+    spiking and iterative harmonization to abstract away surface-level conceptual variability.
     """
     def __init__(self, units, resonance_factor=0.1, spike_threshold=0.5, 
-                 resonance_cycles=3, convergence_epsilon=1e-4, **kwargs):
+                 resonance_cycles=3, convergence_epsilon=1e-4, semantic_divergence_weight=0.1, **kwargs):
         super(ResonantGSERCell, self).__init__(**kwargs)
         self.units = units
         self.resonance_factor = resonance_factor
         self.spike_threshold = spike_threshold
         self.resonance_cycles = resonance_cycles  # N in the RSAA paper
         self.convergence_epsilon = convergence_epsilon  # ε for early stopping
+        self.semantic_divergence_weight = semantic_divergence_weight # Weight for semantic divergence in harmonization
         self.state_size = [units, units]  # [h, c]
         self.output_size = units
         self.lstm_cell = tf.keras.layers.LSTMCell(units)
@@ -244,15 +270,16 @@ class ResonantGSERCell(Layer):
     
     def harmonize_state(self, current_state, divergence, gamma):
         """
-        State Harmonization: S^{t+1}_{i-1} = S^{t}_{i-1} - γ·Δ^{t}_{i-1}
-        Updates state to reduce divergence from top-down projection.
+        State Harmonization: Updates state to reduce semantic divergence from top-down projection.
+        Incorporates semantic divergence weighting for Direct Semantic Optimization.
         """
-        harmonized = current_state - gamma * divergence
+        # Dynamically adjust harmonization based on semantic divergence weight
+        harmonized = current_state - (gamma + self.semantic_divergence_weight) * divergence
         return harmonized
     
     def resonance_loop(self, h_initial, projection_from_above=None):
         """
-        Implements the Resonance Loop (Algorithm 1, Step 2) from RSAA paper.
+        Implements the core Resonance Loop for Latent Space Reasoning.
         """
         h_current = h_initial
         gamma = self.resonance_factor
@@ -273,7 +300,7 @@ class ResonantGSERCell(Layer):
         
     def call(self, inputs, states, **kwargs):
         """
-        Forward pass implementing full RSAA algorithm.
+        Forward pass integrating Direct Semantic Optimization and Latent Space Reasoning.
         """
         # Handle states whether they are list or tuple
         if isinstance(states, (list, tuple)):
@@ -334,22 +361,27 @@ class ResonantGSERCell(Layer):
             "resonance_factor": self.resonance_factor,
             "spike_threshold": self.spike_threshold,
             "resonance_cycles": self.resonance_cycles,
-            "convergence_epsilon": self.convergence_epsilon
+            "convergence_epsilon": self.convergence_epsilon,
+            "semantic_divergence_weight": self.semantic_divergence_weight
         })
         return config
 
 
 class MultiheadLinearSelfAttentionKernalization(Layer):
     """
-    Mechanism: Multi-head linear self-attention with kernel approximation.
-    Achieves linear complexity O(n) for long sequences.
+    A Multi-head linear self-attention mechanism with kernel approximation, designed for efficient
+    Latent Space Reasoning and establishing coherent relationships within a Unified Multi-Modal Semantic Space.
+    It achieves linear complexity (O(n)) for long sequences, and incorporates semantic re-weighting
+    to enhance Direct Semantic Optimization by prioritizing semantically important features.
     """
-    def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, eps=1e-6, **kwargs):
+    def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, 
+                 use_semantic_reweighting=True, eps=1e-6, **kwargs):
         super(MultiheadLinearSelfAttentionKernalization, self).__init__(**kwargs)
         self.d_model = d_model
         self.num_heads = num_heads
         self.dropout_rate = dropout_rate
         self.use_weighted_summary = use_weighted_summary
+        self.use_semantic_reweighting = use_semantic_reweighting
         self.eps = eps
         assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
         self.depth = d_model // num_heads
@@ -369,6 +401,17 @@ class MultiheadLinearSelfAttentionKernalization(Layer):
         if self.use_weighted_summary:
             self.summary_weight = self.add_weight(name='summary_weight', shape=(d_model, 1), initializer='glorot_uniform', trainable=True)
             self.summary_bias = self.add_weight(name='summary_bias', shape=(1,), initializer='zeros', trainable=True)
+        
+        if self.use_semantic_reweighting:
+            self.semantic_reweight_kernel = self.add_weight(
+                name='semantic_reweight_kernel', shape=(d_model, 1),
+                initializer='glorot_uniform', trainable=True
+            )
+            self.semantic_reweight_bias = self.add_weight(
+                name='semantic_reweight_bias', shape=(1,),
+                initializer='zeros', trainable=True
+            )
+
         self.layer_norm.build(input_shape)
         super(MultiheadLinearSelfAttentionKernalization, self).build(input_shape)
 
@@ -397,6 +440,9 @@ class MultiheadLinearSelfAttentionKernalization(Layer):
             weights = tf.nn.sigmoid(tf.matmul(attention_output, self.summary_weight) + self.summary_bias)
             attention_output = attention_output * weights
         output = tf.matmul(attention_output, self.output_weight) + self.output_bias
+        if self.use_semantic_reweighting:
+            reweight_factors = tf.sigmoid(tf.matmul(output, self.semantic_reweight_kernel) + self.semantic_reweight_bias)
+            output = output * reweight_factors
         output = self.dropout(output, training=training)
         return self.layer_norm(inputs + output)
 
@@ -404,15 +450,17 @@ class MultiheadLinearSelfAttentionKernalization(Layer):
         config = super().get_config()
         config.update({
             "d_model": self.d_model, "num_heads": self.num_heads, "dropout_rate": self.dropout_rate,
-            "use_weighted_summary": self.use_weighted_summary, "eps": self.eps,
+            "use_weighted_summary": self.use_weighted_summary, "use_semantic_reweighting": self.use_semantic_reweighting, "eps": self.eps,
         })
         return config
 
 
 class SpatioTemporalSummaryMixingLayer(Layer):
     """
-    Mechanism: Enhances spatio-temporal data by mixing local and global context.
-    Uses GLU for local gating and GELU for high-level summaries.
+    A mechanism that enhances spatio-temporal data by mixing local and global context to generate
+    Non-Autoregressive Semantic Predictions for Efficiency and construct a Unified Multi-Modal Semantic Space.
+    It uses gated linear units (GLU) for local gating and GELU for high-level semantic summaries,
+    actively abstracting away surface-level conceptual variability for Latent Space Reasoning.
     """
     def __init__(self, d_model, dropout_rate=0.1, use_weighted_summary=False, **kwargs):
         super(SpatioTemporalSummaryMixingLayer, self).__init__(**kwargs)

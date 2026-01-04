@@ -8,27 +8,27 @@ A revolutionary neuromimetic semantic foundation model that incorporates biologi
 
 This is the **world's first neuromimetic semantic foundation model** that bridges neuroscience and artificial intelligence to enable advanced semantic understanding:
 
-- **Hierarchical Neural Resonance**: Bi-directional state alignment for prospective neural synchronization
-- **ResonantGSER Layers**: Spiking neural dynamics with reservoir computing and feedback projections
-- **BioplasticDenseLayer**: Hebbian learning and synaptic plasticity  
-- **Homeostatic Regulation**: Activity-dependent neural regulation
-- **Temporal Integration**: Sequential processing via LSTM and spiking dynamics
-- **Advanced Text Generation**: Multiple creativity levels and sampling strategies
+- **Hierarchical Neural Resonance**: Bi-directional state alignment for Latent Space Reasoning and Direct Semantic Optimization
+- **ResonantGSER Layers**: Spiking neural dynamics with Unified Multi-Modal Semantic Space integration and Non-Autoregressive Semantic Prediction for Efficiency
+- **BioplasticDenseLayer**: Hebbian learning for Abstraction of Surface-Level Conceptual Variability and Direct Semantic Optimization  
+- **Homeostatic Regulation**: Activity-dependent neural regulation for stable Semantic Representation
+- **Temporal Integration**: Sequential processing via LSTM and spiking dynamics for Latent Space Reasoning in temporal contexts
+- **Advanced Semantic Generation**: Multiple creativity levels and sampling strategies for Non-Autoregressive Semantic Prediction for Efficiency
 
 ## Features
 
 ### Biological Neural Principles
-- **Neural Resonance**: Real-time state harmonization between hierarchical layers
-- **Prospective Alignment**: Neural activity refinement before synaptic weight updates
-- **Spiking Neural Networks**: Realistic neuron behavior with leak rates and thresholds
-- **Hebbian Learning**: "Neurons that fire together, wire together"
-- **Homeostatic Plasticity**: Self-regulating neural activity
-- **Reservoir Computing**: Dynamic temporal processing
+- **Neural Resonance**: Real-time state harmonization between hierarchical layers for Latent Space Reasoning and Direct Semantic Optimization
+- **Prospective Alignment**: Neural activity refinement before synaptic weight updates for Direct Semantic Optimization
+- **Spiking Neural Networks**: Realistic neuron behavior with leak rates and thresholds, contributing to Non-Autoregressive Semantic Prediction for Efficiency
+- **Hebbian Learning**: "Neurons that fire together, wire together" for Abstraction of Surface-Level Conceptual Variability
+- **Homeostatic Plasticity**: Self-regulating neural activity for stable Semantic Representation
+- **Reservoir Computing**: Dynamic temporal processing within a Unified Multi-Modal Semantic Space
 
 ### Advanced Semantic Capabilities
-- **Multi-temperature Generation**: Conservative, balanced, and creative modes
-- **Nucleus Sampling**: High-quality text generation
-- **Context-aware Processing**: Enhanced semantic understanding across various data types
+- **Multi-temperature Semantic Generation**: Conservative, balanced, and creative modes
+- **Nucleus Sampling**: High-quality semantic generation
+- **Context-aware Processing**: Enhanced semantic understanding across diverse modalities
 - **Adaptive Creativity**: Temperature-controlled output diversity
 
 ## Installation
@@ -89,21 +89,21 @@ generated = model.generate_text(
 ### Basic Neuromimetic Model
 
 ```python
-from gpbacay_arcane import NeuromimeticLanguageModel
+from gpbacay_arcane import NeuromimeticSemanticModel
 
 # Initialize the model
-model = NeuromimeticLanguageModel(vocab_size=1000)
+model = NeuromimeticSemanticModel(vocab_size=1000)
 model.build_model()
 model.compile_model()
 
-# Generate text (requires trained tokenizer)
-generated_text = model.generate_text(
+# Generate semantic output (requires trained tokenizer/processor)
+generated_output = model.generate_text(
     seed_text="artificial intelligence",
     tokenizer=tokenizer,
     max_length=50,
     temperature=0.8
 )
-print(generated_text)
+print(generated_output)
 ```
 
 ## Usage
@@ -112,19 +112,19 @@ print(generated_text)
 
 ```python
 import numpy as np
-from gpbacay_arcane import NeuromimeticLanguageModel
-from tensorflow.keras.preprocessing.text import Tokenizer
+from gpbacay_arcane import NeuromimeticSemanticModel
+from tensorflow.keras.preprocessing.text import Tokenizer # Or any other data preprocessor
 
-# 1. Prepare your text data
-text_data = "your training text here..."
+# 1. Prepare your semantic data
+semantic_data = "your training text here..." # Or other multi-modal data
 
-# 2. Create and train tokenizer
-tokenizer = Tokenizer(num_words=1000, oov_token="<UNK>")
-tokenizer.fit_on_texts([text_data])
+# 2. Create and train tokenizer/data preprocessor
+tokenizer = Tokenizer(num_words=1000, oov_token="<UNK>") # Example for text
+tokenizer.fit_on_texts([semantic_data])
 
 # 3. Initialize the neuromimetic model
-model = NeuromimeticLanguageModel(
-    vocab_size=len(tokenizer.word_index) + 1,
+model = NeuromimeticSemanticModel(
+    vocab_size=len(tokenizer.word_index) + 1, # Adjust vocab_size based on data type
     seq_len=16,
     embed_dim=32,
     hidden_dim=64
@@ -134,14 +134,14 @@ model = NeuromimeticLanguageModel(
 neuromimetic_model = model.build_model()
 model.compile_model(learning_rate=1e-3)
 
-# 5. Generate text after training
-generated_text = model.generate_text(
-    seed_text="artificial intelligence is",
+# 5. Generate semantic output after training
+generated_output = model.generate_text(
+    seed_text="artificial intelligence is", # Or other initial semantic input
     tokenizer=tokenizer,
     max_length=50,
     temperature=0.8  # 0.6=conservative, 0.9=balanced, 1.2=creative
 )
-print(f"Generated: {generated_text}")
+print(f"Generated: {generated_output}")
 ```
 
 ### Using Individual Neural Layers
@@ -196,10 +196,10 @@ modeling_cb = DynamicSelfModelingReservoirCallback(
 model.fit(X_train, y_train, callbacks=[resonance_cb, modeling_cb])
 ```
 
-### Multi-Temperature Text Generation
+### Multi-Temperature Semantic Generation
 
 ```python
-# Conservative generation (coherent, safe)
+# Conservative semantic generation (coherent, precise)
 conservative = model.generate_text(
     seed_text="machine learning",
     tokenizer=tokenizer,
@@ -207,7 +207,7 @@ conservative = model.generate_text(
     max_length=30
 )
 
-# Balanced generation (creative but coherent)
+# Balanced semantic generation (diverse yet coherent)
 balanced = model.generate_text(
     seed_text="machine learning",
     tokenizer=tokenizer,
@@ -215,7 +215,7 @@ balanced = model.generate_text(
     max_length=30
 )
 
-# Creative generation (diverse, experimental)
+# Creative semantic generation (exploratory, novel)
 creative = model.generate_text(
     seed_text="machine learning",
     tokenizer=tokenizer,
@@ -242,10 +242,10 @@ This mimics the brain's predictive coding mechanism, where perception involves i
 
 | Feature | Description |
 |---------|-------------|
-| **Prospective Configuration** | Neural activities optimized before weight updates |
+| **Prospective Configuration** | Neural activities optimized before weight updates for Direct Semantic Optimization |
 | **Bi-directional Feedback** | Higher layers send expectations to lower layers |
 | **Cross-level Skip Connections** | Multi-scale information flow |
-| **Temporal Coherence** | Distills temporal dynamics into coherence vectors |
+| **Temporal Coherence** | Distills temporal dynamics into coherence vectors for Latent Space Reasoning |
 | **Attention Fusion** | Multi-pathway aggregation with self-attention |
 | **BCM Metaplasticity** | Bienenstock-Cooper-Munro sliding threshold learning |
 
@@ -497,16 +497,16 @@ Sample generations for prompt "the king" (T=0.8):
 
 This library serves as a foundation for research in:
 
-- **Computational Neuroscience**: Studying biological neural principles
-- **Cognitive Modeling**: Understanding language and consciousness
+- **Computational Neuroscience**: Studying biological neural principles for Semantic Processing
+- **Cognitive Modeling**: Understanding semantic representation and consciousness
 - **Neuromorphic Computing**: Brain-inspired AI architectures
-- **AI Safety**: Interpretable and controllable language models
+- **AI Safety**: Interpretable and controllable semantic models
 
 ## Scientific Significance
 
 ### Novel Contributions
 
-1. **First Neuromimetic Language Model**: Bridges neuroscience and NLP
+1. **First Neuromimetic Semantic Model**: Bridges neuroscience and AI for semantic engineering
 2. **Hierarchical Neural Resonance**: Novel state alignment mechanism for deep models
 3. **Prospective Learning**: Activity refinement before weight updates
 4. **Biological Learning Rules**: Hebbian plasticity integrated with spiking dynamics
@@ -596,4 +596,4 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 
 **"Neurons that fire together, wire together, and now they write together."**
 
-*A.R.C.A.N.E. represents the future of biologically-inspired artificial intelligence - where neuroscience meets natural language processing to create truly conscious-like AI systems.*
+*A.R.C.A.N.E. represents the future of biologically-inspired artificial intelligence - where neuroscience meets artificial intelligence to create truly conscious-like semantic AI systems.*

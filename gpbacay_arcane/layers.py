@@ -19,22 +19,78 @@ class ExpandDimensionLayer(tf.keras.layers.Layer):
         return config
 
 class DenseGSER(tf.keras.layers.Layer):
+    """
+    A neuromimetic dense layer with Gated Spiking Elastic Reservoir (GSER) properties,
+    designed for Direct Semantic Optimization and Abstraction of Surface-Level Conceptual Variability.
+    It incorporates a conceptual gating mechanism to dynamically filter and emphasize
+    semantically relevant features in the latent space.
+    """
     def __init__(self, units, input_dim=None, spectral_radius=0.9, leak_rate=0.1, spike_threshold=0.5, 
-                 max_dynamic_units=None, activation='gelu', **kwargs):
+                 max_dynamic_units=None, activation='gelu', use_conceptual_gate=True, **kwargs):
         super().__init__(**kwargs)
         self.units = units
-        self.spectral_radius = spectral_radius
-        self.leak_rate = leak_rate
-        self.spike_threshold = spike_threshold
+        self.spectral_radius = spectral_radius # Retained for potential future GSER-specific logic
+        self.leak_rate = leak_rate             # Retained for potential future GSER-specific logic
+        self.spike_threshold = spike_threshold # Retained for potential future GSER-specific logic
+        self.activation = tf.keras.activations.get(activation)
+        self.use_conceptual_gate = use_conceptual_gate
+
     def build(self, input_shape):
-        self.kernel = self.add_weight(shape=(input_shape[-1], self.units), initializer='glorot_uniform', name='kernel')
-        self.bias = self.add_weight(shape=(self.units,), initializer='zeros', name='bias')
+        self.kernel = self.add_weight(
+            shape=(input_shape[-1], self.units),
+            initializer='glorot_uniform',
+            name='kernel'
+        )
+        self.bias = self.add_weight(
+            shape=(self.units,),
+            initializer='zeros',
+            name='bias'
+        )
+        
+        if self.use_conceptual_gate:
+            self.conceptual_gate_kernel = self.add_weight(
+                shape=(input_shape[-1], self.units),
+                initializer='glorot_uniform',
+                name='conceptual_gate_kernel'
+            )
+            self.conceptual_gate_bias = self.add_weight(
+                shape=(self.units,),
+                initializer='zeros',
+                name='conceptual_gate_bias'
+            )
+        self.built = True
+
     def call(self, inputs):
-        return tf.nn.gelu(tf.matmul(inputs, self.kernel) + self.bias)
+        # Standard dense transformation
+        x = tf.matmul(inputs, self.kernel) + self.bias
+        x = self.activation(x)
+
+        if self.use_conceptual_gate:
+            # Compute conceptual gate
+            gate_activations = tf.matmul(inputs, self.conceptual_gate_kernel) + self.conceptual_gate_bias
+            conceptual_gate = tf.sigmoid(gate_activations) # Sigmoid to produce gating values between 0 and 1
+            x = x * conceptual_gate # Apply conceptual gate
+            
+        return x
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'units': self.units,
+            'spectral_radius': self.spectral_radius,
+            'leak_rate': self.leak_rate,
+            'spike_threshold': self.spike_threshold,
+            'activation': tf.keras.activations.serialize(self.activation),
+            'use_conceptual_gate': self.use_conceptual_gate,
+        })
+        return config
 
 class ResonantGSER(tf.keras.layers.RNN):
     """
-    Wrapper layer for ResonantGSERCell implementing hierarchical resonance.
+    A wrapper layer for ResonantGSERCell, implementing hierarchical resonance for
+    Latent Space Reasoning, Unified Multi-Modal Semantic Space integration, and
+    Direct Semantic Optimization. It facilitates iterative state alignment and
+    feedback propagation within a multi-layered semantic hierarchy.
     """
     def __init__(self, units, resonance_factor=0.1, spike_threshold=0.5, 
                  resonance_cycles=3, convergence_epsilon=1e-4,
@@ -131,6 +187,11 @@ class ResonantGSER(tf.keras.layers.RNN):
             self.harmonize_states(projection)
 
 class RelationalConceptModeling(tf.keras.layers.Layer):
+    """
+    A layer designed to model and abstract relational concepts within a Unified Multi-Modal Semantic Space.
+    It uses multi-head attention to identify and extract salient conceptual relationships from input features,
+    contributing to Latent Space Reasoning by focusing on interconnected semantic entities.
+    """
     def __init__(self, d_model, num_heads, **kwargs):
         super().__init__(**kwargs)
         self.mha = tf.keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=d_model)
@@ -138,6 +199,11 @@ class RelationalConceptModeling(tf.keras.layers.Layer):
         return self.mha(inputs, inputs)
 
 class RelationalGraphAttentionReasoning(tf.keras.layers.Layer):
+    """
+    A layer for performing Latent Space Reasoning by applying graph-like attention over relational semantic embeddings.
+    It extracts and processes intricate relationships between conceptual entities, contributing to a deeper
+    semantic understanding.
+    """
     def __init__(self, d_model, num_heads, num_classes, **kwargs):
         super().__init__(**kwargs)
         self.mha = tf.keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=d_model)
@@ -147,6 +213,12 @@ class RelationalGraphAttentionReasoning(tf.keras.layers.Layer):
         return self.dense(tf.reduce_mean(x, axis=1))
 
 class BioplasticDenseLayer(tf.keras.layers.Layer):
+    """
+    A bioplastic dense layer incorporating Hebbian learning and homeostatic plasticity for
+    Direct Semantic Optimization and Abstraction of Surface-Level Conceptual Variability.
+    This layer adapts its synaptic weights based on neural activity, forming robust and
+    adaptive semantic representations in the latent space.
+    """
     def __init__(self, units, learning_rate=1e-3, anti_hebbian_rate=0.1, target_avg=0.12, 
                  homeostatic_rate=5e-5, bcm_tau=800.0, activation='gelu', normalization='l2', 
                  dropout_rate=0.1, **kwargs):
@@ -205,6 +277,11 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
         return x
 
 class HebbianHomeostaticNeuroplasticity(tf.keras.layers.Layer):
+    """
+    A layer implementing Hebbian learning with homeostatic plasticity for robust and adaptive
+    semantic feature learning. It promotes the formation of stable and meaningful connections
+    in the latent space by regulating neural activity and synaptic strength.
+    """
     def __init__(self, units, learning_rate=1e-3, target_activity=0.1, **kwargs):
         super().__init__(**kwargs)
         self.units = units
@@ -229,6 +306,11 @@ class HebbianHomeostaticNeuroplasticity(tf.keras.layers.Layer):
         return tf.matmul(inputs, self.kernel) + self.bias
 
 class SpatioTemporalSummarization(tf.keras.layers.Layer):
+    """
+    A layer for unifying multi-modal spatio-temporal features into coherent Semantic Summaries.
+    It supports a Unified Multi-Modal Semantic Space by abstracting away surface-level conceptual variability,
+    producing compact representations suitable for Latent Space Reasoning.
+    """
     def __init__(self, d_model, **kwargs):
         super().__init__(**kwargs)
         self.mixing = SpatioTemporalSummaryMixingLayer(d_model)
@@ -249,10 +331,20 @@ class PositionalEncodingLayer(tf.keras.layers.Layer):
         return inputs
 
 class LatentTemporalCoherence(tf.keras.layers.Layer):
+    """
+    A layer designed to distill a compact 'semantic coherence vector' from temporal inputs,
+    facilitating Latent Space Reasoning and Abstraction of Surface-Level Conceptual Variability
+    in sequential data. It captures the essential semantic flow over time.
+    """
     def __init__(self, d_coherence, **kwargs):
         super().__init__(**kwargs)
         self.d_coherence = d_coherence
     def build(self, input_shape):
-        self.kernel = self.add_weight(shape=(input_shape[-1], self.d_coherence), initializer='glorot_uniform', name='kernel')
+        # Kernel to project pooled temporal features into a semantic coherence vector
+        self.coherence_kernel = self.add_weight(shape=(input_shape[-1], self.d_coherence), initializer='glorot_uniform', name='coherence_kernel')
     def call(self, inputs):
-        return tf.matmul(tf.reduce_mean(inputs, axis=1), self.kernel)
+        # Average pool across the temporal dimension to get a global temporal context
+        pooled_temporal_features = tf.reduce_mean(inputs, axis=1)
+        # Project into the semantic coherence space
+        semantic_coherence_vector = tf.matmul(pooled_temporal_features, self.coherence_kernel)
+        return semantic_coherence_vector

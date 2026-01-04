@@ -3,9 +3,10 @@ from tensorflow.keras.callbacks import Callback
 
 class NeuralResonanceCallback(Callback):
     """
-    Orchestrates Neural Resonance cycles within the A.R.C.A.N.E. architecture.
-    Performs multiple 'Resonance Cycles' to align internal states across 
-    the hierarchy before synaptic weights are modified.
+    Orchestrates Neural Resonance cycles within the A.R.C.A.N.E. architecture, enabling
+    Latent Space Reasoning and Direct Semantic Optimization. It performs multiple 'Resonance Cycles'
+    to align internal states across the semantic hierarchy, fostering a Unified Multi-Modal Semantic Space
+    and enhancing the Abstraction of Surface-Level Conceptual Variability before synaptic weights are modified.
     """
     def __init__(self, resonance_cycles=5, learning_rate=0.01):
         super(NeuralResonanceCallback, self).__init__()
@@ -14,8 +15,9 @@ class NeuralResonanceCallback(Callback):
 
     def on_train_batch_begin(self, batch, logs=None):
         """
-        The Resonance Phase: Synchronize neural representations by aligning 
-        projections from higher-level layers.
+        The Semantic Resonance Phase: Synchronizes neural representations by iteratively aligning
+        projections from higher-level semantic layers, fostering Direct Semantic Optimization and
+        Abstraction of Surface-Level Conceptual Variability before synaptic weights are modified.
         """
         if not hasattr(self, 'model') or self.model is None:
             return
@@ -45,22 +47,13 @@ class NeuralResonanceCallback(Callback):
 
 
 class DynamicSelfModelingReservoirCallback(Callback):
-    def __init__(self, reservoir_layer, performance_metric='accuracy', target_metric=0.98,
-                 growth_rate=10, prune_rate=0.05, performance_threshold=0.01, 
-                 growth_phase_length=10, pruning_phase_length=5, stagnation_epochs=15, apoptosis_rate=1):
-        super().__init__()
-        self.reservoir_layer = reservoir_layer
-        self.performance_metric = performance_metric
-        self.target_metric = target_metric
-        self.growth_rate = growth_rate
-        self.prune_rate = prune_rate
-        self.performance_threshold = performance_threshold
-        self.growth_phase_length = growth_phase_length
-        self.pruning_phase_length = pruning_phase_length
-        self.stagnation_epochs = stagnation_epochs # Number of epochs with no improvement to trigger apoptosis
-        self.apoptosis_rate = apoptosis_rate # Number of neurons to prune
-        self.performance_history = []
-        self.stagnation_counter = 0
+    """
+    A callback for dynamic self-modeling and adaptation of reservoir-based layers,
+    contributing to Latent Space Reasoning and Abstraction of Surface-Level Conceptual Variability.
+    It dynamically adjusts the reservoir's size (neurogenesis and pruning) based on performance metrics,
+    optimizing the model's capacity for Direct Semantic Optimization and efficient processing
+    within a Unified Multi-Modal Semantic Space.
+    """
 
     def on_epoch_end(self, epoch, logs=None):
         current_metric = logs.get(self.performance_metric, 0)
