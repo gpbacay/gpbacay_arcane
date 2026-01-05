@@ -7,32 +7,46 @@ Augmented Reconstruction of Consciousness through Artificial Neural Evolution.
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, Embedding, LSTM, GlobalAveragePooling1D, Dropout, LayerNormalization, Concatenate
+from tensorflow.keras.layers import (
+    Input, Dense, Embedding, LSTM, GlobalAveragePooling1D, 
+    Dropout, LayerNormalization, Concatenate, Add, 
+    GlobalMaxPooling1D, BatchNormalization, RNN, Multiply
+)
 from tensorflow.keras import Model
 
-from gpbacay_arcane.layers import DenseGSER, BioplasticDenseLayer
+from gpbacay_arcane.layers import (
+    ResonantGSER, 
+    BioplasticDenseLayer, 
+    DenseGSER,
+    GSER,
+    LatentTemporalCoherence,
+    HebbianHomeostaticNeuroplasticity,
+    PositionalEncodingLayer,
+    MultiheadLinearSelfAttentionKernalization,
+)
 
 
-class NeuromimeticLanguageModel:
+class NeuromimeticSemanticModel:
     """
-    Neuromimetic Language Foundation Model
+    Neuromimetic Semantic Foundation Model
     
-    A novel language model architecture that incorporates biological neural principles:
-    - Spiking neural dynamics via DenseGSER layers
+    A novel model architecture that incorporates biological neural principles for advanced semantic understanding across various data types:
+    - Hierarchical neural resonance and prospective alignment
+    - Spiking neural dynamics via ResonantGSER layers
     - Hebbian learning via BioplasticDenseLayer
     - Homeostatic plasticity for activity regulation
     - Temporal sequence processing via LSTM
     
-    This model represents the first implementation of a neuromimetic language foundation model,
-    bridging neuroscience and natural language processing.
+    This model represents the first implementation of a neuromimetic semantic foundation model,
+    bridging neuroscience and artificial intelligence for comprehensive semantic engineering.
     """
     
     def __init__(self, vocab_size, seq_len=16, embed_dim=32, hidden_dim=64):
         """
-        Initialize the neuromimetic language model.
+        Initialize the neuromimetic semantic model.
         
         Args:
-            vocab_size (int): Size of the vocabulary
+            vocab_size (int): Size of the vocabulary (or embedding space for non-textual data)
             seq_len (int): Length of input sequences
             embed_dim (int): Embedding dimension
             hidden_dim (int): Hidden layer dimension
@@ -44,7 +58,7 @@ class NeuromimeticLanguageModel:
         self.model = None
 
     def build_model(self):
-        """Build the neuromimetic language model architecture."""
+        """Build the neuromimetic semantic model architecture."""
         
         # Force CPU device for variables to avoid GPU/CPU conflicts
         with tf.device('/CPU:0'):
@@ -57,29 +71,35 @@ class NeuromimeticLanguageModel:
                 name='embedding'
             )(inputs)
             
-            # First DenseGSER layer - Primary spiking neural processing
-            gser1 = DenseGSER(
+            # First ResonantGSER layer - Primary neural processing with Prospective Alignment
+            resonant_layer_1 = ResonantGSER(
                 units=self.hidden_dim,
-                spectral_radius=0.9,
-                leak_rate=0.1,
                 spike_threshold=0.35,
-                activation='gelu',
-                name='dense_gser_1'
-            )(embedded)
+                resonance_factor=0.1,
+                resonance_cycles=3,
+                return_sequences=True,
+                name='resonant_gser_1'
+            )
+            gser1 = resonant_layer_1(embedded)
             
             # Layer normalization and dropout for stability
             gser1_norm = LayerNormalization(name='layer_norm_1')(gser1)
             gser1_drop = Dropout(0.15, name='dropout_1')(gser1_norm)
             
-            # Second DenseGSER layer - Secondary spiking neural processing
-            gser2 = DenseGSER(
+            # Second ResonantGSER layer - Secondary neural processing with Hierarchical Feedback
+            resonant_layer_2 = ResonantGSER(
                 units=self.hidden_dim,
-                spectral_radius=0.8,
-                leak_rate=0.12,
                 spike_threshold=0.3,
-                activation='gelu',
-                name='dense_gser_2'
-            )(gser1_drop)
+                resonance_factor=0.12,
+                resonance_cycles=3,
+                return_sequences=True,
+                name='resonant_gser_2'
+            )
+            gser2 = resonant_layer_2(gser1_drop)
+
+            # Establish Hierarchical Feedback Connections
+            resonant_layer_2.set_lower_layer(resonant_layer_1)
+            resonant_layer_1.set_higher_layer(resonant_layer_2)
             
             # LSTM for sequential temporal processing
             lstm_out = LSTM(
@@ -127,7 +147,7 @@ class NeuromimeticLanguageModel:
             self.model = Model(
                 inputs=inputs,
                 outputs=outputs,
-                name='neuromimetic_language_foundation_model'
+                name='neuromimetic_semantic_foundation_model'
             )
         
         return self.model
@@ -155,16 +175,16 @@ class NeuromimeticLanguageModel:
     
     def generate_text(self, seed_text, tokenizer, max_length=50, temperature=0.8):
         """
-        Generate text using the trained neuromimetic language model.
+        Generate semantic output (e.g., text) using the trained neuromimetic semantic model.
         
         Args:
-            seed_text (str): Initial text to start generation
-            tokenizer: Keras tokenizer used during training
-            max_length (int): Maximum number of tokens to generate
+            seed_text (str): Initial input to start generation (e.g., text, sequence)
+            tokenizer: Keras tokenizer or similar mapping function used during training
+            max_length (int): Maximum length of output to generate
             temperature (float): Sampling temperature for creativity control
             
         Returns:
-            str: Generated text
+            str: Generated output (e.g., text, sequence representation)
         """
         if self.model is None:
             raise ValueError("Model must be built before text generation.")
@@ -236,14 +256,14 @@ class NeuromimeticLanguageModel:
     def get_model_info(self):
         """Get information about the neuromimetic model architecture."""
         return {
-            "name": "Neuromimetic Language Foundation Model",
-            "description": "Bio-inspired language model with spiking neural dynamics",
+            "name": "Neuromimetic Semantic Foundation Model",
+            "description": "Bio-inspired model with spiking neural dynamics for semantic understanding",
             "features": [
                 "Dual DenseGSER spiking neural layers",
                 "BioplasticDenseLayer Hebbian learning",
                 "LSTM temporal processing",
                 "Homeostatic plasticity regulation",
-                "Advanced text generation capabilities"
+                "Advanced semantic generation capabilities"
             ],
             "parameters": {
                 "vocab_size": self.vocab_size,
@@ -255,7 +275,9 @@ class NeuromimeticLanguageModel:
 
 
 # For backward compatibility, keep the legacy class name as an alias
-NeuromimeticLanguageFoundationModel = NeuromimeticLanguageModel
+NeuromimeticLanguageFoundationModel = NeuromimeticSemanticModel
+
+
 
 
 def load_neuromimetic_model(model_path, tokenizer_path=None):
@@ -269,10 +291,16 @@ def load_neuromimetic_model(model_path, tokenizer_path=None):
     Returns:
         tuple: (model, tokenizer) if tokenizer_path provided, else just model
     """
-    # Custom objects for loading
+    # Custom objects for loading all ARCANE layers
     custom_objects = {
         'DenseGSER': DenseGSER,
+        'ResonantGSER': ResonantGSER,
         'BioplasticDenseLayer': BioplasticDenseLayer,
+        'GSER': GSER,
+        'LatentTemporalCoherence': LatentTemporalCoherence,
+        'HebbianHomeostaticNeuroplasticity': HebbianHomeostaticNeuroplasticity,
+        'PositionalEncodingLayer': PositionalEncodingLayer,
+        'MultiheadLinearSelfAttentionKernalization': MultiheadLinearSelfAttentionKernalization,
     }
     
     # Load model
@@ -289,6 +317,6 @@ def load_neuromimetic_model(model_path, tokenizer_path=None):
 
 # Legacy model aliases for backward compatibility
 # These provide compatibility with older references while using the main neuromimetic architecture
-DSTSMGSER = NeuromimeticLanguageModel  # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir
-GSERModel = NeuromimeticLanguageModel  # Simplified Gated Spiking Elastic Reservoir Model  
-CoherentThoughtModel = NeuromimeticLanguageModel  # Coherent Thought Model
+DSTSMGSER = NeuromimeticSemanticModel  # Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic Reservoir
+GSERModel = NeuromimeticSemanticModel  # Simplified Gated Spiking Elastic Reservoir Model  
+CoherentThoughtModel = NeuromimeticSemanticModel  # Coherent Thought Model

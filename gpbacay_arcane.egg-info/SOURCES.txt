@@ -6,9 +6,14 @@ gpbacay_arcane/callbacks.py
 gpbacay_arcane/cli_commands.py
 gpbacay_arcane/layers.py
 gpbacay_arcane/models.py
+gpbacay_arcane/ollama_integration.py
 gpbacay_arcane.egg-info/PKG-INFO
 gpbacay_arcane.egg-info/SOURCES.txt
 gpbacay_arcane.egg-info/dependency_links.txt
 gpbacay_arcane.egg-info/entry_points.txt
 gpbacay_arcane.egg-info/requires.txt
 gpbacay_arcane.egg-info/top_level.txt
+tests/test_arcane_foundation.py
+tests/test_concise_responses.py
+tests/test_foundation_model.py
+tests/test_ollama.py

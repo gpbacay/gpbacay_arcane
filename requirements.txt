@@ -1,39 +1,24 @@
-# A.R.C.A.N.E. Neuromimetic Language Foundation Model
-# Production requirements for deployment
-
-# Django web framework
-Django>=4.2.0,<5.0
-whitenoise>=6.0.0  # Static file serving
-gunicorn>=21.0.0   # WSGI server for production
-
-# Database
-dj-database-url>=2.0.0  # Database URL parsing
-psycopg2-binary>=2.9.0  # PostgreSQL adapter
+# A.R.C.A.N.E. - Neuromimetic Language Foundation Model
+# Core library dependencies
 
 # Machine Learning & Neural Networks
 tensorflow>=2.12.0,<3.0.0
 numpy>=1.21.0
-scikit-learn>=1.3.0
+keras>=2.12.0
 
-# HTTP client for data downloading
+# Data Processing & Visualization
+matplotlib>=3.5.0
+
+# HTTP client (for downloading datasets)
 requests>=2.28.0
 
-# Data processing
-matplotlib>=3.5.0
-pickle-mixin>=1.0.2
-
-# Environment configuration
-python-decouple>=3.8
-
-# CORS handling (if needed)
-django-cors-headers>=4.0.0
-
-# Additional utilities
-Pillow>=9.0.0  # Image processing (if needed)
+# Optional dependencies (install separately if needed)
+# pip install gpbacay-arcane[ollama]
+# ollama>=0.1.0
+# sentence-transformers>=2.2.0
 
 # Development dependencies (optional)
-# Uncomment these for development
-# django-debug-toolbar>=4.0.0
-# pytest-django>=4.5.0
+# pip install gpbacay-arcane[dev]
+# pytest>=7.0.0
 # black>=23.0.0
 # flake8>=6.0.0

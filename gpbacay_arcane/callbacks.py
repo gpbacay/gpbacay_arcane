@@ -1,22 +1,65 @@
+import tensorflow as tf
 from tensorflow.keras.callbacks import Callback
 
+class NeuralResonanceCallback(Callback):
+    """
+    Orchestrates Neural Resonance cycles within the A.R.C.A.N.E. architecture, enabling
+    Latent Space Reasoning and Direct Semantic Optimization. It performs multiple 'Resonance Cycles'
+    to align internal states across the semantic hierarchy, fostering a Unified Multi-Modal Semantic Space
+    and enhancing the Abstraction of Surface-Level Conceptual Variability before synaptic weights are modified.
+    """
+    def __init__(self, resonance_cycles=5, learning_rate=0.01, resonant_layers=None):
+        super(NeuralResonanceCallback, self).__init__()
+        self.resonance_cycles = resonance_cycles
+        self.lr = learning_rate
+        self.resonant_layers = resonant_layers
+
+    def on_train_batch_begin(self, batch, logs=None):
+        """
+        The Semantic Resonance Phase: Synchronizes neural representations by iteratively aligning
+        projections from higher-level semantic layers, fostering Direct Semantic Optimization and
+        Abstraction of Surface-Level Conceptual Variability before synaptic weights are modified.
+        """
+        if not hasattr(self, 'model') or self.model is None:
+            return
+
+        if self.resonant_layers:
+            resonant_layers = self.resonant_layers
+        else:
+            # Identify ResonantGSER layers in the architecture
+            resonant_layers = []
+            for layer in self.model.layers:
+                if 'ResonantGSER' in str(type(layer)):
+                    resonant_layers.append(layer)
+            # Sort resonant layers to ensure correct hierarchical processing
+            resonant_layers.sort(key=lambda x: x.name)
+        
+        if not resonant_layers:
+            return
+
+        # Resonance Cycle: Prospective State Alignment
+        for _ in range(self.resonance_cycles):
+            # 1. Emit feedback projections from higher layers
+            projections = {}
+            for i in range(len(resonant_layers) - 1, 0, -1):
+                # Layer i projects feedback to layer i-1
+                projections[i-1] = resonant_layers[i].project_feedback()
+
+            # 2. Harmonize internal states based on projections
+            for i, layer in enumerate(resonant_layers):
+                incoming_proj = projections.get(i)
+                if incoming_proj is not None:
+                    layer.harmonize_states(incoming_proj)
+
+
 class DynamicSelfModelingReservoirCallback(Callback):
-    def __init__(self, reservoir_layer, performance_metric='accuracy', target_metric=0.98,
-                 growth_rate=10, prune_rate=0.05, performance_threshold=0.01, 
-                 growth_phase_length=10, pruning_phase_length=5, stagnation_epochs=15, apoptosis_rate=1):
-        super().__init__()
-        self.reservoir_layer = reservoir_layer
-        self.performance_metric = performance_metric
-        self.target_metric = target_metric
-        self.growth_rate = growth_rate
-        self.prune_rate = prune_rate
-        self.performance_threshold = performance_threshold
-        self.growth_phase_length = growth_phase_length
-        self.pruning_phase_length = pruning_phase_length
-        self.stagnation_epochs = stagnation_epochs # Number of epochs with no improvement to trigger apoptosis
-        self.apoptosis_rate = apoptosis_rate # Number of neurons to prune
-        self.performance_history = []
-        self.stagnation_counter = 0
+    """
+    A callback for dynamic self-modeling and adaptation of reservoir-based layers,
+    contributing to Latent Space Reasoning and Abstraction of Surface-Level Conceptual Variability.
+    It dynamically adjusts the reservoir's size (neurogenesis and pruning) based on performance metrics,
+    optimizing the model's capacity for Direct Semantic Optimization and efficient processing
+    within a Unified Multi-Modal Semantic Space.
+    """
 
     def on_epoch_end(self, epoch, logs=None):
         current_metric = logs.get(self.performance_metric, 0)
