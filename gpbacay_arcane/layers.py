@@ -194,6 +194,154 @@ class RelationalGraphAttentionReasoning(tf.keras.layers.Layer):
         x = self.mha(inputs, inputs)
         return self.dense(tf.reduce_mean(x, axis=1))
 
+class RelationalConceptGraphReasoning(tf.keras.layers.Layer):
+    """
+    A unified mechanism combining relational concept modeling and graph attention reasoning.
+    This novel mechanism integrates multi-head attention with configurable semantic processing
+    to enable both concept extraction and relational reasoning within a unified framework.
+
+    Features:
+    - Multi-head attention for relational semantic processing
+    - Configurable output modes: concept features or classification predictions
+    - Enhanced semantic processing with residual connections and layer normalization
+    - Support for hierarchical reasoning with multiple attention layers
+    - Adaptive pooling strategies for different semantic tasks
+
+    This mechanism advances Latent Space Reasoning by providing a flexible architecture
+    that can model concepts, reason about relationships, and perform semantic classification
+    within the Unified Multi-Modal Semantic Space.
+    """
+    def __init__(self, d_model, num_heads, output_mode='features', num_classes=None,
+                 num_reasoning_layers=1, use_residual=True, use_layer_norm=True,
+                 pooling_strategy='mean', semantic_dropout=0.1, **kwargs):
+        super().__init__(**kwargs)
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.output_mode = output_mode  # 'features', 'classification', or 'both'
+        self.num_classes = num_classes
+        self.num_reasoning_layers = num_reasoning_layers
+        self.use_residual = use_residual
+        self.use_layer_norm = use_layer_norm
+        self.pooling_strategy = pooling_strategy  # 'mean', 'max', 'attention', 'none'
+        self.semantic_dropout = semantic_dropout
+
+        # Core attention mechanism
+        self.attention_layers = []
+        for i in range(num_reasoning_layers):
+            self.attention_layers.append(
+                tf.keras.layers.MultiHeadAttention(
+                    num_heads=num_heads,
+                    key_dim=d_model,
+                    name=f'attention_layer_{i}'
+                )
+            )
+
+        # Layer normalization for stable training
+        if self.use_layer_norm:
+            self.layer_norms = [
+                tf.keras.layers.LayerNormalization(epsilon=1e-6, name=f'layer_norm_{i}')
+                for i in range(num_reasoning_layers)
+            ]
+
+        # Semantic enhancement layers
+        self.semantic_enhancer = tf.keras.layers.Dense(
+            d_model,
+            activation='gelu',
+            name='semantic_enhancer'
+        )
+
+        # Dropout for regularization
+        self.dropout = tf.keras.layers.Dropout(semantic_dropout)
+
+        # Output processing based on mode
+        if output_mode in ['classification', 'both']:
+            if num_classes is None:
+                raise ValueError("num_classes must be specified for classification mode")
+            self.classifier = tf.keras.layers.Dense(num_classes, name='classifier')
+
+        # Adaptive pooling if needed
+        if pooling_strategy == 'attention':
+            self.attention_pool = tf.keras.layers.Dense(1, activation='tanh', name='attention_pool')
+
+    def call(self, inputs, training=False):
+        """
+        Forward pass with hierarchical relational reasoning.
+
+        Args:
+            inputs: Input tensor of shape (batch_size, seq_len, d_model)
+            training: Whether in training mode
+
+        Returns:
+            Depending on output_mode:
+            - 'features': Enhanced attention features (batch_size, seq_len, d_model)
+            - 'classification': Classification logits (batch_size, num_classes)
+            - 'both': Tuple of (features, logits)
+        """
+        x = inputs
+
+        # Hierarchical attention processing
+        for i, attention_layer in enumerate(self.attention_layers):
+            # Self-attention with residual connection
+            attn_output = attention_layer(x, x)
+
+            if self.use_residual:
+                x = x + attn_output  # Residual connection
+            else:
+                x = attn_output
+
+            # Layer normalization for stability
+            if self.use_layer_norm:
+                x = self.layer_norms[i](x)
+
+        # Semantic enhancement
+        x = self.semantic_enhancer(x)
+        x = self.dropout(x, training=training)
+
+        # Handle different output modes
+        if self.output_mode == 'features':
+            return x
+
+        elif self.output_mode == 'classification':
+            # Pool the sequence for classification
+            pooled = self._pool_sequence(x)
+            return self.classifier(pooled)
+
+        elif self.output_mode == 'both':
+            # Return both features and classification
+            pooled = self._pool_sequence(x)
+            return x, self.classifier(pooled)
+
+    def _pool_sequence(self, x):
+        """Adaptive pooling strategies for sequence aggregation."""
+        if self.pooling_strategy == 'mean':
+            return tf.reduce_mean(x, axis=1)
+        elif self.pooling_strategy == 'max':
+            return tf.reduce_max(x, axis=1)
+        elif self.pooling_strategy == 'attention':
+            # Learnable attention-based pooling
+            attn_weights = self.attention_pool(x)  # (batch, seq_len, 1)
+            attn_weights = tf.nn.softmax(attn_weights, axis=1)
+            return tf.reduce_sum(x * attn_weights, axis=1)
+        elif self.pooling_strategy == 'none':
+            return x  # Keep sequence dimension
+        else:
+            raise ValueError(f"Unknown pooling strategy: {self.pooling_strategy}")
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'd_model': self.d_model,
+            'num_heads': self.num_heads,
+            'output_mode': self.output_mode,
+            'num_classes': self.num_classes,
+            'num_reasoning_layers': self.num_reasoning_layers,
+            'use_residual': self.use_residual,
+            'use_layer_norm': self.use_layer_norm,
+            'pooling_strategy': self.pooling_strategy,
+            'semantic_dropout': self.semantic_dropout,
+        })
+        return config
+
 class BioplasticDenseLayer(tf.keras.layers.Layer):
     """
     A bioplastic dense layer incorporating Hebbian learning and homeostatic plasticity for

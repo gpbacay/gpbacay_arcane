@@ -79,6 +79,7 @@ def list_layers():
 │  Attention & Concept Layers:                                                 │
 │   6. RelationalConceptModeling           - Multi-head attention for concepts │
 │   7. RelationalGraphAttentionReasoning   - Graph attention for reasoning     │
+│   8. RelationalConceptGraphReasoning     - Unified relational reasoning      │
 │   8. MultiheadLinearSelfAttentionKernalization - Linear attention            │
 │                                                                              │
 │  Temporal & Positional Layers:                                               │

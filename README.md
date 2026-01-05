@@ -424,6 +424,7 @@ Input (16 tokens)
 | `HebbianHomeostaticNeuroplasticity` | Simplified Hebbian learning layer |
 | `RelationalConceptModeling` | Multi-head attention for concept extraction |
 | `RelationalGraphAttentionReasoning` | Graph attention for relational reasoning |
+| `RelationalConceptGraphReasoning` | Unified relational reasoning with configurable outputs |
 | `MultiheadLinearSelfAttentionKernalization` | Linear attention with kernel approximation |
 | `LatentTemporalCoherence` | Temporal coherence distillation |
 | `PositionalEncodingLayer` | Sinusoidal positional encoding |
