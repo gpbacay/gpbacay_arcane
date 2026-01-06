@@ -4,7 +4,9 @@ setup.py
 gpbacay_arcane/__init__.py
 gpbacay_arcane/callbacks.py
 gpbacay_arcane/cli_commands.py
+gpbacay_arcane/foundational_models.py
 gpbacay_arcane/layers.py
+gpbacay_arcane/mechanisms.py
 gpbacay_arcane/models.py
 gpbacay_arcane/ollama_integration.py
 gpbacay_arcane.egg-info/PKG-INFO
@@ -16,4 +18,6 @@ gpbacay_arcane.egg-info/top_level.txt
 tests/test_arcane_foundation.py
 tests/test_concise_responses.py
 tests/test_foundation_model.py
+tests/test_homeostatic_plasticity.py
 tests/test_ollama.py
+tests/test_resonant_gser.py
