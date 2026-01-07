@@ -38,7 +38,7 @@ if __name__ == "__main__":
         output_path = sys.argv[2]
     else:
         # Fallback to hardcoded paths if no args provided
-        pdf_path = r"c:\Users\Gianne Bacay\Desktop\project test\gpbacay_arcane\docs\VL-JEPA Joint Embedding Predictive Architecture for Vision-language.pdf"
+        pdf_path = r"c:\Users\Gianne Bacay\Desktop\project test\gpbacay_arcane\docs\VL-JEPA Joint Embedding Predictive Architecture for Vision-semantic.pdf"
         output_path = r"c:\Users\Gianne Bacay\Desktop\project test\gpbacay_arcane\docs\VLJEPA_extracted.txt"
     
     extract_text_from_pdf(pdf_path, output_path)

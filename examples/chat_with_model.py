@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 A.R.C.A.N.E. Model Chat Interface
-Chat with your pretrained neuromimetic language model.
+Chat with your pretrained neuromimetic semantic model.
 
 Author: Gianne P. Bacay
 Project: A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
@@ -137,7 +137,7 @@ def generate_better_fallback_response():
     """
     fallback_responses = [
         "I'm an AI assistant based on the A.R.C.A.N.E. neuromimetic model. I can help answer questions and have conversations.",
-        "I'm a bio-inspired language model that combines neural network principles with biological learning mechanisms.",
+        "I'm a bio-inspired semantic model that combines neural network principles with biological learning mechanisms.",
         "Hello! I'm A.R.C.A.N.E., a neuromimetic AI that uses spiking neural dynamics and Hebbian learning.",
         "I'm designed to understand and generate human-like text using advanced neural processing techniques.",
         "As an AI, I can discuss various topics including science, technology, philosophy, and more.",
@@ -330,7 +330,7 @@ def chat_with_model():
     Interactive chat interface with the pretrained model.
     """
     print("\n" + "="*60)
-    print("A.R.C.A.N.E. Neuromimetic Language Model Chat Interface")
+    print("A.R.C.A.N.E. Neuromimetic Semantic Model Chat Interface")
     print("="*60)
     
     # Try to load models in order of preference
@@ -338,16 +338,16 @@ def chat_with_model():
     tokenizer = None
     hybrid_model = None
     
-    # Try loading the Arcane Foundational Small Language Model first
+    # Try loading the Arcane Foundational Small Semantic Model first
     foundational_model_path = "Models/arcane_foundational_slm_saved"
     if os.path.exists(foundational_model_path):
-        print(f"\nAttempting to load Arcane Foundational Small Language Model...")
+        print(f"\nAttempting to load Arcane Foundational Small Semantic Model...")
         try:
             hybrid_model = load_ollama_hybrid_model(foundational_model_path)
             if hybrid_model is not None:
-                print(f"Successfully loaded Arcane Foundational Small Language Model")
+                print(f"Successfully loaded Arcane Foundational Small Semantic Model")
         except Exception as e:
-            print(f"Failed to load Arcane Foundational Small Language Model: {e}")
+            print(f"Failed to load Arcane Foundational Small Semantic Model: {e}")
             hybrid_model = None
     
     # If not found, try loading the transfer learned hybrid model
@@ -446,7 +446,7 @@ def chat_with_model():
                     temperature=0.7
                 )
             
-            # For the Arcane Foundational Small Language Model, the response is already enhanced
+            # For the Arcane Foundational Small Semantic Model, the response is already enhanced
             # Just do basic cleanup for conciseness
             improved_response = response.strip()
             # Remove extra whitespace

@@ -24,7 +24,7 @@ def demonstrate_improved_responses():
     print("="*60)
     
     try:
-        # Create the Arcane Foundational Small Language Model
+        # Create the Arcane Foundational Small Semantic Model
         foundational_model = OllamaARCANEHybrid(
             ollama_model="llama3.2:1b",
             model_name="arcane_foundational_slm"

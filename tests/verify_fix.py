@@ -24,7 +24,7 @@ def verify_fix():
     print("="*60)
     
     try:
-        # Create the Arcane Foundational Small Language Model
+        # Create the Arcane Foundational Small Semantic Model
         foundational_model = OllamaARCANEHybrid(
             ollama_model="llama3.2:1b",
             model_name="arcane_foundational_slm"
@@ -34,14 +34,14 @@ def verify_fix():
         model_path = "Models/arcane_foundational_slm_saved"
         if os.path.exists(model_path):
             foundational_model.load_model(model_path)
-            print(f"✅ Loaded Arcane Foundational Model from: {model_path}")
+            print(f"Loaded Arcane Foundational Model from: {model_path}")
         else:
-            print("⚠️  Pre-trained model not found, using initialization...")
+            print("Pre-trained model not found, using initialization...")
             # Build the model architecture
             foundational_model.build_neuromimetic_architecture()
         
         print("\n" + "="*60)
-        print("🧪 TESTING MODEL RESPONSES")
+        print("TESTING MODEL RESPONSES")
         print("="*60)
         
         # Test cases that were previously producing numbers
@@ -56,14 +56,14 @@ def verify_fix():
         all_responses_coherent = True
         
         for i, prompt in enumerate(test_cases, 1):
-            print(f"\n🔍 Test {i}: '{prompt}'")
+            print(f"\nTest {i}: '{prompt}'")
             response = foundational_model.generate_text_with_improved_sampling(
                 seed_text=prompt,
                 max_length=100,
                 temperature=0.8
             )
             
-            print(f"🤖 A.R.C.A.N.E.: {response}")
+            print(f"A.R.C.A.N.E.: {response}")
             
             # Check if response contains numbers (which would indicate the old problem)
             # We'll check if the response is mostly numbers
@@ -71,19 +71,19 @@ def verify_fix():
             numeric_words = [word for word in words if word.isdigit()]
             
             if len(numeric_words) > len(words) * 0.5:
-                print("❌ ISSUE: Response contains mostly numbers (old problem)")
+                print("ISSUE: Response contains mostly numbers (old problem)")
                 all_responses_coherent = False
             else:
-                print("✅ Response appears coherent")
+                print("Response appears coherent")
         
         print("\n" + "="*60)
         if all_responses_coherent:
-            print("🎉 SUCCESS: All responses are coherent!")
-            print("✅ The fix is working correctly.")
-            print("🔧 The Arcane Foundational Small Language Model now enhances Ollama responses")
+            print("SUCCESS: All responses are coherent!")
+            print("The fix is working correctly.")
+            print("The Arcane Foundational Small Semantic Model now enhances Ollama responses")
             print("   instead of generating numbers.")
         else:
-            print("❌ FAILURE: Some responses still contain numbers.")
+            print("FAILURE: Some responses still contain numbers.")
             print("🔧 The fix may need additional work.")
         print("="*60)
         

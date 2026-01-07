@@ -147,7 +147,7 @@ class HierarchicalResonanceFoundationModel:
             
             dense_out = Dense(self.hidden_dim, activation='gelu', name='output_dense')(bioplastic2)
             dense_out = Dropout(self.dropout_rate / 2, name='output_dropout')(dense_out)
-            outputs = Dense(self.vocab_size, activation='softmax', name='language_output')(dense_out)
+            outputs = Dense(self.vocab_size, activation='softmax', name='semantic_output')(dense_out)
             self.model = Model(inputs=inputs, outputs=outputs, name='hierarchical_resonance_foundation_model')
         return self.model
     

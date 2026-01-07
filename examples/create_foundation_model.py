@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-A.R.C.A.N.E. Foundation Small Language Model Creator
+A.R.C.A.N.E. Foundation Small Semantic Model Creator
 
 This script creates a single neuromimetic foundation small semantic model by combining:
 - Ollama's llama3.2:1b pre-trained knowledge
@@ -37,7 +37,7 @@ def create_foundation_training_data() -> List[str]:
         "Explain the concept of machine learning in simple terms.",
         "How do neural networks process information?",
         "What are the main types of artificial intelligence?",
-        "Describe how computers understand human language.",
+        "Describe how computers understand human semantics.",
         
         # Science & Technology
         "What is quantum computing and why is it important?",
@@ -58,7 +58,7 @@ def create_foundation_training_data() -> List[str]:
         "How do we distinguish between knowledge and belief?",
         "What is the nature of creativity and innovation?",
         "Explain the concept of free will and determinism.",
-        "How does language shape human thought?",
+        "How does semantics shape human thought?",
         
         # Practical Knowledge
         "How do we solve environmental sustainability challenges?",
@@ -72,7 +72,7 @@ def create_foundation_training_data() -> List[str]:
         "What are the principles of software engineering?",
         "How do databases organize and store information?",
         "What makes cybersecurity important in digital age?",
-        "How do programming languages work together?"
+        "How do programming paradigms work together?"
     ]
     
     return foundation_prompts
@@ -91,7 +91,7 @@ def create_foundation_model_demo():
         "artificial intelligence machine learning neural networks deep learning",
         "consciousness cognition brain neuroscience biology evolution adaptation",
         "quantum computing physics mathematics algorithms optimization",
-        "language processing communication understanding meaning context",
+        "semantic processing communication understanding meaning context",
         "creativity innovation problem solving reasoning logic",
         "technology science research development progress future",
         "knowledge information data analysis patterns recognition",
@@ -99,7 +99,7 @@ def create_foundation_model_demo():
     ]
     
     # Create the model
-    model = NeuromimeticLanguageModel(
+    model = NeuromimeticSemanticModel(
         vocab_size=1000,
         seq_len=16,
         embed_dim=64,

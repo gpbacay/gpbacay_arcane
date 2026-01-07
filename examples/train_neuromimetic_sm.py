@@ -1,5 +1,5 @@
-# Neuromimetic Language Model Training Script
-# This is the main training script for the gpbacay_arcane neuromimetic language foundation model
+# Neuromimetic Semantic Model Training Script
+# This is the main training script for the gpbacay_arcane neuromimetic semantic foundation model
 
 import numpy as np
 import tensorflow as tf
@@ -65,8 +65,8 @@ def prepare_data(text, seq_len=16, vocab_size=1000):
     
     return np.array(X), np.array(y), tokenizer
 
-class NeuromimeticLanguageFoundationModel:
-    """Neuromimetic Language Foundation Model - Advanced Bio-Inspired Architecture."""
+class NeuromimeticSemanticFoundationModel:
+    """Neuromimetic Semantic Foundation Model - Advanced Bio-Inspired Architecture."""
     
     def __init__(self):
         self.seq_len = 16
@@ -75,7 +75,7 @@ class NeuromimeticLanguageFoundationModel:
         self.hidden_dim = 64
         
     def build_model(self, actual_vocab_size):
-        """Build neuromimetic language foundation model."""
+        """Build neuromimetic semantic foundation model."""
         from tensorflow.keras.layers import (
             Input, Embedding, Dense, GlobalAveragePooling1D, 
             Dropout, LayerNormalization, LSTM, Concatenate
@@ -153,24 +153,24 @@ class NeuromimeticLanguageFoundationModel:
             
             dense_dropout = Dropout(0.1, name='dense_dropout')(dense_hidden)
             
-            # Output layer for language modeling
+            # Output layer for semantic modeling
             outputs = Dense(
                 actual_vocab_size,
                 activation='softmax',
-                name='language_output'
+                name='semantic_output'
             )(dense_dropout)
             
             model = Model(
                 inputs=inputs,
                 outputs=outputs,
-                name='neuromimetic_language_foundation_model'
+                name='neuromimetic_semantic_foundation_model'
             )
         
         return model
     
     def train_model(self, save_path="Models/neuromimetic_lm.keras"):
-        """Train the neuromimetic language foundation model."""
-        print("🧠 Training Neuromimetic Language Foundation Model")
+        """Train the neuromimetic semantic foundation model."""
+        print("🧠 Training Neuromimetic Semantic Foundation Model")
         print("=" * 60)
         
         # Download and prepare data
@@ -247,7 +247,7 @@ class NeuromimeticLanguageFoundationModel:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         
         # Train model
-        print("🎯 Training neuromimetic language model...")
+        print("🎯 Training neuromimetic semantic model...")
         try:
             history = model.fit(
                 X_train, y_train,
@@ -325,22 +325,22 @@ class NeuromimeticLanguageFoundationModel:
 
 def main():
     """Main training function."""
-    print("🧠 A.R.C.A.N.E. Neuromimetic Language Foundation Model")
+    print("🧠 A.R.C.A.N.E. Neuromimetic Semantic Foundation Model")
     print("Augmented Reconstruction of Consciousness through Artificial Neural Evolution")
     print("=" * 80)
     print("🚀 Features:")
     print("   🔬 Dual DenseGSER spiking neural layers")
     print("   🧬 BioplasticDenseLayer Hebbian learning")
     print("   🔄 LSTM temporal processing")
-    print("   🎯 Advanced language modeling")
+    print("   🎯 Advanced semantic modeling")
     print("   📊 Comprehensive training monitoring")
     print()
     
-    trainer = NeuromimeticLanguageFoundationModel()
+    trainer = NeuromimeticSemanticFoundationModel()
     model, tokenizer = trainer.train_model()
     
     if model is not None:
-        print("\n🎉 Neuromimetic Language Foundation Model training completed!")
+        print("\n🎉 Neuromimetic Semantic Foundation Model training completed!")
         print("🏆 Model features:")
         print("✓ Bio-inspired spiking neural dynamics")
         print("✓ Hebbian learning and homeostatic plasticity")

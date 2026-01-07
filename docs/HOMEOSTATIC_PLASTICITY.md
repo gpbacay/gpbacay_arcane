@@ -84,7 +84,7 @@ layer = HebbianHomeostaticNeuroplasticity(
 
 ### NeuromimeticSemanticModel
 
-Homeostatic plasticity is integrated into the main A.R.C.A.N.E. language model:
+Homeostatic plasticity is integrated into the main A.R.C.A.N.E. semantic model:
 
 ```python
 model = NeuromimeticSemanticModel(

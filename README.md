@@ -397,7 +397,7 @@ Input (16 tokens)
 | Model | Description | Resonance Levels | Use Case |
 |-------|-------------|------------------|----------|
 | `HierarchicalResonanceFoundationModel` | Advanced model with multi-level resonance hierarchy, temporal coherence, and attention fusion | 3-4 | Complex reasoning tasks, research |
-| `NeuromimeticLanguageModel` | Standard neuromimetic model with ResonantGSER and Hebbian learning | 2 | General NLP tasks, balanced performance |
+| `NeuromimeticSemanticModel` | Standard neuromimetic model with ResonantGSER and Hebbian learning | 2 | General NLP tasks, balanced performance |
 
 ### Model Comparison Summary
 
@@ -531,7 +531,7 @@ python examples/test_hierarchical_resonance_comparison.py
 
 This test compares:
 1. **Traditional Deep LSTM** - 4-layer stacked LSTM baseline
-2. **Neuromimetic (Standard)** - `NeuromimeticLanguageModel` with 2-level resonance
+2. **Neuromimetic (Standard)** - `NeuromimeticSemanticModel` with 2-level resonance
 3. **Hierarchical Resonance** - `HierarchicalResonanceFoundationModel` with multi-level hierarchy
 
 The test outputs:

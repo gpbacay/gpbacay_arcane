@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Arcane Foundational Small Language Model
+Arcane Foundational Small Semantic Model
 Enhances Ollama model responses using A.R.C.A.N.E. neuromimetic principles.
 
 Author: Gianne P. Bacay
@@ -18,18 +18,18 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from gpbacay_arcane.ollama_integration import OllamaARCANEHybrid
     from gpbacay_arcane.layers import DenseGSER, BioplasticDenseLayer, GSER
-    print("✅ A.R.C.A.N.E. modules loaded successfully")
+    print("A.R.C.A.N.E. modules loaded successfully")
 except ImportError as e:
-    print(f"❌ Error importing A.R.C.A.N.E. modules: {e}")
+    print(f"Error importing A.R.C.A.N.E. modules: {e}")
     sys.exit(1)
 
 
 def create_arcane_foundational_model():
     """
-    Create the Arcane Foundational Small Language Model.
+    Create the Arcane Foundational Small Semantic Model.
     This model enhances Ollama responses rather than generating text from scratch.
     """
-    print("🧠 Creating Arcane Foundational Small Language Model...")
+    print("Creating Arcane Foundational Small Semantic Model...")
     print("=" * 60)
     
     # Create the hybrid model
@@ -49,20 +49,20 @@ def create_arcane_foundational_model():
     print("💾 Saving Arcane Foundational Model...")
     save_path = foundational_model.save_model()
     
-    print(f"✅ Arcane Foundational Small Language Model created successfully!")
-    print(f"📂 Model Location: {save_path}")
-    print(f"⚡ Features: Ollama Response Enhancement + Neuromimetic Principles")
-    print(f"🤖 Base Model: Ollama llama3.2:1b")
+    print(f"Arcane Foundational Small Semantic Model created successfully!")
+    print(f"Model Location: {save_path}")
+    print(f"Features: Ollama Response Enhancement + Neuromimetic Principles")
+    print(f"Base Model: Ollama llama3.2:1b")
     
     return foundational_model
 
 
 def chat_with_arcane_foundational_model():
     """
-    Chat interface for the Arcane Foundational Small Language Model.
+    Chat interface for the Arcane Foundational Small Semantic Model.
     """
     print("\n" + "="*60)
-    print("🧠 Arcane Foundational Small Language Model Chat Interface")
+    print("Arcane Foundational Small Semantic Model Chat Interface")
     print("="*60)
     
     # Load the model
@@ -98,7 +98,7 @@ def chat_with_arcane_foundational_model():
             
             # Check for quit commands
             if user_input.lower() in ['quit', 'exit', 'bye']:
-                print("\n👋 Goodbye! Thanks for chatting with A.R.C.A.N.E.")
+                print("\nGoodbye! Thanks for chatting with A.R.C.A.N.E.")
                 break
             
             # Check for clear command
@@ -132,8 +132,8 @@ def chat_with_arcane_foundational_model():
             print("\n\n👋 Goodbye! Thanks for chatting with A.R.C.A.N.E.")
             break
         except Exception as e:
-            print(f"❌ Error during chat: {e}")
-            print("🤖 A.R.C.A.N.E.: I'm having trouble responding right now. Please try again.")
+            print(f"Error during chat: {e}")
+            print("A.R.C.A.N.E.: I'm having trouble responding right now. Please try again.")
 
 
 def main():

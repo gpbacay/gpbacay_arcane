@@ -215,7 +215,7 @@ def run_comparison_test():
         'history': trad_history.history
     }
     
-    # ========== Model 2: NeuromimeticLanguageModel (Standard) ==========
+    # ========== Model 2: NeuromimeticSemanticModel (Standard) ==========
     print("\n" + "-" * 80)
     print(" MODEL 2: NeuromimeticSemanticModel (Standard A.R.C.A.N.E.)")
     print("-" * 80)

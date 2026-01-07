@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script for the Arcane Foundational Small Language Model.
+Test script for the Arcane Foundational Small Semantic Model.
 """
 
 import os
@@ -11,14 +11,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from gpbacay_arcane.ollama_integration import OllamaARCANEHybrid
-    print("✅ A.R.C.A.N.E. modules loaded successfully")
+    print("A.R.C.A.N.E. modules loaded successfully")
 except ImportError as e:
-    print(f"❌ Error importing A.R.C.A.N.E. modules: {e}")
+    print(f"Error importing A.R.C.A.N.E. modules: {e}")
     sys.exit(1)
 
 def test_arcane_foundation():
-    """Test the Arcane Foundational Small Language Model."""
-    print("🔄 Loading Arcane Foundational Small Language Model...")
+    """Test the Arcane Foundational Small Semantic Model."""
+    print("Loading Arcane Foundational Small Semantic Model...")
     
     try:
         # Create the hybrid model

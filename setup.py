@@ -1,5 +1,5 @@
 """
-A.R.C.A.N.E. - Neuromimetic Language Foundation Model
+A.R.C.A.N.E. - Neuromimetic Semantic Foundation Model
 
 Augmented Reconstruction of Consciousness through Artificial Neural Evolution
 
@@ -64,7 +64,7 @@ setup(
     keywords=[
         'neuromimetic',
         'neural-network',
-        'language-model',
+        'semantic-model',
         'spiking-neural-network',
         'hebbian-learning',
         'reservoir-computing',

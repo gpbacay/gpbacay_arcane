@@ -1,7 +1,7 @@
 """
 A.R.C.A.N.E. + Ollama Integration Module
 
-This module provides functionality to create custom small language models
+This module provides functionality to create custom small semantic models
 by combining A.R.C.A.N.E.'s neuromimetic components with pre-trained Ollama models.
 
 Author: Gianne P. Bacay
@@ -39,7 +39,7 @@ except ImportError:
 
 class OllamaARCANEHybrid:
     """
-    Create your own small language model by combining Ollama's knowledge
+    Create your own small semantic model by combining Ollama's knowledge
     with A.R.C.A.N.E.'s biological neural mechanisms.
     
     This class provides a complete pipeline for:
@@ -166,11 +166,11 @@ class OllamaARCANEHybrid:
         
         dropout = Dropout(0.15, name='output_dropout')(dense_hidden)
         
-        # Output layer for language modeling
+        # Output layer for semantic modeling
         outputs = Dense(
             self.vocab_size,
             activation='softmax',
-            name='language_output'
+            name='semantic_output'
         )(dropout)
         
         # Build complete model
@@ -597,7 +597,7 @@ class OllamaARCANEHybrid:
         Returns:
             Generated text string
         """
-        # For the Arcane Foundational Small Language Model, we'll enhance Ollama responses
+        # For the Arcane Foundational Small Semantic Model, we'll enhance Ollama responses
         # rather than generating text from scratch
         try:
             import ollama
@@ -871,10 +871,10 @@ class OllamaARCANEHybrid:
 def create_custom_lm_with_ollama(
     ollama_model: str = "llama3.2:1b",
     training_prompts: List[str] = None,
-    model_name: str = "my_neuromimetic_lm"
+    model_name: str = "my_neuromimetic_sm"
 ) -> OllamaARCANEHybrid:
     """
-    Quick function to create and train a custom neuromimetic language model.
+    Quick function to create and train a custom neuromimetic semantic model.
     
     Args:
         ollama_model: Ollama model to use for training data generation

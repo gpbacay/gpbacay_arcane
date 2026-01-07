@@ -181,7 +181,7 @@ The A.R.C.A.N.E. framework has been comprehensively evaluated through a **three-
 | Architecture | Description | Key Features |
 | :--- | :--- | :--- |
 | **Traditional Deep LSTM** | 4-layer stacked LSTM | Pure feed-forward, no resonance |
-| **Neuromimetic (Standard)** | `NeuromimeticLanguageModel` | 2-level ResonantGSER, Hebbian learning |
+| **Neuromimetic (Standard)** | `NeuromimeticSemanticModel` | 2-level ResonantGSER, Hebbian learning |
 | **Hierarchical Resonance** | `HierarchicalResonanceFoundationModel` | Multi-level hierarchy, temporal coherence, attention fusion |
 
 ### Tiny Shakespeare Benchmark (15,000 chars, 10 epochs)
@@ -261,7 +261,7 @@ python examples/test_hierarchical_resonance_comparison.py
 
 This script compares:
 1. **Traditional Deep LSTM** - Pure feed-forward baseline
-2. **NeuromimeticLanguageModel** - Standard 2-level resonance
+2. **NeuromimeticSemanticModel** - Standard 2-level resonance
 3. **HierarchicalResonanceFoundationModel** - Advanced multi-level hierarchy
 
 The benchmark evaluates:

@@ -1,7 +1,7 @@
 """
 gpbacay_arcane CLI commands
 
-Command-line interface for the A.R.C.A.N.E. neuromimetic language model library.
+Command-line interface for the A.R.C.A.N.E. neuromimetic semantic model library.
 """
 
 import argparse
@@ -16,7 +16,7 @@ def about():
 ║                              Evolution                                       ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                              ║
-║  A neuromimetic language foundation model library featuring:                 ║
+║  A neuromimetic semantic foundation model library featuring:                 ║
 ║                                                                              ║
 ║  • Hierarchical Neural Resonance - Bi-directional state alignment            ║
 ║  • Spiking Neural Networks - ResonantGSER with reservoir computing           ║
@@ -44,8 +44,8 @@ def list_models():
 │     connections, temporal coherence, attention fusion, BCM plasticity.       │
 │     Use with NeuralResonanceCallback for "System 2" reasoning.               │
 │                                                                              │
-│  2. NeuromimeticLanguageModel                                                │
-│     Standard language model with neural resonance and Hebbian learning.      │
+│  2. NeuromimeticSemanticModel                                                │
+│     Standard semantic model with neural resonance and Hebbian learning.      │
 │                                                                              │
 │  Legacy Aliases (for backward compatibility):                                │
 │  • DSTSMGSER - Dynamic Spatio-Temporal Self-Modeling Gated Spiking Elastic   │
@@ -130,7 +130,7 @@ def version():
 def cli():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="A.R.C.A.N.E. - Neuromimetic Language Foundation Model CLI",
+        description="A.R.C.A.N.E. - Neuromimetic Semantic Foundation Model CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

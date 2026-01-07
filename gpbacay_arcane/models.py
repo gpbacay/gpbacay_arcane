@@ -1,7 +1,7 @@
 """
 gpbacay_arcane.models
 
-This module contains the neuromimetic language model architectures for the A.R.C.A.N.E. project.
+This module contains the neuromimetic semantic model architectures for the A.R.C.A.N.E. project.
 Augmented Reconstruction of Consciousness through Artificial Neural Evolution.
 """
 
@@ -137,11 +137,11 @@ class NeuromimeticSemanticModel:
             
             dense_dropout = Dropout(0.1, name='dense_dropout')(dense_hidden)
             
-            # Output layer for language modeling
+            # Output layer for semantic modeling
             outputs = Dense(
                 self.vocab_size,
                 activation='softmax',
-                name='language_output'
+                name='semantic_output'
             )(dense_dropout)
             
             self.model = Model(
@@ -275,14 +275,14 @@ class NeuromimeticSemanticModel:
 
 
 # For backward compatibility, keep the legacy class name as an alias
-NeuromimeticLanguageFoundationModel = NeuromimeticSemanticModel
+NeuromimeticSemanticFoundationModel = NeuromimeticSemanticModel
 
 
 
 
 def load_neuromimetic_model(model_path, tokenizer_path=None):
     """
-    Load a pre-trained neuromimetic language model.
+    Load a pre-trained neuromimetic semantic model.
     
     Args:
         model_path (str): Path to the saved model file
