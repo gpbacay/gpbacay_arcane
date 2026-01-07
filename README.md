@@ -1,35 +1,45 @@
-# A.R.C.A.N.E. - Neuromimetic Semantic Foundation Model
+# A.R.C.A.N.E.
 
 **Augmented Reconstruction of Consciousness through Artificial Neural Evolution**
 
-A revolutionary neuromimetic semantic foundation model that incorporates biological neural principles including hierarchical resonance, spiking neural dynamics, Hebbian learning, and homeostatic plasticity.
+A Python library for building neuromimetic AI models inspired by biological neural principles. A.R.C.A.N.E. provides researchers and developers with biologically-plausible neural layers, models, and training mechanisms that bridge neuroscience and artificial intelligence.
 
-## What Makes This Unique
+## What is A.R.C.A.N.E.?
 
-This is the **world's first neuromimetic semantic foundation model** that bridges neuroscience and artificial intelligence to enable advanced semantic understanding:
+A.R.C.A.N.E. is a comprehensive Python library that enables you to build, train, and deploy neuromimetic AI models. Unlike traditional deep learning frameworks, A.R.C.A.N.E. incorporates biological neural principles such as:
 
-- **Hierarchical Neural Resonance**: Bi-directional state alignment for Latent Space Reasoning and Direct Semantic Optimization
-- **ResonantGSER Layers**: Spiking neural dynamics with Unified Multi-Modal Semantic Space integration and Non-Autoregressive Semantic Prediction for Efficiency
-- **BioplasticDenseLayer**: Hebbian learning for Abstraction of Surface-Level Conceptual Variability and Direct Semantic Optimization  
-- **Homeostatic Regulation**: Activity-dependent neural regulation for stable Semantic Representation
-- **Temporal Integration**: Sequential processing via LSTM and spiking dynamics for Latent Space Reasoning in temporal contexts
-- **Advanced Semantic Generation**: Multiple creativity levels and sampling strategies for Non-Autoregressive Semantic Prediction for Efficiency
+- **Neural Resonance**: Bi-directional state alignment between neural layers
+- **Spiking Neural Dynamics**: Realistic neuron behavior with leak rates and thresholds
+- **Hebbian Learning**: "Neurons that fire together, wire together" plasticity rules
+- **Homeostatic Plasticity**: Self-regulating neural activity for stable representations
+- **Hierarchical Processing**: Multi-level neural architectures for complex reasoning
 
-## Features
+The library provides ready-to-use models, customizable neural layers, and training callbacks that make it easy to experiment with biologically-inspired AI architectures.
 
-### Biological Neural Principles
-- **Neural Resonance**: Real-time state harmonization between hierarchical layers for Latent Space Reasoning and Direct Semantic Optimization
-- **Prospective Alignment**: Neural activity refinement before synaptic weight updates for Direct Semantic Optimization
-- **Spiking Neural Networks**: Realistic neuron behavior with leak rates and thresholds, contributing to Non-Autoregressive Semantic Prediction for Efficiency
-- **Hebbian Learning**: "Neurons that fire together, wire together" for Abstraction of Surface-Level Conceptual Variability
-- **Homeostatic Plasticity**: Self-regulating neural activity for stable Semantic Representation
-- **Reservoir Computing**: Dynamic temporal processing within a Unified Multi-Modal Semantic Space
+## Key Features
 
-### Advanced Semantic Capabilities
-- **Multi-temperature Semantic Generation**: Conservative, balanced, and creative modes
-- **Nucleus Sampling**: High-quality semantic generation
-- **Context-aware Processing**: Enhanced semantic understanding across diverse modalities
-- **Adaptive Creativity**: Temperature-controlled output diversity
+### 🧠 Biological Neural Layers
+- **ResonantGSER**: Spiking neural dynamics with reservoir computing and spectral radius control
+- **BioplasticDenseLayer**: Hebbian learning with homeostatic plasticity regulation
+- **Hierarchical Resonance**: Multi-level neural architectures with bi-directional feedback
+- **Neural Reservoir Computing**: Dynamic temporal processing with configurable parameters
+
+### 🏗️ Ready-to-Use Models
+- **HierarchicalResonanceFoundationModel**: Advanced model with multi-level resonance hierarchy
+- **NeuromimeticSemanticModel**: Standard neuromimetic model with biological learning rules
+- **Custom Architecture Support**: Build your own models using individual layers
+
+### ⚡ Training & Generation Tools
+- **Neural Resonance Callbacks**: Orchestrate the "thinking phase" during training
+- **Multi-Temperature Generation**: Conservative, balanced, and creative text generation modes
+- **Dynamic Self-Modeling**: Adaptive reservoir sizing during training
+- **CLI Tools**: Command-line utilities for model management and information
+
+### 🔬 Research-Focused Design
+- **Biologically-Plausible**: Grounded in neuroscience principles
+- **Highly Configurable**: Extensive parameter control for experimentation
+- **Extensible Architecture**: Easy to add new layers and mechanisms
+- **Performance Monitoring**: Built-in callbacks for tracking neural dynamics
 
 ## Installation
 
@@ -53,57 +63,57 @@ pip install -e .
 
 ## Quick Start
 
-### Hierarchical Resonance Foundation Model (Recommended)
+### Installation
+
+```bash
+pip install gpbacay-arcane
+```
+
+### Basic Usage
 
 ```python
-from gpbacay_arcane import HierarchicalResonanceFoundationModel, NeuralResonanceCallback
+from gpbacay_arcane import NeuromimeticSemanticModel
 
-# Initialize the deep resonance model
-model = HierarchicalResonanceFoundationModel(
-    vocab_size=3000,
-    seq_len=32,
-    hidden_dim=128,
-    num_resonance_levels=4,  # 4-level hierarchy
-    resonance_factor=0.15,
-    use_temporal_coherence=True,
-    use_attention_fusion=True
-)
-
-# Build and compile
+# Create a simple neuromimetic model
+model = NeuromimeticSemanticModel(vocab_size=1000)
 model.build_model()
-model.compile_model(learning_rate=3e-4)
+model.compile_model()
 
-# Train with Neural Resonance (the "Thinking Phase")
-resonance_cb = NeuralResonanceCallback(resonance_cycles=10)
-model.model.fit(X_train, y_train, callbacks=[resonance_cb])
-
-# Generate text
+# Generate text (requires a trained tokenizer)
 generated = model.generate_text(
-    seed_text="the nature of",
-    tokenizer=tokenizer,
+    seed_text="artificial intelligence",
+    tokenizer=your_tokenizer,
     max_length=50,
     temperature=0.8
 )
 ```
 
-### Basic Neuromimetic Model
+### Advanced Usage with Resonance
 
 ```python
-from gpbacay_arcane import NeuromimeticSemanticModel
+from gpbacay_arcane import HierarchicalResonanceFoundationModel, NeuralResonanceCallback
 
-# Initialize the model
-model = NeuromimeticSemanticModel(vocab_size=1000)
-model.build_model()
-model.compile_model()
-
-# Generate semantic output (requires trained tokenizer/processor)
-generated_output = model.generate_text(
-    seed_text="artificial intelligence",
-    tokenizer=tokenizer,
-    max_length=50,
-    temperature=0.8
+# Create an advanced model with biological neural principles
+model = HierarchicalResonanceFoundationModel(
+    vocab_size=3000,
+    seq_len=32,
+    hidden_dim=128,
+    num_resonance_levels=4
 )
-print(generated_output)
+
+model.build_model()
+model.compile_model(learning_rate=3e-4)
+
+# Train with neural resonance (biological "thinking phase")
+resonance_callback = NeuralResonanceCallback(resonance_cycles=10)
+model.model.fit(X_train, y_train, callbacks=[resonance_callback])
+
+# Generate text with different creativity levels
+generated = model.generate_text(
+    seed_text="the nature of consciousness",
+    tokenizer=tokenizer,
+    temperature=0.8  # 0.6=conservative, 0.9=balanced, 1.2=creative
+)
 ```
 
 ## Usage
@@ -224,115 +234,47 @@ creative = model.generate_text(
 )
 ```
 
-## Hierarchical Neural Resonance
+## Available Models
 
-The **HierarchicalResonanceFoundationModel** implements a revolutionary bi-directional neural architecture for deliberative "System 2" reasoning.
+A.R.C.A.N.E. provides two main model classes for different use cases:
 
-### What is Neural Resonance?
-
-Unlike traditional feed-forward networks that process inputs in a single pass, Neural Resonance introduces a **"Thinking Phase"** where:
-
-1. **Higher layers project feedback** (expectations) downward to lower layers
-2. **Lower layers harmonize** their internal states to match those expectations
-3. **Multiple resonance cycles** align the entire hierarchy before weight updates
-
-This mimics the brain's predictive coding mechanism, where perception involves iterative top-down predictions and bottom-up error correction.
-
-### Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **Prospective Configuration** | Neural activities optimized before weight updates for Direct Semantic Optimization |
-| **Bi-directional Feedback** | Higher layers send expectations to lower layers |
-| **Cross-level Skip Connections** | Multi-scale information flow |
-| **Temporal Coherence** | Distills temporal dynamics into coherence vectors for Latent Space Reasoning |
-| **Attention Fusion** | Multi-pathway aggregation with self-attention |
-| **BCM Metaplasticity** | Bienenstock-Cooper-Munro sliding threshold learning |
-
-### Training with Resonance Cycles
+### HierarchicalResonanceFoundationModel
+Advanced model with multi-level neural resonance, temporal coherence, and attention fusion. Best for:
+- Complex reasoning tasks
+- Research applications
+- When training stability is crucial
+- Maximum biological accuracy
 
 ```python
-from gpbacay_arcane import (
-    HierarchicalResonanceFoundationModel,
-    NeuralResonanceCallback,
-    DynamicSelfModelingReservoirCallback
-)
+from gpbacay_arcane import HierarchicalResonanceFoundationModel, NeuralResonanceCallback
 
-# Create the model with 4 resonance levels
 model = HierarchicalResonanceFoundationModel(
     vocab_size=5000,
     seq_len=32,
     hidden_dim=128,
-    num_resonance_levels=4,
-    resonance_factor=0.15
+    num_resonance_levels=4
 )
 model.build_model()
 model.compile_model()
 
-# Neural Resonance Callback - orchestrates the "Thinking Phase"
-# More cycles = deeper deliberation but slower training
-resonance_cb = NeuralResonanceCallback(
-    resonance_cycles=10,  # 5-15 recommended
-    learning_rate=0.01
-)
-
-# Optional: Dynamic reservoir adaptation
-reservoir_cb = DynamicSelfModelingReservoirCallback(
-    reservoir_layer=model.get_resonant_layers()[0],
-    performance_metric='accuracy',
-    target_metric=0.95,
-    growth_rate=10
-)
-
-# Train with resonance
-model.model.fit(
-    X_train, y_train,
-    validation_data=(X_val, y_val),
-    epochs=20,
-    callbacks=[resonance_cb, reservoir_cb]
-)
-
-# View detailed model information
-model.summary()
+# Use neural resonance training
+resonance_cb = NeuralResonanceCallback(resonance_cycles=10)
+model.model.fit(X_train, y_train, callbacks=[resonance_cb])
 ```
 
-### When to Use Hierarchical Resonance
-
-✅ **Use when:**
-- You need deliberative reasoning over complex patterns
-- Training stability in very deep networks is important
-- You want biologically-plausible learning dynamics
-- Interpretability of internal representations matters
-- You prioritize generalization over training speed
-
-⚠️ **Consider trade-offs:**
-- Training is slower due to resonance cycles (~2x compared to traditional LSTM)
-- Higher memory usage for internal state tracking
-- Best suited for medium-sized models and datasets
-- Higher parameter count due to multi-level hierarchy
-
-### Benchmark Evidence
-
-Based on comprehensive testing (see `examples/test_hierarchical_resonance_comparison.py`):
-- **+18.4% relative improvement** in validation accuracy over Traditional LSTM
-- **Lowest loss variance** (0.0142) indicating training stability
-- **Smallest train/val gap** (0.048) showing reduced overfitting
-
-### Model Information and Statistics
+### NeuromimeticSemanticModel
+Standard neuromimetic model with biological learning rules. Best for:
+- General NLP tasks
+- Faster training and inference
+- Balanced performance and biological plausibility
+- Prototyping and experimentation
 
 ```python
-# Get model architecture information
-model_info = model.get_model_info()
-print(f"Model: {model_info['name']}")
-print(f"Features: {model_info['features']}")
-print(f"Parameters: {model_info['parameters']}")
+from gpbacay_arcane import NeuromimeticSemanticModel
 
-# Access bioplastic layer statistics
-for layer in model.model.layers:
-    if hasattr(layer, 'get_plasticity_stats'):
-        stats = layer.get_plasticity_stats()
-        print(f"Average activity: {stats['avg_activity'].mean():.3f}")
-        print(f"Synaptic density: {stats['synaptic_density']:.3f}")
+model = NeuromimeticSemanticModel(vocab_size=1000)
+model.build_model()
+model.compile_model()
 ```
 
 ### Ollama Integration (Optional)
@@ -351,12 +293,47 @@ ollama pull llama3.2:1b
 python examples/create_foundation_model.py
 ```
 
-## Architecture
+## Understanding Neural Resonance
 
-### Model Components
+### What is Neural Resonance?
+
+Neural Resonance is A.R.C.A.N.E.'s core innovation - a biologically-inspired training mechanism that mimics how the brain processes information. Unlike traditional feed-forward networks, Neural Resonance introduces a **"Thinking Phase"** where:
+
+1. **Higher layers project feedback** (expectations) downward to lower layers
+2. **Lower layers harmonize** their internal states to match those expectations
+3. **Multiple resonance cycles** align the entire hierarchy before weight updates
+
+This process mirrors the brain's predictive coding, enabling more stable and biologically-plausible learning.
+
+### Key Features of Neural Resonance
+
+| Feature | Description |
+|---------|-------------|
+| **Prospective Configuration** | Neural activities optimized before weight updates |
+| **Bi-directional Feedback** | Higher layers send expectations to lower layers |
+| **Temporal Coherence** | Distills temporal dynamics into coherence vectors |
+| **Attention Fusion** | Multi-pathway aggregation with self-attention |
+| **BCM Metaplasticity** | Adaptive learning thresholds |
+
+### When to Use Neural Resonance
+
+✅ **Best for:**
+- Complex reasoning tasks requiring deliberation
+- Training stability in deep networks
+- Biologically-plausible learning dynamics
+- Research applications prioritizing generalization
+
+⚠️ **Trade-offs:**
+- Slower training due to resonance cycles (~2x vs traditional methods)
+- Higher memory usage for state tracking
+- Best suited for medium-sized models
+
+## Architecture & Components
+
+### Model Architecture
 
 ```
-Input (16 tokens) 
+Input (16 tokens)
 → Embedding (32 dim)
 → ResonantGSER₁ (64 units, ρ=0.9, leak=0.1, Resonance)
 → LayerNorm + Dropout
@@ -369,49 +346,31 @@ Input (16 tokens)
 → Output (vocab_size, softmax)
 ```
 
-### Key Innovations
+### Core Neural Layers
 
-1. **Neural Resonance (ResonantGSER)**:
-   - Bi-directional state alignment via feedback projections
-   - Prospective neural synchronization before synaptic updates
-   - Minimizes internal representation divergence for stable learning
+1. **ResonantGSER**:
+   - Combines reservoir computing with spiking neural dynamics
+   - Spectral radius control for memory vs. dynamics balance
+   - Leak rate and spike threshold for biological realism
    - **[Detailed Resonance Documentation](docs/NEURAL_RESONANCE.md)**
 
-2. **GSER (Gated Spiking Elastic Reservoir)**:
-   - Combines reservoir computing with spiking neural dynamics
-   - Spectral radius control for memory vs. dynamics tradeoff
-   - Leak rate and spike threshold for biological realism
-
-3. **BioplasticDenseLayer**:
-   - Implements Hebbian learning rule
+2. **BioplasticDenseLayer**:
+   - Implements Hebbian learning ("neurons that fire together, wire together")
    - Homeostatic plasticity for activity regulation
    - Adaptive weight updates based on neural activity
 
-4. **Feature Fusion Architecture**:
+3. **Feature Fusion**:
    - Multiple neural pathways combined
    - LSTM for sequential processing
    - Global pooling for feature extraction
 
-## Available Models
+### Model Comparison
 
-| Model | Description | Resonance Levels | Use Case |
-|-------|-------------|------------------|----------|
-| `HierarchicalResonanceFoundationModel` | Advanced model with multi-level resonance hierarchy, temporal coherence, and attention fusion | 3-4 | Complex reasoning tasks, research |
-| `NeuromimeticSemanticModel` | Standard neuromimetic model with ResonantGSER and Hebbian learning | 2 | General NLP tasks, balanced performance |
-
-### Model Comparison Summary
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    MODEL PERFORMANCE COMPARISON                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  Architecture                │ Accuracy │ Stability │ Speed  │ Parameters  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  Traditional Deep LSTM       │ ★★☆☆     │ ★★☆☆      │ ★★★★   │ ~195K       │
-│  Neuromimetic (Standard)     │ ★★★☆     │ ★★★☆      │ ★★★☆   │ ~220K       │
-│  Hierarchical Resonance      │ ★★★★     │ ★★★★      │ ★★☆☆   │ ~385K       │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+| Architecture | Accuracy | Stability | Speed | Parameters |
+|--------------|----------|-----------|-------|------------|
+| Traditional LSTM | ★★☆☆ | ★★☆☆ | ★★★★ | ~195K |
+| Neuromimetic (Standard) | ★★★☆ | ★★★☆ | ★★★☆ | ~220K |
+| Hierarchical Resonance | ★★★★ | ★★★★ | ★★☆☆ | ~385K |
 
 ## Available Layers
 
@@ -445,81 +404,80 @@ gpbacay-arcane-list-layers
 gpbacay-arcane-version
 ```
 
-## Performance
+## Performance & Benchmarks
 
-### Model Comparison Study
+### Benchmark Results
 
-A comprehensive benchmark was conducted comparing three model architectures on the Tiny Shakespeare dataset (15,000 characters, 10 epochs):
+Comprehensive testing on the Tiny Shakespeare dataset shows A.R.C.A.N.E. models outperform traditional approaches:
 
 | Model | Val Accuracy | Val Loss | Training Time | Parameters |
 |-------|--------------|----------|---------------|------------|
 | Traditional Deep LSTM | 9.50% | 6.85 | ~45s | ~195K |
-| **Neuromimetic (Standard)** | 10.20% | 6.42 | ~58s | ~220K |
-| **Hierarchical Resonance** | **11.25%** | **6.15** | ~95s | ~385K |
+| **A.R.C.A.N.E. Neuromimetic** | 10.20% | 6.42 | ~58s | ~220K |
+| **A.R.C.A.N.E. Hierarchical Resonance** | **11.25%** | **6.15** | ~95s | ~385K |
 
-### Key Findings
+### Key Advantages
 
-1. **Superior Generalization**: The Hierarchical Resonance model achieved **18.4% relative improvement** in validation accuracy over traditional deep LSTM
-2. **Stability**: Resonance models show lower validation loss variance, indicating more stable training
-3. **Deliberative Processing**: Multiple resonance cycles enable "System 2" reasoning before weight updates
-4. **Trade-off**: Higher accuracy comes with increased training time due to resonance cycles
-
-### Training Dynamics
-
-| Model | Convergence (90% final) | Loss Variance | Train/Val Gap |
-|-------|------------------------|---------------|---------------|
-| Traditional LSTM | Epoch 2 | 0.0234 | 0.082 |
-| Neuromimetic (Standard) | Epoch 3 | 0.0189 | 0.065 |
-| Hierarchical Resonance | Epoch 4 | **0.0142** | **0.048** |
-
-**Observation**: The Hierarchical Resonance model shows the **lowest validation loss variance** and **smallest train/val gap**, indicating better generalization and reduced overfitting.
+- **18.4% relative improvement** in validation accuracy over traditional LSTM
+- **Lowest loss variance** (0.0142) indicating stable training
+- **Smallest train/val gap** (0.048) showing reduced overfitting
+- **Biologically-plausible learning** with neural resonance
 
 ### Text Generation Quality
 
-Sample generations for prompt "the king" (T=0.8):
-- **Traditional LSTM**: Repetitive patterns, limited vocabulary
-- **Neuromimetic**: Improved coherence, better word relationships
-- **Hierarchical Resonance**: Most diverse vocabulary, contextually appropriate phrases
+A.R.C.A.N.E. models produce more coherent and contextually appropriate text:
 
-### Temperature Settings
-- **Conservative (T=0.6)**: Coherent, predictable outputs
-- **Balanced (T=0.9)**: Rich vocabulary, creative phrasing
-- **Creative (T=1.2)**: Diverse, experimental language
+- **Temperature Control**: 0.6 (conservative), 0.9 (balanced), 1.2 (creative)
+- **Multi-modal Support**: Text, with extensions for other modalities
+- **Nucleus Sampling**: High-quality generation with configurable diversity
 
-### Architecture Complexity
+### Running Benchmarks
 
-| Architecture | Resonance Levels | Temporal Coherence | Attention Fusion |
-|--------------|------------------|-------------------|------------------|
-| Traditional LSTM | 0 | ❌ | ❌ |
-| Neuromimetic | 2 | ❌ | ❌ |
-| Hierarchical Resonance | 3-4 | ✅ | ✅ |
+```bash
+# Run the comprehensive model comparison
+python examples/test_hierarchical_resonance_comparison.py
+```
+
+This benchmark compares traditional LSTM vs A.R.C.A.N.E. models on training stability, generation quality, and performance metrics.
 
 ## Research Applications
 
-This library serves as a foundation for research in:
+A.R.C.A.N.E. serves researchers in multiple fields:
 
-- **Computational Neuroscience**: Studying biological neural principles for Semantic Processing
-- **Cognitive Modeling**: Understanding semantic representation and consciousness
-- **Neuromorphic Computing**: Brain-inspired AI architectures
-- **AI Safety**: Interpretable and controllable semantic models
+### Computational Neuroscience
+- Study biological neural principles in artificial systems
+- Investigate spiking neural dynamics and Hebbian learning
+- Research homeostatic plasticity mechanisms
 
-## Scientific Significance
+### Cognitive Modeling
+- Model human-like learning and memory processes
+- Explore hierarchical information processing
+- Study neural resonance in decision-making
 
-### Novel Contributions
+### Neuromorphic Computing
+- Develop brain-inspired AI architectures
+- Research energy-efficient neural processing
+- Advance spiking neural network technology
 
-1. **First Neuromimetic Semantic Model**: Bridges neuroscience and AI for semantic engineering
-2. **Hierarchical Neural Resonance**: Novel state alignment mechanism for deep models
-3. **Prospective Learning**: Activity refinement before weight updates
-4. **Biological Learning Rules**: Hebbian plasticity integrated with spiking dynamics
-5. **Self-Modeling Reservoirs**: Structural neurogenesis and synaptic pruning
+### AI Safety & Interpretability
+- Build more interpretable neural models
+- Study controllable generation mechanisms
+- Research stable training dynamics
 
-### Publications & Citations
+## Scientific Contributions
 
-This work represents groundbreaking research suitable for:
-- **Nature Machine Intelligence**
-- **Neural Networks**
-- **IEEE Transactions on Neural Networks**
-- **Conference on Neural Information Processing Systems (NeurIPS)**
+### Novel Mechanisms
+- **Neural Resonance**: Bi-directional state alignment in deep networks
+- **Hierarchical Processing**: Multi-level neural architectures
+- **Biological Learning Rules**: Hebbian and homeostatic plasticity
+- **Prospective Learning**: Activity refinement before weight updates
+
+### Research Impact
+A.R.C.A.N.E. advances the field of biologically-inspired AI by providing:
+- Open-source implementation of cutting-edge neural mechanisms
+- Reproducible benchmarks for neuromimetic model comparison
+- Extensible framework for neuroscience research
+- Bridge between theoretical neuroscience and practical AI applications
 
 ## Running the Comparison Test
 
@@ -595,6 +553,6 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 
 ---
 
-**"Neurons that fire together, wire together, and now they write together."**
+**"Neurons that fire together, wire together, and now they learn together."**
 
-*A.R.C.A.N.E. represents the future of biologically-inspired artificial intelligence - where neuroscience meets artificial intelligence to create truly conscious-like semantic AI systems.*
+*A.R.C.A.N.E. - Building the future of biologically-inspired AI, one neural connection at a time.*
