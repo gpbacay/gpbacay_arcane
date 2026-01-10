@@ -22,3 +22,7 @@ requests>=2.28.0
 # pytest>=7.0.0
 # black>=23.0.0
 # flake8>=6.0.0
+
+# python setup.py sdist bdist_wheel
+# pip install dist/gpbacay_arcane-3.0.2-py3-none-any.whl --force-reinstall
+# twine upload dist/*
