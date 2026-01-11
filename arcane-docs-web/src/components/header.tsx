@@ -6,6 +6,16 @@ import { GitHubStarButton } from "@/components/github-star-button";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import {
+  CommandDialog,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
+import { docsConfig } from "@/config/docs";
+import { Search, FileText, Zap, Brain, Layers, Cpu, BarChart3, Terminal } from "lucide-react";
 
 export function SiteHeader() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -21,22 +31,14 @@ export function SiteHeader() {
         e.preventDefault();
         setSearchOpen(true);
       }
-      if (e.key === "Escape") {
-        setSearchOpen(false);
-      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      // Basic mock search - just go to docs for now but could be expanded
-      console.log("Searching for:", searchQuery);
-      setSearchOpen(false);
-      router.push(`/docs?q=${encodeURIComponent(searchQuery)}`);
-    }
+  const handleSearchSelect = (href: string) => {
+    setSearchOpen(false);
+    router.push(href);
   };
 
   return (
@@ -101,15 +103,13 @@ export function SiteHeader() {
           <div className="w-full max-w-[140px] min-[450px]:max-w-sm md:w-auto md:flex-none">
             <button
               onClick={() => setSearchOpen(true)}
-              className="relative inline-flex items-center w-full md:w-64 h-9 sm:h-10 text-xs sm:text-sm text-zinc-500 border border-zinc-800 rounded-full px-3 sm:px-4 whitespace-nowrap bg-zinc-950 transition-all hover:border-[#835BD9] hover:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#835BD9]/50"
+              className="relative inline-flex items-center w-full md:w-64 h-9 sm:h-10 text-xs sm:text-sm text-zinc-500 border border-zinc-800 rounded-full px-3 sm:px-4 whitespace-nowrap bg-zinc-950 transition-all hover:border-[#835BD9]/50 hover:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-[#835BD9]/50"
             >
-              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2 sm:mr-3 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2 sm:mr-3 text-zinc-400" />
               <span className="hidden min-[450px]:inline truncate">Search documentation...</span>
               <span className="min-[450px]:hidden">Search...</span>
               <kbd className="hidden sm:inline-flex ml-auto pointer-events-none h-5 select-none items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 font-mono text-[10px] font-medium text-zinc-500 opacity-100">
-                <span className="text-xs">Ctrl</span>K
+                <span className="text-xs text-zinc-600">Ctrl</span>K
               </kbd>
             </button>
           </div>
@@ -158,51 +158,43 @@ export function SiteHeader() {
         )}
       </AnimatePresence>
 
-      {searchOpen && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
-          onClick={() => setSearchOpen(false)}
-        >
-          <div
-            className="fixed left-1/2 top-[15%] sm:top-[20%] -translate-x-1/2 w-full max-w-2xl px-4 animate-in slide-in-from-top-4 duration-300"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <form onSubmit={handleSearch} className="relative">
-              <input
-                type="text"
-                placeholder="Search documentation..."
-                className="w-full bg-zinc-900 border-2 border-[#835BD9] rounded-full px-10 sm:px-12 py-3 sm:py-4 text-zinc-100 text-base sm:text-lg placeholder-zinc-500 focus:outline-none shadow-[0_0_30px_rgba(131,91,217,0.3)] font-sans"
-                autoFocus
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <svg className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-5 h-5 sm:w-6 sm:h-6 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-xs text-zinc-500 bg-zinc-950/50 px-2 py-1 rounded hidden sm:block">
-                ESC to close
-              </div>
-            </form>
-            <div className="mt-4 bg-zinc-900 border border-zinc-800 rounded-xl p-4 sm:p-6 shadow-2xl">
-              <p className="text-sm font-medium text-zinc-400 mb-4 uppercase tracking-wider">Quick Links</p>
-              <div className="grid grid-cols-2 gap-3 text-zinc-300">
-                <button onClick={() => { router.push('/docs/installation'); setSearchOpen(false); }} className="p-3 bg-zinc-950 border border-zinc-800 rounded-lg hover:border-[#C785F2] hover:text-white transition-all text-left text-sm">
-                  🚀 Installation Guide
-                </button>
-                <button onClick={() => { router.push('/docs/quick-start'); setSearchOpen(false); }} className="p-3 bg-zinc-950 border border-zinc-800 rounded-lg hover:border-[#C785F2] hover:text-white transition-all text-left text-sm">
-                  ⚡ Quick Start
-                </button>
-                <button onClick={() => { router.push('/docs/neural-resonance'); setSearchOpen(false); }} className="p-3 bg-zinc-950 border border-zinc-800 rounded-lg hover:border-[#C785F2] hover:text-white transition-all text-left text-sm">
-                  🧠 Neural Resonance
-                </button>
-                <button onClick={() => { router.push('/docs/layers'); setSearchOpen(false); }} className="p-3 bg-zinc-950 border border-zinc-800 rounded-lg hover:border-[#C785F2] hover:text-white transition-all text-left text-sm">
-                  🧬 Biological Layers
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <CommandDialog open={searchOpen} onOpenChange={setSearchOpen}>
+        <CommandInput 
+          placeholder="Search documentation..." 
+          value={searchQuery}
+          onValueChange={setSearchQuery}
+        />
+        <CommandList className="max-h-[70vh]">
+          <CommandEmpty>No results found.</CommandEmpty>
+          {docsConfig.sidebarNav.map((group) => (
+            <CommandGroup key={group.title} heading={group.title}>
+              {group.items.map((item) => {
+                const Icon = 
+                  item.title.includes("Introduction") ? FileText :
+                  item.title.includes("Installation") || item.title.includes("Quick Start") ? Zap :
+                  item.title.includes("Neural Resonance") ? Brain :
+                  item.title.includes("Layers") ? Layers :
+                  item.title.includes("Model") || item.title.includes("GSER") ? Cpu :
+                  item.title.includes("CLI") ? Terminal :
+                  item.title.includes("Benchmarks") ? BarChart3 :
+                  FileText;
+                
+                return (
+                  <CommandItem
+                    key={item.href}
+                    value={`${group.title} ${item.title}`}
+                    onSelect={() => handleSearchSelect(item.href)}
+                    className="flex items-center gap-3 py-3"
+                  >
+                    <Icon className="h-4 w-4 text-zinc-400" />
+                    <span>{item.title}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          ))}
+        </CommandList>
+      </CommandDialog>
     </header>
   );
 }
