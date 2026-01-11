@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/header";
 import { DocsSidebar } from "@/components/sidebar";
+import { DocsPager } from "@/components/pager";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { TableOfContents } from "@/components/TableOfContents";
@@ -169,6 +170,7 @@ export default function DocsLayout({
         <main className="relative py-6 md:py-12">
           <div className="mx-auto w-full min-w-0 max-w-3xl break-words px-4 md:px-0">
             {children}
+            <DocsPager />
           </div>
         </main>
 

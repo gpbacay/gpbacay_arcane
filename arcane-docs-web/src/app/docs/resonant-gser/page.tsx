@@ -1,4 +1,6 @@
 
+import Image from "next/image";
+
 export default function ResonantGSERPage() {
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
@@ -29,6 +31,21 @@ export default function ResonantGSERPage() {
           <li><strong>State Alignment</strong>: Layers synchronize representations.</li>
           <li><strong>Semantic Optimization</strong>: Direct optimization of latent space meanings.</li>
         </ol>
+
+        <div className="my-10 flex justify-center overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/50 p-6 shadow-2xl">
+          <div className="text-center">
+            <Image
+              src="/ResonantGSER_Layer_Logic.png"
+              alt="ResonantGSER Layer Logic"
+              width={592}
+              height={192}
+              className="rounded-lg mx-auto h-auto shadow-lg"
+            />
+            <p className="mt-6 px-4 text-sm text-zinc-500 italic">
+              Figure 3: Internal logic and state management of a ResonantGSER layer.
+            </p>
+          </div>
+        </div>
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Mathematical Formulation

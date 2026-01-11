@@ -1,4 +1,6 @@
 
+import Image from "next/image";
+
 export default function NeuralResonancePage() {
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
@@ -9,6 +11,21 @@ export default function NeuralResonancePage() {
         <p className="text-xl text-zinc-400">
           A bi-directional and self-modeling computational mechanism for deep state alignment.
         </p>
+      </div>
+
+      <div className="my-10 flex justify-center overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/50 p-6 shadow-2xl">
+        <div className="text-center">
+          <Image
+            src="/Heirarchical_Structure.png"
+            alt="A.R.C.A.N.E. Hierarchical Structure"
+            width={216}
+            height={454}
+            className="rounded-lg mx-auto h-auto shadow-lg"
+          />
+          <p className="mt-6 px-4 text-sm text-zinc-500 italic">
+            Figure 1: The multi-layered hierarchical organization of systemic neural resonance.
+          </p>
+        </div>
       </div>
 
       <div className="space-y-8 text-zinc-300 leading-7">
@@ -32,28 +49,18 @@ export default function NeuralResonancePage() {
           This minimizes <strong>Prediction Divergence</strong> locally before any weight updates occur.
         </p>
 
-        <div className="my-8 rounded-lg bg-zinc-900 border border-zinc-800 p-4 md:p-6">
-          <h3 className="text-lg font-semibold text-zinc-100 mb-4">The Resonance Cycle</h3>
-          <div className="flex flex-col gap-4 text-sm font-mono text-zinc-400">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-              <span className="text-purple-400 text-xs sm:text-sm">Higher Layer</span>
-              <span className="flex-1 border-b border-dashed border-zinc-700 relative min-h-[20px]">
-                <span className="absolute top-[-10px] left-1/2 -translate-x-1/2 text-xs">Project Feedback</span>
-                <span className="absolute right-0 top-[-6px] transform rotate-45 border-r-2 border-b-2 border-zinc-700 w-2 h-2"></span>
-              </span>
-              <span className="text-blue-400 text-xs sm:text-sm">Lower Layer</span>
-            </div>
-            <div className="text-center text-xs text-zinc-500 py-2">
-              Harmonization (Minimizing Divergence)
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-              <span className="text-purple-400 text-xs sm:text-sm">Higher Layer</span>
-              <span className="flex-1 border-b border-dashed border-zinc-700 relative min-h-[20px]">
-                <span className="absolute top-[-2px] left-1/2 -translate-x-1/2 text-xs">Updated State</span>
-                <span className="absolute left-0 top-[-6px] transform rotate-[225deg] border-r-2 border-b-2 border-zinc-700 w-2 h-2"></span>
-              </span>
-              <span className="text-blue-400 text-xs sm:text-sm">Lower Layer</span>
-            </div>
+        <div className="my-8 flex justify-center rounded-2xl border border-zinc-800 bg-zinc-950/50 p-6 shadow-2xl overflow-hidden">
+          <div className="text-center">
+            <Image
+              src="/Resonance_Cycle.png"
+              alt="The Resonance Cycle"
+              width={372}
+              height={434}
+              className="rounded-lg mx-auto h-auto shadow-lg"
+            />
+            <p className="mt-6 px-4 text-sm text-zinc-500 italic">
+              Figure 2: The iterative cycle of feedback projection and harmonization.
+            </p>
           </div>
         </div>
 
