@@ -167,6 +167,10 @@ html {
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+.dark .katex-display, .dark .katex, .dark .katex * {
+  color: #f4f4f5 !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
