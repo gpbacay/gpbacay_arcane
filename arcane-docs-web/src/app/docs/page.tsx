@@ -25,12 +25,16 @@ export default function DocsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="p-6 rounded-xl border border-zinc-800 hover:border-[#835BD9]/50 transition-colors bg-zinc-950">
-          <h3 id="neural-resonance" className="text-lg font-bold text-zinc-100 mb-2">Neural Resonance</h3>
-          <p className="text-sm text-zinc-400">Bi-directional state alignment between neural layers for synchronized processing.</p>
+          <h3 id="neural-resonance" className="text-lg font-bold text-zinc-100 mb-2">Inference-Time Learning</h3>
+          <p className="text-sm text-zinc-400">Iterative state alignment through Neural Resonance, enabling the model to refine its semantic understanding during inference.</p>
         </div>
         <div className="p-6 rounded-xl border border-zinc-800 hover:border-[#C785F2]/50 transition-colors bg-zinc-950">
-          <h3 id="biological-plausibility" className="text-lg font-bold text-zinc-100 mb-2">Biological Plausibility</h3>
-          <p className="text-sm text-zinc-400">Realistic spiking behaviors and plasticity rules derived from neuroscientific research.</p>
+          <h3 id="biological-plausibility" className="text-lg font-bold text-zinc-100 mb-2">Inference-Time State Adaptation</h3>
+          <p className="text-sm text-zinc-400">Dynamic adjustment of neural states to achieve hierarchical coherence before a final output is committed.</p>
+        </div>
+        <div className="p-6 rounded-xl border border-zinc-800 hover:border-[#A855F7]/50 transition-colors bg-zinc-950">
+          <h3 id="neuromimetic-activations" className="text-lg font-bold text-zinc-100 mb-2">Neuromimetic Activations</h3>
+          <p className="text-sm text-zinc-400">Stateful, event-driven units including Resonant Spiking and Homeostatic GELU.</p>
         </div>
       </div>
 

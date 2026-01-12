@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { cn } from "@/utils/cn";
 
 interface TOCProps {
@@ -9,7 +9,9 @@ interface TOCProps {
 
 export function TableOfContents({ headings }: TOCProps) {
     const [activeId, setActiveId] = useState<string>("");
-    const itemHeight = 36;
+    const [itemMetrics, setItemMetrics] = useState<{ id: string; y: number; height: number; x: number }[]>([]);
+    const listRef = useRef<HTMLUListElement>(null);
+    
     const xBase = 4;
     const xIndent = 20;
 
@@ -24,7 +26,7 @@ export function TableOfContents({ headings }: TOCProps) {
                     setActiveId(visibleEntries[0].target.id);
                 }
             },
-            { rootMargin: "-20% 0% -60% 0%", threshold: 0 }
+            { rootMargin: "-80px 0% -80% 0%", threshold: 0 }
         );
 
         headings.forEach((heading) => {
@@ -35,44 +37,80 @@ export function TableOfContents({ headings }: TOCProps) {
         return () => observer.disconnect();
     }, [headings]);
 
-    const activeIndex = headings.findIndex(h => h.id === activeId);
+    // Measure positions of each item to draw the path correctly even if text wraps
+    useEffect(() => {
+        const measure = () => {
+            if (!listRef.current) return;
+            const items = Array.from(listRef.current.children) as HTMLElement[];
+            const metrics = items.map((item, i) => ({
+                id: headings[i].id,
+                y: item.offsetTop,
+                height: item.offsetHeight,
+                x: headings[i].level === 3 ? xIndent : xBase
+            }));
+            setItemMetrics(metrics);
+        };
 
-    // Pre-calculate segments so we can render them individually and highlight them perfectly
+        measure();
+        window.addEventListener('resize', measure);
+        // Also remeasure after a short delay to account for font loading/layout shifts
+        const timer = setTimeout(measure, 500);
+        
+        return () => {
+            window.removeEventListener('resize', measure);
+            clearTimeout(timer);
+        };
+    }, [headings]);
+
     const segments = useMemo(() => {
+        if (itemMetrics.length === 0) return [];
+        
         const result: { path: string; id: string; x: number; y: number }[] = [];
         let currentX = xBase;
 
-        headings.forEach((h, i) => {
-            const targetX = h.level === 3 ? xIndent : xBase;
-            const startY = i * itemHeight;
-            const endY = (i + 1) * itemHeight;
-            const midY = startY + itemHeight / 2;
-
+        itemMetrics.forEach((m, i) => {
+            const targetX = m.x;
+            const startY = m.y;
+            const endY = m.y + m.height;
+            
             let segmentsPath = "";
 
-            // If we need to transition to a new X, do it at the very top of the item
             if (currentX !== targetX) {
-                const dx = targetX - currentX;
-                const dy = 12; // Height of the diagonal kink
-
-                // Diagonal transition + remaining vertical
+                const dy = Math.min(12, m.height / 2);
                 segmentsPath = `M ${currentX} ${startY} L ${targetX} ${startY + dy} V ${endY}`;
                 currentX = targetX;
             } else {
-                // Just vertical
                 segmentsPath = `M ${currentX} ${startY} V ${endY}`;
             }
 
             result.push({
                 path: segmentsPath,
-                id: h.id,
+                id: m.id,
                 x: targetX,
                 y: startY
             });
         });
 
         return result;
-    }, [headings, xBase, xIndent, itemHeight]);
+    }, [itemMetrics]);
+
+    const activeIndex = headings.findIndex(h => h.id === activeId);
+    
+    // Automatically scroll the TOC list to keep the active item in view
+    useEffect(() => {
+        if (activeId && listRef.current) {
+            const activeItem = listRef.current.querySelector(`[data-id="${activeId}"]`);
+            if (activeItem) {
+                activeItem.scrollIntoView({
+                    behavior: "smooth",
+                    block: "nearest",
+                    inline: "start"
+                });
+            }
+        }
+    }, [activeId]);
+
+    const totalHeight = itemMetrics.length > 0 ? itemMetrics[itemMetrics.length - 1].y + itemMetrics[itemMetrics.length - 1].height : 0;
 
     if (headings.length === 0) return null;
 
@@ -90,44 +128,46 @@ export function TableOfContents({ headings }: TOCProps) {
                 <div className="absolute left-0 top-0 w-[40px] pointer-events-none">
                     <svg
                         width="40"
-                        height={headings.length * itemHeight}
-                        viewBox={`0 0 40 ${headings.length * itemHeight}`}
+                        height={totalHeight}
+                        viewBox={`0 0 40 ${totalHeight}`}
                         fill="none"
+                        preserveAspectRatio="none"
                     >
                         {/* Background segments */}
                         {segments.map((seg) => (
                             <path
                                 key={`bg-${seg.id}`}
                                 d={seg.path}
-                                stroke="rgba(39, 39, 42, 0.6)" // zinc-800/60
-                                strokeWidth="1.5"
+                                stroke="rgba(39, 39, 42, 0.4)" // zinc-800/40
+                                strokeWidth="1"
                                 fill="none"
                             />
                         ))}
 
                         {/* Active (Highlight) segment */}
-                        {activeIndex !== -1 && (
+                        {activeIndex !== -1 && segments[activeIndex] && (
                             <path
                                 d={segments[activeIndex].path}
                                 stroke="white"
-                                strokeWidth="2.5"
+                                strokeWidth="2"
                                 fill="none"
                                 strokeLinecap="round"
                                 className="transition-all duration-300 ease-in-out"
                                 style={{
-                                    filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.4))"
+                                    filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.6))"
                                 }}
                             />
                         )}
                     </svg>
                 </div>
 
-                <ul className="flex-1 space-y-0 relative z-10">
-                    {headings.map((heading, i) => (
+                <ul ref={listRef} className="flex-1 space-y-0 relative z-10">
+                    {headings.map((heading) => (
                         <li
                             key={heading.id}
+                            data-id={heading.id}
                             className={cn(
-                                "h-[36px] flex items-center transition-all duration-300",
+                                "min-h-[32px] flex items-center transition-all duration-300 py-1",
                                 heading.level === 3 ? "pl-10" : "pl-6"
                             )}
                         >
@@ -143,13 +183,16 @@ export function TableOfContents({ headings }: TOCProps) {
                                         const elementPosition = elementRect - bodyRect;
                                         const offsetPosition = elementPosition - offset;
                                         window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+                                        
+                                        // Update URL hash without jumping
+                                        window.history.pushState(null, "", `#${heading.id}`);
                                     }
                                 }}
                                 className={cn(
-                                    "text-[13px] transition-all duration-300 block truncate w-full",
+                                    "text-[13px] leading-snug transition-all duration-300 block w-full",
                                     activeId === heading.id
-                                        ? "text-zinc-50 font-bold scale-[1.02] translate-x-1"
-                                        : "text-zinc-500 hover:text-zinc-200"
+                                        ? "text-zinc-50 font-semibold translate-x-0.5"
+                                        : "text-zinc-500 hover:text-zinc-300"
                                 )}
                             >
                                 {heading.text}

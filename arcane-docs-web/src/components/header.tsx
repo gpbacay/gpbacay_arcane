@@ -90,10 +90,10 @@ export function SiteHeader() {
               Documentation
             </Link>
             <Link
-              href="/docs/layers"
+              href="/docs/blog"
               className="text-zinc-400 transition-colors hover:text-zinc-100"
             >
-              Layers
+              Blog
             </Link>
           </nav>
         </div>
@@ -138,11 +138,11 @@ export function SiteHeader() {
                 Documentation
               </Link>
               <Link
-                href="/docs/layers"
+                href="/docs/blog"
                 className="flex items-center text-lg font-bold text-zinc-400 hover:text-zinc-100 transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Layers
+                Blog
               </Link>
               <div className="border-t border-zinc-800 pt-6 mt-6">
                 <Link

@@ -43,7 +43,7 @@ model.model.fit(X_train, y_train, callbacks=[resonance_cb])`}</code>
           Key Features
         </h2>
         <ul className="list-disc pl-6 space-y-2 marker:text-zinc-500">
-          <li><strong>Multi-level Resonance</strong>: synchronize state across 4+ hierarchical levels.</li>
+          <li><strong>Multi-level Resonance</strong>: synchronize state across 4+ hierarchical levels, facilitating <strong>Inference-Time Learning</strong> and <strong>Inference-Time State Adaptation</strong>.</li>
           <li><strong>Temporal Coherence</strong>: Distills temporal dynamics into coherence vectors.</li>
           <li><strong>Attention Fusion</strong>: Aggregates multi-pathway information with self-attention.</li>
         </ul>

@@ -1,0 +1,14 @@
+[
+  {
+    "id": "arcane-intro",
+    "title": "ARCANE: The AI That Learns and Adapts Like the Human Brain",
+    "author": "Gianne Bacay",
+    "authorImage": "https://miro.medium.com/v2/resize:fill:96:96/1*qJGWH9D16iUZLwYBQrrqRg.jpeg",
+    "date": "3 September 2025",
+    "excerpt": "Most AI systems depend exclusively on backpropagation — an algorithm that requires global error signals and heavy gradient computations. The human brain does not work this way. Instead, synapses adapt based on local activity and are stabilized through homeostatic processes.",
+    "image": "https://miro.medium.com/v2/resize:fit:1100/format:webp/1*TMOXZwig4Ssuof83kQAg2A.png",
+    "slug": "arcane-intro",
+    "contentFile": "BLOGPOST.md",
+    "mediumUrl": "https://medium.com/@giannebacay2004/arcane-the-ai-that-learns-and-adapts-like-the-human-brain-bcd9957d464f"
+  }
+]

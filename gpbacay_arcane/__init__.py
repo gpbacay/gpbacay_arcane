@@ -28,6 +28,14 @@ from .layers import (
     SpatioTemporalSummarization,
 )
 
+# Convenience re-exports for activations
+from .activations import (
+    resonant_spike,
+    homeostatic_gelu,
+    adaptive_softplus,
+    NeuromimeticActivation,
+)
+
 # Convenience re-exports for mechanisms
 from .mechanisms import (
     GSER,
@@ -89,6 +97,11 @@ __all__ = [
     "ExpandDimensionLayer",
     "SpatioTemporalSummaryMixingLayer",
     "SpatioTemporalSummarization",
+    # Activations
+    "resonant_spike",
+    "homeostatic_gelu",
+    "adaptive_softplus",
+    "NeuromimeticActivation",
     # Models
     "NeuromimeticSemanticModel",
     "HierarchicalResonanceFoundationModel",

@@ -22,18 +22,23 @@ export default function DocsLayout({
   useEffect(() => {
     // Extract headings from the page content for the TOC
     const extractHeadings = () => {
-      const headingElements = Array.from(document.querySelectorAll("h2, h3"));
-      const extracted = headingElements.map((el) => {
-        // Ensure element has an ID for linking
-        if (!el.id) {
-          el.id = el.textContent?.toLowerCase().replace(/\s+/g, "-") || "";
-        }
-        return {
-          id: el.id,
-          text: el.textContent || "",
-          level: parseInt(el.tagName[1]),
-        };
-      });
+      const mainContent = document.querySelector("main");
+      if (!mainContent) return;
+
+      const headingElements = Array.from(mainContent.querySelectorAll("h2, h3"));
+      const extracted = headingElements
+        .map((el) => {
+          // Ensure element has an ID for linking
+          if (!el.id) {
+            el.id = el.textContent?.toLowerCase().replace(/\s+/g, "-") || "";
+          }
+          return {
+            id: el.id,
+            text: el.textContent || "",
+            level: parseInt(el.tagName[1]),
+          };
+        })
+        .filter((h) => h.text.toLowerCase() !== "command palette");
       setHeadings(extracted);
     };
 
@@ -160,14 +165,14 @@ export default function DocsLayout({
       </AnimatePresence>
 
       {/* Desktop Layout */}
-      <div className="container flex-1 items-start md:grid md:grid-cols-[240px_minmax(0,1fr)_260px] md:gap-14 mx-auto px-4 md:px-8">
+      <div className="container flex-1 items-start lg:grid lg:grid-cols-[240px_minmax(0,1fr)_260px] lg:gap-10 xl:gap-14 mx-auto px-4 md:px-8">
         {/* Desktop Sidebar - Left */}
-        <div className="hidden md:block sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto scrollbar-hide border-r border-zinc-900">
+        <div className="hidden lg:block sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto scrollbar-hide border-r border-zinc-900">
           <DocsSidebar />
         </div>
 
         {/* Main Content - Center */}
-        <main className="relative py-6 md:py-12">
+        <main className="relative py-6 md:py-12 lg:px-4 xl:px-0">
           <div className="mx-auto w-full min-w-0 max-w-3xl break-words px-4 md:px-0">
             {children}
             <DocsPager />
@@ -175,10 +180,10 @@ export default function DocsLayout({
         </main>
 
         {/* Desktop Table of Contents - Right */}
-        <aside className="hidden md:block sticky top-16 h-[calc(100vh-4rem)]">
+        <aside className="hidden lg:block sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto scrollbar-hide scroll-smooth">
           <div className="sticky top-16 p-6">
             <TableOfContents headings={headings} />
-
+            
             <div className="pt-10 mt-10 border-t border-zinc-900 px-1">
               <Link
                 href="https://github.com/gpbacay/gpbacay_arcane/issues/new"

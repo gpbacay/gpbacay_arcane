@@ -1,7 +1,23 @@
-
+import { Markdown } from "@/components/markdown";
+import fs from "fs";
+import path from "path";
 import Image from "next/image";
 
 export default function NeuralResonancePage() {
+  const docsPath = path.join(process.cwd(), "..", "docs", "NEURAL_RESONANCE.md");
+  let content = "";
+  
+  try {
+    content = fs.readFileSync(docsPath, "utf8");
+    // Remove the title from the markdown
+    content = content.replace(/^# .*\n/, "");
+  } catch (error) {
+    content = "Could not load documentation content.";
+  }
+
+  // Split content by section headers
+  const sections = content.split(/## (Glossary of Terminologies|Architecture and Information Flow|Advantages and Disadvantages|Technical Implementation Details|Performance & Comparison|Implementation Example|Scientific Context|Conclusion)/);
+
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
       <div className="mb-10">
@@ -13,91 +29,116 @@ export default function NeuralResonancePage() {
         </p>
       </div>
 
-      <div className="my-10 flex justify-center overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/50 p-6 shadow-2xl">
-        <div className="text-center">
-          <Image
-            src="/Heirarchical_Structure.png"
-            alt="A.R.C.A.N.E. Hierarchical Structure"
-            width={216}
-            height={454}
-            className="rounded-lg mx-auto h-auto shadow-lg"
-          />
-          <p className="mt-6 px-4 text-sm text-zinc-500 italic">
-            Figure 1: The multi-layered hierarchical organization of systemic neural resonance.
-          </p>
-        </div>
-      </div>
+      {/* Overview and Problem/Solution (sections[0]) */}
+      <Markdown content={sections[0]} />
 
-      <div className="space-y-8 text-zinc-300 leading-7">
-        <p>
-          Hierarchical Neural Resonance is a core architectural innovation of the A.R.C.A.N.E. framework.
-          It enables multi-layered neural systems to iteratively synchronize their internal semantic representations
-          through continuous feedback loops and state alignment, bridging the gap between connectionist machine learning,
-          Adaptive Resonance Theory (ART), and biological neurodynamics.
-        </p>
+      {/* Glossary (sections[1] is name, sections[2] is content) */}
+      {sections[1] && <h2 id="glossary-of-terminologies">{sections[1]}</h2>}
+      {sections[2] && <Markdown content={sections[2]} />}
 
-        <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
-          The "Thinking Phase"
-        </h2>
-        <p>
-          Unlike traditional feed-forward networks (System 1) that map input to output in a single pass,
-          A.R.C.A.N.E. introducing a <strong>Thinking Phase</strong> (System 2).
-        </p>
-        <p>
-          During this phase, higher layers project expectations downward (<strong>Feedback Projection</strong>),
-          and lower layers adjust their states to match (<strong>Harmonization</strong>).
-          This minimizes <strong>Prediction Divergence</strong> locally before any weight updates occur.
-        </p>
+      {/* Architecture (sections[3] is name, sections[4] is content) */}
+      {sections[3] && <h2 id="architecture-and-information-flow">{sections[3]}</h2>}
+      {sections[4] && (() => {
+        const archParts = sections[4].split(/(### .*)/);
+        // archParts[0] is intro
+        // archParts[1] is "### Hierarchical Structure"
+        // archParts[2] is its content
+        // archParts[3] is "### The Resonance Cycle..."
+        // archParts[4] is its content
+        // archParts[5] is "### Internal Logic..."
+        // archParts[6] is its content
 
-        <div className="my-8 flex justify-center rounded-2xl border border-zinc-800 bg-zinc-950/50 p-6 shadow-2xl overflow-hidden">
-          <div className="text-center">
-            <Image
-              src="/Resonance_Cycle.png"
-              alt="The Resonance Cycle"
-              width={372}
-              height={434}
-              className="rounded-lg mx-auto h-auto shadow-lg"
-            />
-            <p className="mt-6 px-4 text-sm text-zinc-500 italic">
-              Figure 2: The iterative cycle of feedback projection and harmonization.
-            </p>
-          </div>
-        </div>
+        return (
+          <>
+            <Markdown content={archParts[0]} />
+            
+            {archParts[1] && (
+              <div className="mt-8 mb-12">
+                <Markdown content={archParts[1] + archParts[2].split("```mermaid")[0]} />
+                <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-8 shadow-xl">
+                  <div className="flex justify-center">
+                    <Image
+                      src="/Heirarchical_Structure.png"
+                      alt="A.R.C.A.N.E. Hierarchical Structure"
+                      width={216}
+                      height={454}
+                      className="rounded-lg h-auto shadow-2xl border border-zinc-800 bg-black/20"
+                    />
+                  </div>
+                  <p className="mt-6 text-center text-sm text-zinc-500 italic">
+                    Figure 1: The multi-layered hierarchical organization of systemic neural resonance.
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {archParts[3] && (
+              <div className="mt-8 mb-12">
+                <Markdown content={archParts[3] + archParts[4].split("```mermaid")[0]} />
+                <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-8 shadow-xl">
+                  <div className="flex justify-center">
+                    <Image
+                      src="/Resonance_Cycle.png"
+                      alt="The Resonance Cycle"
+                      width={600}
+                      height={400}
+                      className="rounded-xl h-auto shadow-2xl border border-zinc-800"
+                    />
+                  </div>
+                  <p className="mt-6 text-center text-sm text-zinc-500 italic">
+                    Figure 2: Information flow during hierarchical state synchronization.
+                  </p>
+                </div>
+              </div>
+            )}
 
-        <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
-          Key Terminologies
-        </h2>
-        <dl className="grid gap-4 sm:gap-6 sm:grid-cols-2">
-          <div className="rounded border border-zinc-800 bg-zinc-900/50 p-3 md:p-4">
-            <dt className="font-semibold text-zinc-100 mb-2 text-sm md:text-base">Prospective Configuration</dt>
-            <dd className="text-xs md:text-sm text-zinc-400">Neural activities are optimized to align with expectations <em>before</em> synaptic weight updates.</dd>
-          </div>
-          <div className="rounded border border-zinc-800 bg-zinc-900/50 p-3 md:p-4">
-            <dt className="font-semibold text-zinc-100 mb-2 text-sm md:text-base">Feedback Projection</dt>
-            <dd className="text-xs md:text-sm text-zinc-400">Top-down signal from a higher layer representing its expectation of the lower layer's activity.</dd>
-          </div>
-          <div className="rounded border border-zinc-800 bg-zinc-900/50 p-3 md:p-4">
-            <dt className="font-semibold text-zinc-100 mb-2 text-sm md:text-base">Harmonization</dt>
-            <dd className="text-xs md:text-sm text-zinc-400">The mechanism by which a layer adjusts its internal semantic representation to minimize divergence.</dd>
-          </div>
-          <div className="rounded border border-zinc-800 bg-zinc-900/50 p-3 md:p-4">
-            <dt className="font-semibold text-zinc-100 mb-2 text-sm md:text-base">Validation Accuracy</dt>
-            <dd className="text-xs md:text-sm text-zinc-400">Hierarchical Resonance achieves <strong>11.25%</strong> vs 9.50% for LSTM on shakespeare benchmark.</dd>
-          </div>
-        </dl>
+            {archParts[5] && (
+              <div className="mt-8 mb-12">
+                <Markdown content={archParts[5] + archParts[6].split("```mermaid")[0]} />
+                <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-8 shadow-xl">
+                  <div className="flex justify-center">
+                    <Image
+                      src="/ResonantGSER_Layer_Logic.png"
+                      alt="Internal Logic of a ResonantGSER Layer"
+                      width={800}
+                      height={300}
+                      className="rounded-xl h-auto shadow-2xl border border-zinc-800"
+                    />
+                  </div>
+                  <p className="mt-6 text-center text-sm text-zinc-500 italic">
+                    Figure 3: Local divergence calculation and state harmonization within the GSER cell.
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
-        <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
-          Code Analysis
-        </h2>
-        <pre className="bg-zinc-950 p-4 rounded overflow-x-auto text-sm text-zinc-300 border border-zinc-800">
-          {`# Example of Neural Resonance in Action
-resonance_cb = NeuralResonanceCallback(resonance_cycles=10)
+      {/* Advantages/Disadvantages (sections[5], sections[6]) */}
+      {sections[5] && <h2 id="advantages-and-disadvantages">{sections[5]}</h2>}
+      {sections[6] && <Markdown content={sections[6]} />}
 
-# The model will perform 10 internal alignment cycles
-# for every batch of data before updating weights.
-model.fit(X_train, y_train, callbacks=[resonance_cb])`}
-        </pre>
-      </div>
+      {/* Technical Details (sections[7], sections[8]) */}
+      {sections[7] && <h2 id="technical-implementation-details">{sections[7]}</h2>}
+      {sections[8] && <Markdown content={sections[8]} />}
+
+      {/* Performance & Comparison (sections[9], sections[10]) */}
+      {sections[9] && <h2 id="performance-comparison">{sections[9]}</h2>}
+      {sections[10] && <Markdown content={sections[10]} />}
+
+      {/* Implementation Example (sections[11], sections[12]) */}
+      {sections[11] && <h2 id="implementation-example">{sections[11]}</h2>}
+      {sections[12] && <Markdown content={sections[12]} />}
+
+      {/* Remaining sections */}
+      {sections.slice(13).map((section, i) => {
+        if (i % 2 === 0) {
+          return <h2 key={i} id={section.toLowerCase().replace(/\s+/g, '-')}>{section}</h2>
+        } else {
+          return <Markdown key={i} content={section} />
+        }
+      })}
     </div>
   );
 }

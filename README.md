@@ -8,7 +8,7 @@ A Python library for building neuromimetic AI models inspired by biological neur
 
 A.R.C.A.N.E. is a comprehensive Python library that enables you to build, train, and deploy neuromimetic AI models. Unlike traditional deep learning frameworks, A.R.C.A.N.E. incorporates biological neural principles such as:
 
-- **Neural Resonance**: Bi-directional state alignment between neural layers
+- **Neural Resonance**: Bi-directional state alignment between neural layers, enabling **Inference-Time State Adaptation** and **Inference-Time Learning**
 - **Spiking Neural Dynamics**: Realistic neuron behavior with leak rates and thresholds
 - **Hebbian Learning**: "Neurons that fire together, wire together" plasticity rules
 - **Homeostatic Plasticity**: Self-regulating neural activity for stable representations
@@ -387,6 +387,15 @@ Input (16 tokens)
 | `MultiheadLinearSelfAttentionKernalization` | Linear attention with kernel approximation |
 | `LatentTemporalCoherence` | Temporal coherence distillation |
 | `PositionalEncodingLayer` | Sinusoidal positional encoding |
+
+## Available Activations
+
+| Activation | Description |
+|------------|-------------|
+| `resonant_spike` | STATEFUL: LIF potential with top-down resonance modulation |
+| `homeostatic_gelu` | SELF-REGULATING: GELU with dynamic gain adjustment |
+| `adaptive_softplus` | STABLE: Tunable saturation for biological fidelity |
+| `NeuromimeticActivation` | Wrapper for easy Keras/TensorFlow integration |
 
 ## CLI Commands
 

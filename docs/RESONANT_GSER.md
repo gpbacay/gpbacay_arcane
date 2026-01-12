@@ -2,7 +2,7 @@
 
 ## Overview
 
-ResonantGSER (Resonant Gated Spiking Elastic Reservoir) is the core mechanism implementing **Hierarchical Neural Resonance** in the A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) framework. This biologically-inspired mechanism enables multi-layered neural systems to iteratively synchronize their internal semantic representations through continuous feedback loops and state alignment, addressing fundamental limitations in traditional neural architectures.
+ResonantGSER (Resonant Gated Spiking Elastic Reservoir) is the core mechanism implementing **Hierarchical Neural Resonance** in the A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) framework. This biologically-inspired mechanism enables **Inference-Time Learning** and **Inference-Time State Adaptation**, allowing multi-layered neural systems to iteratively synchronize their internal semantic representations through continuous feedback loops and state alignment, addressing fundamental limitations in traditional neural architectures.
 
 ## Biological Inspiration
 

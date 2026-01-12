@@ -25,6 +25,7 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
         { title: "Neural Resonance", href: "/docs/neural-resonance" },
         { title: "Biological Layers", href: "/docs/layers" },
         { title: "ResonantGSER", href: "/docs/resonant-gser" },
+        { title: "Activations", href: "/docs/activations" },
       ],
     },
     {
@@ -39,6 +40,13 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
       items: [
         { title: "CLI Commands", href: "/docs/cli" },
         { title: "Benchmarks", href: "/docs/benchmarks" },
+        { title: "Research Paper", href: "/docs/research" },
+      ],
+    },
+    {
+      title: "Insights",
+      items: [
+        { title: "Blog", href: "/docs/blog" },
       ],
     },
   ],
