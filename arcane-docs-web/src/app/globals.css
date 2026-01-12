@@ -167,10 +167,6 @@ html {
   --sidebar-ring: oklch(0.556 0 0);
 }
 
-.dark .katex-display, .dark .katex, .dark .katex * {
-  color: #f4f4f5 !important;
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -178,4 +174,13 @@ html {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Katex Math Styling */
+.katex-display, .katex {
+  color: #f4f4f5 !important; /* zinc-100 */
+}
+
+.katex-display {
+  padding: 1rem 0;
 }
