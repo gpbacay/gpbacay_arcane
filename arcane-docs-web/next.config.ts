@@ -17,10 +17,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  experimental: {
-    turbopack: {
-      root: '..',
-    },
+  turbopack: {
+    root: '..',
   },
 };
 
