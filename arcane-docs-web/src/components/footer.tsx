@@ -9,7 +9,14 @@ export function SiteFooter() {
           <div className="md:border-r md:border-zinc-900 md:pr-12">
             <h2 className="text-4xl font-black text-white mb-8 tracking-tighter uppercase">A.R.C.A.N.E.</h2>
             <div className="space-y-4 text-[13px] font-mono leading-relaxed opacity-70">
-              <p>Gianne P. Bacay</p>
+              <Link 
+                href="https://www.gpbacay.xyz/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors cursor-pointer"
+              >
+                Gianne P. Bacay
+              </Link>
               <p>Augmented Reconstruction of Consciousness through Artificial Neural Evolution</p>
               <p className="pt-6">
                 <a href="mailto:giannebacay2004@gmail.com" className="hover:text-white transition-colors uppercase">giannebacay2004@gmail.com</a>
@@ -63,7 +70,14 @@ export function SiteFooter() {
             </p>
           </div>
           <div className="flex gap-16 text-[10px] font-medium tracking-[0.2em] text-zinc-600 uppercase">
-            <p>© {new Date().getFullYear()} GIANNE BACAY</p>
+            <Link 
+              href="https://www.gpbacay.xyz/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:text-white transition-colors cursor-pointer"
+            >
+              © {new Date().getFullYear()} GIANNE BACAY
+            </Link>
             <p>MIT LICENSE</p>
           </div>
         </div>
