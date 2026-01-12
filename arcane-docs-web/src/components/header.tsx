@@ -182,12 +182,19 @@ export function SiteHeader() {
                 return (
                   <CommandItem
                     key={item.href}
-                    value={`${group.title} ${item.title}`}
+                    value={`${group.title} ${item.title} ${item.keywords?.join(" ") || ""}`}
                     onSelect={() => handleSearchSelect(item.href)}
                     className="flex items-center gap-3 py-3"
                   >
                     <Icon className="h-4 w-4 text-zinc-400" />
-                    <span>{item.title}</span>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{item.title}</span>
+                      {item.keywords && (
+                        <span className="text-[10px] text-zinc-500 line-clamp-1">
+                          {item.keywords.join(", ")}
+                        </span>
+                      )}
+                    </div>
                   </CommandItem>
                 );
               })}
