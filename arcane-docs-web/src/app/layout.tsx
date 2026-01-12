@@ -26,10 +26,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} font-sans antialiased flex flex-col min-h-screen`}
       >
-        <div className="flex-1 flex flex-col">
-          {children}
-        </div>
-        <SiteFooter />
+        {children}
       </body>
     </html>
   );
