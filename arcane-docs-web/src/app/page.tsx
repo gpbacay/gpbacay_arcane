@@ -1,8 +1,47 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
+import { Check, Copy } from "lucide-react";
 import PrismaticBurst from "@/components/PrismaticBurst";
 import { SiteFooter } from "@/components/footer";
 import { SiteHeader } from "@/components/header";
 import { SidebarProvider } from "@/components/ui/sidebar";
+
+function PipInstall() {
+  const [copied, setCopied] = useState(false);
+  const command = "pip install gpbacay-arcane";
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy!", err);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-4 bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-none px-6 py-4 transition-all hover:border-[#C785F2]/50 hover:bg-zinc-900/80 group relative min-w-[300px] sm:min-w-[400px]">
+      <code className="text-base sm:text-lg font-mono tracking-tight transition-colors flex-1 text-left">
+        <span className="text-[#C785F2]">pip</span>{" "}
+        <span className="text-[#B9DFE0] group-hover:text-white transition-colors">install gpbacay-arcane</span>
+      </code>
+      <button
+        onClick={handleCopy}
+        className="p-2 rounded-none hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-[#C785F2]"
+        title={copied ? "Copied!" : "Copy to clipboard"}
+      >
+        {copied ? (
+          <Check className="h-4 w-4 sm:h-5 sm:w-5 animate-in zoom-in duration-300" />
+        ) : (
+          <Copy className="h-4 w-4 sm:h-5 sm:w-5 animate-in zoom-in duration-300" />
+        )}
+      </button>
+    </div>
+  );
+}
 
 export default function Home() {
   return (
@@ -30,11 +69,7 @@ export default function Home() {
             </h1>
             
             <div className="flex flex-col items-center gap-6 mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
-              <div className="flex items-center gap-4 bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-none px-6 py-4 transition-all hover:border-[#C785F2]/50 hover:bg-zinc-900/80 group">
-                <code className="text-base sm:text-lg font-mono text-[#B9DFE0] tracking-tight group-hover:text-white transition-colors">
-                  pip install gpbacay-arcane
-                </code>
-              </div>
+              <PipInstall />
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 w-full sm:w-auto">
