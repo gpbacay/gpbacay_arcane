@@ -162,7 +162,7 @@ export default function DocsPage() {
           <AccordionItem value="item-11" className="border-zinc-800 bg-zinc-900/20 px-4 rounded-none">
             <AccordionTrigger className="text-zinc-200 hover:text-white transition-colors">What are the benefits of using Arcane technology?</AccordionTrigger>
             <AccordionContent className="text-zinc-400 leading-relaxed">
-              ARCANE offers a more efficient and resilient alternative to traditional AI by focusing on architectural innovation. Key benefits include lower power consumption closer to a biological brain, real-time state alignment for better reasoning, and a more transparent system grounded in neuroscientific principles. This makes it a powerful tool for research and applications that require high-level adaptability and stable, predictable AI behavior.
+              ARCANE offers a more efficient and resilient alternative to traditional AI by focusing on architectural innovation. Key benefits include lower power consumption closer to a biological brain and inference-time learning through real-time semantic state alignment. This leads to better reasoning and a more transparent system grounded in neuroscientific principles, making it a powerful tool for research and applications that require high-level adaptability and stable, predictable AI behavior.
             </AccordionContent>
           </AccordionItem>
         </Accordion>
