@@ -2,7 +2,7 @@
 
 ## Overview
 
-Hierarchical Neural Resonance is a bi-directional and self-modeling computational mechanism that enables multi-layered neural systems to iteratively synchronize their internal semantic representations through continuous feedback loops and state alignment. It facilitates **Inference-Time Learning** (the ability to refine representations during the forward pass) and **Inference-Time State Adaptation** (the dynamic adjustment of neural states to achieve hierarchical coherence). This is a core architectural innovation of the A.R.C.A.N.E. framework, designed to address fundamental limitations in modern artificial intelligence by bridging the gap between connectionist machine learning, **Adaptive Resonance Theory (ART)**, and biological neurodynamics.
+Hierarchical Neural Resonance is a bi-directional and self-modeling computational mechanism that enables multi-layered neural systems to iteratively synchronize their internal semantic representations through continuous feedback loops and state alignment. It facilitates **Inference-Time Learning** (the ability to refine representations during the forward pass) and **Inference-Time State Adaptation** (the dynamic adjustment of neural states to achieve hierarchical coherence). This is a core architectural innovation of the ARCANE framework, designed to address fundamental limitations in modern artificial intelligence by bridging the gap between connectionist machine learning, **Adaptive Resonance Theory (ART)**, and biological neurodynamics.
 
 At its heart, this mechanism is a response to the "static nature" of contemporary neural networks, which, despite their power, lack the capacity for the iterative, self-correcting, and self-modeling internal dialogue that characterizes human cognition. It facilitates **Latent Space Reasoning**, contributes to a **Unified Multi-Modal Semantic Space**, and promotes **Direct Semantic Optimization** through the **Abstraction of Surface-Level Conceptual Variability**.
 
@@ -91,7 +91,7 @@ Despite its theoretical advantages, the resonant approach introduces specific tr
 
 ## Technical Implementation Details
 
-The A.R.C.A.N.E. framework implements this theory through two primary components:
+The ARCANE framework implements this theory through two primary components:
 
 ### 1. The ResonantGSER Layer
 The fundamental unit of the resonance hierarchy. Unlike standard layers, it is stateful and reactive:
@@ -109,7 +109,7 @@ This orchestrator manages the complex hierarchical exchange during training:
 
 ## Performance & Comparison
 
-The A.R.C.A.N.E. framework has been comprehensively evaluated through comparison studies.
+The ARCANE framework has been comprehensively evaluated through comparison studies.
 
 ### Model Architectures Compared
 
@@ -139,7 +139,7 @@ The A.R.C.A.N.E. framework has been comprehensively evaluated through comparison
 
 ### MNIST (Spatio-Temporal Digit Classification)
 
-| Metric | Traditional Deep LSTM | **Resonant A.R.C.A.N.E.** |
+| Metric | Traditional Deep LSTM | **Resonant ARCANE** |
 | :--- | :--- | :--- |
 | **Test Accuracy** | 98.76% | **98.89%** |
 | **Test Loss** | 0.0432 | **0.0391** |
@@ -187,7 +187,7 @@ This mechanism is based on the principle that the brain is a **prediction engine
 
 ## Conclusion
 
-Hierarchical Neural Resonance represents a significant paradigm shift in how artificial neural networks process information. By moving away from purely feed-forward architectures and embracing bi-directional, iterative communication, the A.R.C.A.N.E. framework provides a more robust and biologically plausible foundation for intelligence.
+Hierarchical Neural Resonance represents a significant paradigm shift in how artificial neural networks process information. By moving away from purely feed-forward architectures and embracing bi-directional, iterative communication, the ARCANE framework provides a more robust and biologically plausible foundation for intelligence.
 
 ### Empirical Validation
 

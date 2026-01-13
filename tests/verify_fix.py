@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Verification script to confirm the fix for the A.R.C.A.N.E. model.
+Verification script to confirm the fix for the ARCANE model.
 This script demonstrates that the model now produces coherent responses instead of numbers.
 """
 
@@ -12,15 +12,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from gpbacay_arcane.ollama_integration import OllamaARCANEHybrid
-    print("✅ A.R.C.A.N.E. modules loaded successfully")
+    print("✅ ARCANE modules loaded successfully")
 except ImportError as e:
-    print(f"❌ Error importing A.R.C.A.N.E. modules: {e}")
+    print(f"❌ Error importing ARCANE modules: {e}")
     sys.exit(1)
 
 def verify_fix():
     """Verify that the fix is working correctly."""
     print("="*60)
-    print("🔍 VERIFYING A.R.C.A.N.E. MODEL FIX")
+    print("🔍 VERIFYING ARCANE MODEL FIX")
     print("="*60)
     
     try:
@@ -63,7 +63,7 @@ def verify_fix():
                 temperature=0.8
             )
             
-            print(f"A.R.C.A.N.E.: {response}")
+            print(f"ARCANE: {response}")
             
             # Check if response contains numbers (which would indicate the old problem)
             # We'll check if the response is mostly numbers

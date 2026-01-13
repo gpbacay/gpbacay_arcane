@@ -22,10 +22,10 @@ export default function BlogPage() {
         {posts.map((post) => (
           <div 
             key={post.id}
-            className="group relative flex flex-col xl:flex-row gap-8 p-6 rounded-2xl border border-zinc-800/50 bg-zinc-900/20 hover:bg-zinc-900/40 transition-all duration-300 hover:border-zinc-700/50"
+            className="group relative flex flex-col xl:flex-row gap-8 p-6 rounded-none border border-zinc-800/50 bg-zinc-900/20 hover:bg-zinc-900/40 transition-all duration-300 hover:border-zinc-700/50"
           >
             {/* Left: Image */}
-            <div className="relative w-full xl:w-[300px] aspect-video xl:aspect-square overflow-hidden rounded-xl border border-zinc-800">
+            <div className="relative w-full xl:w-[300px] aspect-video xl:aspect-square overflow-hidden rounded-none border border-zinc-800">
               <Image
                 src={post.image}
                 alt={post.title}
@@ -43,7 +43,7 @@ export default function BlogPage() {
                 
                 {/* Author Meta */}
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden shrink-0">
+                  <div className="w-8 h-8 rounded-none bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden shrink-0">
                     <Image 
                       src={post.authorImage || "/arcane_logo_purple.svg"} 
                       alt={post.author} 
@@ -70,7 +70,7 @@ export default function BlogPage() {
               <div className="mt-8 flex justify-end">
                 <Link 
                   href={`/docs/blog/${post.slug}`}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-100 hover:bg-white hover:text-black transition-all group/btn no-underline"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-none bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-100 hover:bg-white hover:text-black transition-all group/btn no-underline"
                 >
                   <ArrowUpRight className="w-3.5 h-3.5 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
                   Read More

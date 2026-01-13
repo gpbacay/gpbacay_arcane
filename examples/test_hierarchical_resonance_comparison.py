@@ -13,7 +13,7 @@ Comparison includes:
 - Memory efficiency
 
 Author: Gianne P. Bacay
-Project: A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
+Project: ARCANE (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
 """
 
 import os
@@ -217,7 +217,7 @@ def run_comparison_test():
     
     # ========== Model 2: NeuromimeticSemanticModel (Standard) ==========
     print("\n" + "-" * 80)
-    print(" MODEL 2: NeuromimeticSemanticModel (Standard A.R.C.A.N.E.)")
+    print(" MODEL 2: NeuromimeticSemanticModel (Standard ARCANE)")
     print("-" * 80)
     
     neuro_model = NeuromimeticSemanticModel(

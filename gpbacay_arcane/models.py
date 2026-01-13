@@ -1,7 +1,7 @@
 """
 gpbacay_arcane.models
 
-This module contains the neuromimetic semantic model architectures for the A.R.C.A.N.E. project.
+This module contains the neuromimetic semantic model architectures for the ARCANE project.
 Augmented Reconstruction of Consciousness through Artificial Neural Evolution.
 """
 

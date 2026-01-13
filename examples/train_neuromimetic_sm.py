@@ -325,7 +325,7 @@ class NeuromimeticSemanticFoundationModel:
 
 def main():
     """Main training function."""
-    print("🧠 A.R.C.A.N.E. Neuromimetic Semantic Foundation Model")
+    print("🧠 ARCANE Neuromimetic Semantic Foundation Model")
     print("Augmented Reconstruction of Consciousness through Artificial Neural Evolution")
     print("=" * 80)
     print("🚀 Features:")

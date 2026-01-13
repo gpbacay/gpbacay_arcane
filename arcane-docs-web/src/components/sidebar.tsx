@@ -85,8 +85,8 @@ function SidebarGroup({ item, pathname }: { item: any, pathname: string }) {
                 stroke="#C785F2"
                 strokeWidth="2"
                 fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                strokeLinecap="square"
+                strokeLinejoin="miter"
                 className="transition-all duration-300 ease-in-out"
                 style={{
                   filter: "drop-shadow(0 0 8px rgba(199, 133, 242, 0.6))"
@@ -102,7 +102,7 @@ function SidebarGroup({ item, pathname }: { item: any, pathname: string }) {
               key={subIndex}
               href={subItem.href}
               className={cn(
-                "group flex w-full items-center rounded-lg px-3 py-2 transition-all duration-200",
+                "group flex w-full items-center rounded-none px-3 py-2 transition-all duration-200",
                 pathname === subItem.href
                   ? "bg-[#C785F2]/5 text-[#C785F2] font-semibold"
                   : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900"
@@ -130,13 +130,13 @@ export function DocsSidebar() {
               Navigation
             </h4>
             <div className="grid grid-flow-row auto-rows-max text-sm space-y-1">
-              <Link href="/" className="flex w-full items-center rounded-lg px-4 py-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-all">
+              <Link href="/" className="flex w-full items-center rounded-none px-4 py-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-all">
                 Home
               </Link>
-              <Link href="/docs" className="flex w-full items-center rounded-lg px-4 py-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-all">
+              <Link href="/docs" className="flex w-full items-center rounded-none px-4 py-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-all">
                 Documentation
               </Link>
-              <Link href="/docs/layers" className="flex w-full items-center rounded-lg px-4 py-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-all">
+              <Link href="/docs/layers" className="flex w-full items-center rounded-none px-4 py-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-all">
                 Layers
               </Link>
             </div>

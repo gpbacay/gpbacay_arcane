@@ -11,7 +11,7 @@ export default function BiologicalLayersPage() {
       id: "resonant-gser",
       name: "ResonantGSER",
       description: "Hierarchical resonant layer with bi-directional feedback, spiking dynamics, and reservoir computing.",
-      details: "The ResonantGSER is the core of A.R.C.A.N.E.'s deliberative reasoning. It implements the Resonant State Alignment Algorithm (RSAA) to synchronize internal states between hierarchical levels, allowing the model to 'think' before committing to an output. It features spectral radius control, leak rates, and spike thresholds.",
+      details: "The ResonantGSER is the core of ARCANE's deliberative reasoning. It implements the Resonant State Alignment Algorithm (RSAA) to synchronize internal states between hierarchical levels, allowing the model to 'think' before committing to an output. It features spectral radius control, leak rates, and spike thresholds.",
       link: "/docs/resonant-gser",
       code: `from gpbacay_arcane.layers import ResonantGSER
 
@@ -103,7 +103,7 @@ activation = NeuromimeticActivation(
 
       <div className="space-y-8 text-zinc-300 leading-7">
         <p>
-          A.R.C.A.N.E. provides a suite of custom Keras layers that mimic the dynamics of biological neurons. 
+          ARCANE provides a suite of custom Keras layers that mimic the dynamics of biological neurons. 
           Each layer is designed to bridge the gap between traditional connectionist AI and neuroscientific realism.
         </p>
 
@@ -136,7 +136,7 @@ activation = NeuromimeticActivation(
                   {layer.code && (
                     <div className="space-y-2">
                       <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 mt-4">Quick Implementation</p>
-                      <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300 shadow-inner">
+                      <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300 shadow-inner">
                         <code>{layer.code}</code>
                       </pre>
                     </div>

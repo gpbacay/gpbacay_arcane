@@ -55,14 +55,14 @@ export default function NeuralResonancePage() {
             {archParts[1] && (
               <div className="mt-8 mb-12">
                 <Markdown content={archParts[1] + archParts[2].split("```mermaid")[0]} />
-                <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-8 shadow-xl">
+                <div className="mt-8 rounded-none border border-zinc-800 bg-zinc-950/50 p-8 shadow-xl">
                   <div className="flex justify-center">
                     <Image
                       src="/Heirarchical_Structure.png"
-                      alt="A.R.C.A.N.E. Hierarchical Structure"
+                      alt="ARCANE Hierarchical Structure"
                       width={216}
                       height={454}
-                      className="rounded-lg h-auto shadow-2xl border border-zinc-800 bg-black/20"
+                      className="rounded-none h-auto shadow-2xl border border-zinc-800 bg-black/20"
                     />
                   </div>
                   <p className="mt-6 text-center text-sm text-zinc-500 italic">
@@ -75,14 +75,14 @@ export default function NeuralResonancePage() {
             {archParts[3] && (
               <div className="mt-8 mb-12">
                 <Markdown content={archParts[3] + archParts[4].split("```mermaid")[0]} />
-                <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-8 shadow-xl">
+                <div className="mt-8 rounded-none border border-zinc-800 bg-zinc-950/50 p-8 shadow-xl">
                   <div className="flex justify-center">
                     <Image
                       src="/Resonance_Cycle.png"
                       alt="The Resonance Cycle"
                       width={600}
                       height={400}
-                      className="rounded-xl h-auto shadow-2xl border border-zinc-800"
+                      className="rounded-none h-auto shadow-2xl border border-zinc-800"
                     />
                   </div>
                   <p className="mt-6 text-center text-sm text-zinc-500 italic">
@@ -95,14 +95,14 @@ export default function NeuralResonancePage() {
             {archParts[5] && (
               <div className="mt-8 mb-12">
                 <Markdown content={archParts[5] + archParts[6].split("```mermaid")[0]} />
-                <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-8 shadow-xl">
+                <div className="mt-8 rounded-none border border-zinc-800 bg-zinc-950/50 p-8 shadow-xl">
                   <div className="flex justify-center">
                     <Image
                       src="/ResonantGSER_Layer_Logic.png"
                       alt="Internal Logic of a ResonantGSER Layer"
                       width={800}
                       height={300}
-                      className="rounded-xl h-auto shadow-2xl border border-zinc-800"
+                      className="rounded-none h-auto shadow-2xl border border-zinc-800"
                     />
                   </div>
                   <p className="mt-6 text-center text-sm text-zinc-500 italic">

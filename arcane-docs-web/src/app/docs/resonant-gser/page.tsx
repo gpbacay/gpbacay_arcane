@@ -25,14 +25,14 @@ export default function ResonantGSERPage() {
         </p>
       </div>
 
-      <div className="my-10 flex justify-center overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/50 p-6 shadow-2xl">
+      <div className="my-10 flex justify-center overflow-hidden rounded-none border border-zinc-800 bg-zinc-950/50 p-6 shadow-2xl">
         <div className="text-center">
           <Image
             src="/ResonantGSER_Layer_Logic.png"
             alt="ResonantGSER Layer Logic"
             width={600}
             height={300}
-            className="rounded-lg mx-auto h-auto shadow-lg"
+            className="rounded-none mx-auto h-auto shadow-lg"
           />
           <p className="mt-6 px-4 text-sm text-zinc-500 italic">
             Figure 1: Internal logic and state synchronization of the ResonantGSER layer.

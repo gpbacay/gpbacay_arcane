@@ -151,7 +151,7 @@ export function TableOfContents({ headings }: TOCProps) {
                                 stroke="white"
                                 strokeWidth="2"
                                 fill="none"
-                                strokeLinecap="round"
+                                strokeLinecap="square"
                                 className="transition-all duration-300 ease-in-out"
                                 style={{
                                     filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.6))"

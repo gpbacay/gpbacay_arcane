@@ -13,7 +13,7 @@ Features demonstrated:
 - Bioplastic Hebbian learning layers
 
 Author: Gianne P. Bacay
-Project: A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
+Project: ARCANE (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
 """
 
 import os

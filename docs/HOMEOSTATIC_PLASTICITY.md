@@ -1,8 +1,8 @@
-# Homeostatic Plasticity in A.R.C.A.N.E.
+# Homeostatic Plasticity in ARCANE
 
 ## Overview
 
-Homeostatic Plasticity is a critical neuromimetic mechanism in the A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) framework that enables stable and adaptive neural activity regulation. This mechanism ensures that neural networks maintain appropriate activity levels over time, preventing issues like runaway activation or dead neurons.
+Homeostatic Plasticity is a critical neuromimetic mechanism in the ARCANE (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) framework that enables stable and adaptive neural activity regulation. This mechanism ensures that neural networks maintain appropriate activity levels over time, preventing issues like runaway activation or dead neurons.
 
 ## Biological Inspiration
 
@@ -35,7 +35,7 @@ Where:
 
 ### Proportional Scaling Implementation
 
-In A.R.C.A.N.E., homeostatic plasticity uses proportional scaling:
+In ARCANE, homeostatic plasticity uses proportional scaling:
 
 \[
 w_{new} = w_{current} \cdot (1 + \eta \cdot \frac{a_{target} - a(t)}{a(t)})
@@ -43,7 +43,7 @@ w_{new} = w_{current} \cdot (1 + \eta \cdot \frac{a_{target} - a(t)}{a(t)})
 
 This formulation ensures smooth convergence to target activity levels.
 
-## Implementation in A.R.C.A.N.E. Layers
+## Implementation in ARCANE Layers
 
 ### BioplasticDenseLayer
 
@@ -84,7 +84,7 @@ layer = HebbianHomeostaticNeuroplasticity(
 
 ### NeuromimeticSemanticModel
 
-Homeostatic plasticity is integrated into the main A.R.C.A.N.E. semantic model:
+Homeostatic plasticity is integrated into the main ARCANE semantic model:
 
 ```python
 model = NeuromimeticSemanticModel(
@@ -235,4 +235,4 @@ Networks with homeostatic plasticity are more robust to:
 
 ---
 
-*This documentation covers the Homeostatic Plasticity mechanism as implemented in A.R.C.A.N.E. v3.0.0. For the latest updates and additional features, refer to the main project repository.*
+*This documentation covers the Homeostatic Plasticity mechanism as implemented in ARCANE v3.0.0. For the latest updates and additional features, refer to the main project repository.*

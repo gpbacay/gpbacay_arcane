@@ -49,15 +49,15 @@ Dynamic: requires-dist
 Dynamic: requires-python
 Dynamic: summary
 
-# A.R.C.A.N.E.
+# ARCANE
 
 **Augmented Reconstruction of Consciousness through Artificial Neural Evolution**
 
-A Python library for building neuromimetic AI models inspired by biological neural principles. A.R.C.A.N.E. provides researchers and developers with biologically-plausible neural layers, models, and training mechanisms that bridge neuroscience and artificial intelligence.
+A Python library for building neuromimetic AI models inspired by biological neural principles. ARCANE provides researchers and developers with biologically-plausible neural layers, models, and training mechanisms that bridge neuroscience and artificial intelligence.
 
-## What is A.R.C.A.N.E.?
+## What is ARCANE?
 
-A.R.C.A.N.E. is a comprehensive Python library that enables you to build, train, and deploy neuromimetic AI models. Unlike traditional deep learning frameworks, A.R.C.A.N.E. incorporates biological neural principles such as:
+ARCANE is a comprehensive Python library that enables you to build, train, and deploy neuromimetic AI models. Unlike traditional deep learning frameworks, ARCANE incorporates biological neural principles such as:
 
 - **Neural Resonance**: Bi-directional state alignment between neural layers
 - **Spiking Neural Dynamics**: Realistic neuron behavior with leak rates and thresholds
@@ -287,7 +287,7 @@ creative = model.generate_text(
 
 ## Available Models
 
-A.R.C.A.N.E. provides two main model classes for different use cases:
+ARCANE provides two main model classes for different use cases:
 
 ### HierarchicalResonanceFoundationModel
 Advanced model with multi-level neural resonance, temporal coherence, and attention fusion. Best for:
@@ -330,7 +330,7 @@ model.compile_model()
 
 ### Ollama Integration (Optional)
 
-Create a neuromimetic foundation model by combining Ollama's llama3.2:1b with A.R.C.A.N.E.'s biological neural mechanisms:
+Create a neuromimetic foundation model by combining Ollama's llama3.2:1b with ARCANE's biological neural mechanisms:
 
 ```bash
 # Install optional dependencies
@@ -348,7 +348,7 @@ python examples/create_foundation_model.py
 
 ### What is Neural Resonance?
 
-Neural Resonance is A.R.C.A.N.E.'s core innovation - a biologically-inspired training mechanism that mimics how the brain processes information. Unlike traditional feed-forward networks, Neural Resonance introduces a **"Thinking Phase"** where:
+Neural Resonance is ARCANE's core innovation - a biologically-inspired training mechanism that mimics how the brain processes information. Unlike traditional feed-forward networks, Neural Resonance introduces a **"Thinking Phase"** where:
 
 1. **Higher layers project feedback** (expectations) downward to lower layers
 2. **Lower layers harmonize** their internal states to match those expectations
@@ -459,13 +459,13 @@ gpbacay-arcane-version
 
 ### Benchmark Results
 
-Comprehensive testing on the Tiny Shakespeare dataset shows A.R.C.A.N.E. models outperform traditional approaches:
+Comprehensive testing on the Tiny Shakespeare dataset shows ARCANE models outperform traditional approaches:
 
 | Model | Val Accuracy | Val Loss | Training Time | Parameters |
 |-------|--------------|----------|---------------|------------|
 | Traditional Deep LSTM | 9.50% | 6.85 | ~45s | ~195K |
-| **A.R.C.A.N.E. Neuromimetic** | 10.20% | 6.42 | ~58s | ~220K |
-| **A.R.C.A.N.E. Hierarchical Resonance** | **11.25%** | **6.15** | ~95s | ~385K |
+| **ARCANE Neuromimetic** | 10.20% | 6.42 | ~58s | ~220K |
+| **ARCANE Hierarchical Resonance** | **11.25%** | **6.15** | ~95s | ~385K |
 
 ### Key Advantages
 
@@ -476,7 +476,7 @@ Comprehensive testing on the Tiny Shakespeare dataset shows A.R.C.A.N.E. models 
 
 ### Text Generation Quality
 
-A.R.C.A.N.E. models produce more coherent and contextually appropriate text:
+ARCANE models produce more coherent and contextually appropriate text:
 
 - **Temperature Control**: 0.6 (conservative), 0.9 (balanced), 1.2 (creative)
 - **Multi-modal Support**: Text, with extensions for other modalities
@@ -489,11 +489,11 @@ A.R.C.A.N.E. models produce more coherent and contextually appropriate text:
 python examples/test_hierarchical_resonance_comparison.py
 ```
 
-This benchmark compares traditional LSTM vs A.R.C.A.N.E. models on training stability, generation quality, and performance metrics.
+This benchmark compares traditional LSTM vs ARCANE models on training stability, generation quality, and performance metrics.
 
 ## Research Applications
 
-A.R.C.A.N.E. serves researchers in multiple fields:
+ARCANE serves researchers in multiple fields:
 
 ### Computational Neuroscience
 - Study biological neural principles in artificial systems
@@ -524,7 +524,7 @@ A.R.C.A.N.E. serves researchers in multiple fields:
 - **Prospective Learning**: Activity refinement before weight updates
 
 ### Research Impact
-A.R.C.A.N.E. advances the field of biologically-inspired AI by providing:
+ARCANE advances the field of biologically-inspired AI by providing:
 - Open-source implementation of cutting-edge neural mechanisms
 - Reproducible benchmarks for neuromimetic model comparison
 - Extensible framework for neuroscience research
@@ -606,4 +606,4 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 
 **"Neurons that fire together, wire together, and now they learn together."**
 
-*A.R.C.A.N.E. - Building the future of biologically-inspired AI, one neural connection at a time.*
+*ARCANE - Building the future of biologically-inspired AI, one neural connection at a time.*

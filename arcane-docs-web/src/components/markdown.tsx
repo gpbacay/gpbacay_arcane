@@ -24,13 +24,13 @@ export function Markdown({ content, className }: MarkdownProps) {
           code: ({ children, className }) => {
             const isInline = !className || !className.includes('language-');
             return isInline ? (
-              <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-200 text-sm font-mono">{children}</code>
+              <code className="bg-zinc-800 px-1.5 py-0.5 rounded-none text-zinc-200 text-sm font-mono">{children}</code>
             ) : (
               <code className={className}>{children}</code>
             );
           },
           pre: ({ children }) => (
-            <pre className="bg-zinc-950 p-4 rounded-lg border border-zinc-800 overflow-x-auto text-sm text-zinc-300 my-6">
+            <pre className="bg-zinc-950 p-4 rounded-none border border-zinc-800 overflow-x-auto text-sm text-zinc-300 my-6">
               {children}
             </pre>
           ),

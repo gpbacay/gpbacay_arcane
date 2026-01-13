@@ -4,7 +4,7 @@ import numpy as np
 """
 gpbacay_arcane.activations
 
-This module contains neuromimetic activation functions for the A.R.C.A.N.E. project.
+This module contains neuromimetic activation functions for the ARCANE project.
 These activations go beyond simple non-linearities by incorporating principles of 
 neural resonance, spiking dynamics, and homeostatic regulation.
 """

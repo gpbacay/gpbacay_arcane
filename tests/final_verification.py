@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Final verification script to demonstrate the improved concise responses from A.R.C.A.N.E.
+Final verification script to demonstrate the improved concise responses from ARCANE
 """
 
 import os
@@ -12,15 +12,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from gpbacay_arcane.ollama_integration import OllamaARCANEHybrid
-    print("A.R.C.A.N.E. modules loaded successfully")
+    print("ARCANE modules loaded successfully")
 except ImportError as e:
-    print(f"Error importing A.R.C.A.N.E. modules: {e}")
+    print(f"Error importing ARCANE modules: {e}")
     sys.exit(1)
 
 def demonstrate_improved_responses():
     """Demonstrate the improved concise responses."""
     print("="*60)
-    print("FINAL VERIFICATION: CONCISE A.R.C.A.N.E. RESPONSES")
+    print("FINAL VERIFICATION: CONCISE ARCANE RESPONSES")
     print("="*60)
     
     try:
@@ -67,7 +67,7 @@ def demonstrate_improved_responses():
             response = response.strip()
             response = re.sub(r'\s+', ' ', response)
             
-            print(f"A.R.C.A.N.E.: {response}")
+            print(f"ARCANE: {response}")
             
             # Check conciseness
             word_count = len(response.split())
@@ -79,7 +79,7 @@ def demonstrate_improved_responses():
                 print(f"Response is quite verbose ({word_count} words)")
         
         print("\n" + "="*60)
-        print("SUCCESS: A.R.C.A.N.E. now produces concise, direct responses!")
+        print("SUCCESS: ARCANE now produces concise, direct responses!")
         print("The model answers questions directly without unnecessary verbosity")
         print("Numerical questions get numerical answers")
         print("Factual questions get straight-to-the-point answers")

@@ -49,7 +49,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         <div className="flex flex-wrap items-center gap-6 text-sm text-zinc-400 font-medium">
           <div className="flex items-center gap-2">
             {post.authorImage ? (
-              <div className="w-6 h-6 rounded-full overflow-hidden border border-zinc-800">
+              <div className="w-6 h-6 rounded-none overflow-hidden border border-zinc-800">
                 <Image 
                   src={post.authorImage} 
                   alt={post.author} 
@@ -81,7 +81,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
       </div>
 
       {/* Hero Image */}
-      <div className="relative w-full aspect-video overflow-hidden rounded-2xl border border-zinc-800 mb-12 shadow-2xl">
+      <div className="relative w-full aspect-video overflow-hidden rounded-none border border-zinc-800 mb-12 shadow-2xl">
         <Image
           src={post.image}
           alt={post.title}

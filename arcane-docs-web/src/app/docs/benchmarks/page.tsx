@@ -7,7 +7,7 @@ export default function BenchmarksPage() {
           Performance & Benchmarks
         </h1>
         <p className="text-xl text-zinc-400">
-          Comparative analysis of A.R.C.A.N.E. models vs traditional architectures.
+          Comparative analysis of ARCANE models vs traditional architectures.
         </p>
       </div>
 
@@ -19,7 +19,7 @@ export default function BenchmarksPage() {
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Tiny Shakespeare Results
         </h2>
-        <div className="overflow-x-auto rounded-lg border border-zinc-800">
+        <div className="overflow-x-auto rounded-none border border-zinc-800">
           <table className="w-full text-left text-sm text-zinc-400">
             <thead className="bg-zinc-900 text-zinc-200">
               <tr>
@@ -64,7 +64,7 @@ export default function BenchmarksPage() {
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Run the Benchmark
         </h2>
-        <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
+        <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
           <code>python examples/test_hierarchical_resonance_comparison.py</code>
         </pre>
       </div>

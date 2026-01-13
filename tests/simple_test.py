@@ -11,9 +11,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from gpbacay_arcane.ollama_integration import OllamaARCANEHybrid
-    print("A.R.C.A.N.E. modules loaded successfully")
+    print("ARCANE modules loaded successfully")
 except ImportError as e:
-    print(f"Error importing A.R.C.A.N.E. modules: {e}")
+    print(f"Error importing ARCANE modules: {e}")
     sys.exit(1)
 
 def test_model():
@@ -43,7 +43,7 @@ def test_model():
             temperature=0.8
         )
         
-        print(f"🤖 A.R.C.A.N.E. Response: {response}")
+        print(f"🤖 ARCANE Response: {response}")
         
         # Test with the prompt that was causing issues
         print("\n🔍 Testing model with prompt: 'hi'")
@@ -53,7 +53,7 @@ def test_model():
             temperature=0.8
         )
         
-        print(f"🤖 A.R.C.A.N.E. Response: {response}")
+        print(f"🤖 ARCANE Response: {response}")
         
     except Exception as e:
         print(f"❌ Error: {e}")

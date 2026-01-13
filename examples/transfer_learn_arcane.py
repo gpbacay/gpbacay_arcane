@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-A.R.C.A.N.E. Transfer Learning Script
-Initialize and train the A.R.C.A.N.E. model with knowledge transferred from Ollama.
+ARCANE Transfer Learning Script
+Initialize and train the ARCANE model with knowledge transferred from Ollama.
 
 Author: Gianne P. Bacay
-Project: A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
+Project: ARCANE (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
 """
 
 import os
@@ -26,7 +26,7 @@ except ImportError:
 
 def create_transfer_learned_model():
     """Create a foundation model with transfer learning from Ollama."""
-    print("🧠 A.R.C.A.N.E. Transfer Learning Model Creator")
+    print("🧠 ARCANE Transfer Learning Model Creator")
     print("=" * 60)
     
     if not OLLAMA_AVAILABLE:
@@ -65,7 +65,7 @@ def create_transfer_learned_model():
         print("🔄 Continuing anyway, assuming Ollama and llama3.2:1b are available...")
     
     # Create the foundation model with transfer learning
-    print("\n🏗️ Creating A.R.C.A.N.E. Transfer Learning Model...")
+    print("\n🏗️ Creating ARCANE Transfer Learning Model...")
     transfer_model = OllamaARCANEHybrid(
         ollama_model="llama3.2:1b",
         vocab_size=5000,  # Larger vocabulary for better quality
@@ -150,7 +150,7 @@ def create_transfer_learned_model():
     model.summary()
     
     # Train the model with knowledge transfer
-    print("\n🎯 Training A.R.C.A.N.E. with Knowledge Transfer...")
+    print("\n🎯 Training ARCANE with Knowledge Transfer...")
     print("This may take several minutes depending on your hardware...")
     
     history = transfer_model.train_with_knowledge_transfer(
@@ -162,7 +162,7 @@ def create_transfer_learned_model():
     )
     
     # Save the transfer learned model to /Models folder
-    print("\n💾 Saving A.R.C.A.N.E. Transfer Learning Model...")
+    print("\n💾 Saving ARCANE Transfer Learning Model...")
     save_path = transfer_model.save_model()  # Automatically saves to /Models
     
     print(f"✅ Transfer learning model saved to: {save_path}")
@@ -196,11 +196,11 @@ def create_transfer_learned_model():
         print(f"Output: {generated}")
         print("-" * 50)
     
-    print("\n🎉 A.R.C.A.N.E. Transfer Learning Model Created Successfully!")
+    print("\n🎉 ARCANE Transfer Learning Model Created Successfully!")
     print(f"📂 Model Location: {save_path}")
     print(f"🧠 Type: Neuromimetic Transfer Learning Model")
     print(f"⚡ Features: Spiking Neural Dynamics + Hebbian Learning + Knowledge Transfer")
-    print(f"🤖 Base: Ollama llama3.2:1b + A.R.C.A.N.E. Neural Components")
+    print(f"🤖 Base: Ollama llama3.2:1b + ARCANE Neural Components")
 
 
 def main():

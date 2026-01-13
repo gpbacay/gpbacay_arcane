@@ -3,7 +3,7 @@ from tensorflow.keras.callbacks import Callback
 
 class NeuralResonanceCallback(Callback):
     """
-    Orchestrates Neural Resonance cycles within the A.R.C.A.N.E. architecture, enabling
+    Orchestrates Neural Resonance cycles within the ARCANE architecture, enabling
     Latent Space Reasoning and Direct Semantic Optimization. It performs multiple 'Resonance Cycles'
     to align internal states across the semantic hierarchy, fostering a Unified Multi-Modal Semantic Space
     and enhancing the Abstraction of Surface-Level Conceptual Variability before synaptic weights are modified.

@@ -1,8 +1,8 @@
-# Neuromimetic Activation Functions in A.R.C.A.N.E.
+# Neuromimetic Activation Functions in ARCANE
 
 ## Overview
 
-In the A.R.C.A.N.E. framework, activation functions are not merely static mathematical non-linearities. They are designed to mirror the dynamic and adaptive nature of biological neurons. While standard AI models use functions like ReLU or GELU to provide differentiability, ARCANE introduces **Neuromimetic Activations** that incorporate **Inference-Time State Adaptation**, **Spiking Dynamics**, and **Homeostatic Regulation**.
+In the ARCANE framework, activation functions are not merely static mathematical non-linearities. They are designed to mirror the dynamic and adaptive nature of biological neurons. While standard AI models use functions like ReLU or GELU to provide differentiability, ARCANE introduces **Neuromimetic Activations** that incorporate **Inference-Time State Adaptation**, **Spiking Dynamics**, and **Homeostatic Regulation**.
 
 ---
 
@@ -82,7 +82,7 @@ activated = homeostatic_gelu(inputs, moving_average_activity, target_activity=0.
 
 ## Validation and Performance
 
-The neuromimetic activations in A.R.C.A.N.E. have been rigorously validated through unit tests and behavioral analysis.
+The neuromimetic activations in ARCANE have been rigorously validated through unit tests and behavioral analysis.
 
 ### 1. Resonance Convergence
 In testing, the `resonant_spike` function demonstrated perfect convergence with hierarchical signals:
@@ -117,4 +117,4 @@ python -m pytest tests/test_activations.py
 
 ---
 
-*This module is part of the A.R.C.A.N.E. v3.0.0 semantic engineering library.*
+*This module is part of the ARCANE v3.0.0 semantic engineering library.*

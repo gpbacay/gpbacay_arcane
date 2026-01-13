@@ -7,7 +7,7 @@ export function SiteFooter() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-0">
           {/* Brand Column */}
           <div className="md:border-r md:border-zinc-900 md:pr-12">
-            <h2 className="text-4xl font-black text-white mb-8 tracking-tighter uppercase">A.R.C.A.N.E.</h2>
+            <h2 className="text-4xl font-black text-white mb-8 tracking-tighter uppercase">ARCANE</h2>
             <div className="space-y-4 text-[13px] font-mono leading-relaxed opacity-70">
               <Link 
                 href="https://www.gpbacay.xyz/" 

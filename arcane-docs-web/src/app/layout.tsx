@@ -12,8 +12,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "A.R.C.A.N.E. Project Docs",
-  description: "Augmented Reconstruction of Consciousness through Artificial Neural Evolution - Documentation for the A.R.C.A.N.E. Neural Architecture Project",
+  title: "ARCANE Project Docs",
+  description: "Augmented Reconstruction of Consciousness through Artificial Neural Evolution - Documentation for the ARCANE Neural Architecture Project",
 };
 
 export default function RootLayout({

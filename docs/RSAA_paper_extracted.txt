@@ -7,7 +7,7 @@ PAGE 1
 
 Closing the Alignment Gap: The Resonant State Alignment
 Algorithm (RSAA) for Deliberative Intelligence
-Gianne P . Bacay [A.R.C.A.N.E. Research. Email: giannebacay2004@gmail.com]
+Gianne P . Bacay [ARCANE Research. Email: giannebacay2004@gmail.com]
 Abstract
 Traditional feed-forward architectures suf fer from a fundamental limitation: information flows in one direction,
 preventing lower layers from revising their representations based on higher-level context. This creates an
@@ -67,7 +67,7 @@ maintains:
 Definition 2.2 (Feedback Projection).  For a layer i, the Feedback Projection to layer i−1 is:
 Pi→i−1=f(i)
 proj(Si;Wi,proj)
-In the A.R.C.A.N.E. implementation, this is typically the matrix transpose of the input weights:
+In the ARCANE implementation, this is typically the matrix transpose of the input weights:
 Pi→i−1=Si⋅WT
 i
 Definition 2.3 (Prediction Divergence).  The Prediction Divergence at layer i−1 is the signed dif ference

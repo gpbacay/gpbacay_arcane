@@ -22,7 +22,7 @@ export function GitHubStarButton() {
       href="https://github.com/gpbacay/gpbacay_arcane"
       target="_blank"
       rel="noreferrer"
-      className="group flex items-center overflow-hidden rounded-full bg-indigo-600 text-[10px] sm:text-xs font-bold text-white transition-all hover:bg-indigo-500 shadow-lg shadow-indigo-500/20"
+      className="group flex items-center overflow-hidden rounded-none bg-indigo-600 text-[10px] sm:text-xs font-bold text-white transition-all hover:bg-indigo-500 shadow-lg shadow-indigo-500/20"
     >
       <span className="hidden sm:flex h-8 sm:h-9 items-center px-3 sm:px-4 bg-[#835BD9]">
         Star On GitHub

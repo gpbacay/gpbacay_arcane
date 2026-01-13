@@ -1,6 +1,6 @@
 # Closing the Alignment Gap: The Resonant State Alignment Algorithm (RSAA) for Deliberative Intelligence
 
-Gianne P. Bacay [A.R.C.A.N.E. Research. Email: giannebacay2004@gmail.com]
+Gianne P. Bacay [ARCANE Research. Email: giannebacay2004@gmail.com]
 
 ## Abstract
 
@@ -58,7 +58,7 @@ My most essential idea is the separation of **state alignment** from **weight mo
 
 $$ P_{i \to i-1} = f_{proj}^{(i)}(S_i; W_{i, proj}) $$
 
-In the A.R.C.A.N.E. implementation, this is typically the matrix transpose of the input weights:
+In the ARCANE implementation, this is typically the matrix transpose of the input weights:
 
 $$ P_{i \to i-1} = S_i \cdot W_i^T $$
 

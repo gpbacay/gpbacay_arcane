@@ -1,5 +1,5 @@
 """
-A.R.C.A.N.E. - Neuromimetic Semantic Foundation Model
+ARCANE - Neuromimetic Semantic Foundation Model
 
 Augmented Reconstruction of Consciousness through Artificial Neural Evolution
 
@@ -78,3 +78,4 @@ setup(
         'Documentation': 'https://github.com/gpbacay/gpbacay_arcane#readme',
     },
 )
+

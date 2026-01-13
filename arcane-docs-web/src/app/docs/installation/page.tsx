@@ -7,7 +7,7 @@ export default function InstallationPage() {
           Installation
         </h1>
         <p className="text-xl text-zinc-400">
-          Get started with A.R.C.A.N.E. on your local machine.
+          Get started with ARCANE on your local machine.
         </p>
       </div>
 
@@ -24,7 +24,7 @@ export default function InstallationPage() {
           Install from PyPI (Recommended)
         </h2>
         <div className="group relative">
-          <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
+          <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
             <code>pip install gpbacay-arcane</code>
           </pre>
         </div>
@@ -36,7 +36,7 @@ export default function InstallationPage() {
           If you want to contribute or use the latest development version:
         </p>
         <div className="group relative">
-          <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
+          <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
             <code>{`git clone https://github.com/gpbacay/gpbacay_arcane.git
 cd gpbacay_arcane
 pip install -e .`}</code>

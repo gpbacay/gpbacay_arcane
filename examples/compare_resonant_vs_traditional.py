@@ -19,7 +19,7 @@ def prepare_mnist_data():
     x_test = x_test.astype('float32') / 255.0
     
     # We will treat the 28x28 image as a sequence of 28 rows, each with 28 features
-    # This aligns with the temporal/sequential focus of the A.R.C.A.N.E. architecture
+    # This aligns with the temporal/sequential focus of the ARCANE architecture
     
     # Ensure dataset size is multiple of batch size (32) for stateful/resonant layers if needed
     train_limit = (len(x_train) // 32) * 32
@@ -80,7 +80,7 @@ def build_resonant_model(seq_len, feature_dim, hidden_dim):
     return Model(inputs, outputs, name="Resonant_ARCANE")
 
 def run_comparison():
-    print("Starting A.R.C.A.N.E. Resonant vs Traditional Model Comparison on MNIST")
+    print("Starting ARCANE Resonant vs Traditional Model Comparison on MNIST")
     print("=" * 80)
     
     # 1. Data Setup
@@ -112,7 +112,7 @@ def run_comparison():
     trad_time = time.time() - start_time
     
     # 3. Resonant Model
-    print("\nTraining Resonant A.R.C.A.N.E. Model...")
+    print("\nTraining Resonant ARCANE Model...")
     res_model = build_resonant_model(**params)
     res_model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     

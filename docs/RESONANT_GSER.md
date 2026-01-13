@@ -1,8 +1,8 @@
-# ResonantGSER: Hierarchical Neural Resonance in A.R.C.A.N.E.
+# ResonantGSER: Hierarchical Neural Resonance in ARCANE
 
 ## Overview
 
-ResonantGSER (Resonant Gated Spiking Elastic Reservoir) is the core mechanism implementing **Hierarchical Neural Resonance** in the A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) framework. This biologically-inspired mechanism enables **Inference-Time Learning** and **Inference-Time State Adaptation**, allowing multi-layered neural systems to iteratively synchronize their internal semantic representations through continuous feedback loops and state alignment, addressing fundamental limitations in traditional neural architectures.
+ResonantGSER (Resonant Gated Spiking Elastic Reservoir) is the core mechanism implementing **Hierarchical Neural Resonance** in the ARCANE (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) framework. This biologically-inspired mechanism enables **Inference-Time Learning** and **Inference-Time State Adaptation**, allowing multi-layered neural systems to iteratively synchronize their internal semantic representations through continuous feedback loops and state alignment, addressing fundamental limitations in traditional neural architectures.
 
 ## Biological Inspiration
 
@@ -70,7 +70,7 @@ Where:
 - $\theta$: Spiking threshold
 - $\mathbb{I}$: Indicator function
 
-## Implementation in A.R.C.A.N.E.
+## Implementation in ARCANE
 
 ### ResonantGSERCell
 
@@ -319,7 +319,7 @@ ResonantGSER shows significant improvements over traditional architectures:
 
 ### Computational Implementations
 1. **Hierarchical Resonance**: RSAA Paper - Resonance-based Semantic Alignment Architecture
-2. **Neural Resonance**: A.R.C.A.N.E. Framework - Hierarchical Neural Resonance
+2. **Neural Resonance**: ARCANE Framework - Hierarchical Neural Resonance
 3. **Direct Semantic Optimization**: Latent Space Reasoning implementations
 
 ### Performance Studies
@@ -329,4 +329,4 @@ ResonantGSER shows significant improvements over traditional architectures:
 
 ---
 
-*This documentation covers the ResonantGSER mechanism as implemented in A.R.C.A.N.E. v3.0.0. For the latest updates and additional features, refer to the main project repository.*
+*This documentation covers the ResonantGSER mechanism as implemented in ARCANE v3.0.0. For the latest updates and additional features, refer to the main project repository.*

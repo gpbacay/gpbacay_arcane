@@ -1,11 +1,11 @@
 """
-A.R.C.A.N.E. + Ollama Integration Module
+ARCANE + Ollama Integration Module
 
 This module provides functionality to create custom small semantic models
-by combining A.R.C.A.N.E.'s neuromimetic components with pre-trained Ollama models.
+by combining ARCANE's neuromimetic components with pre-trained Ollama models.
 
 Author: Gianne P. Bacay
-Project: A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
+Project: ARCANE (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
 """
 
 import os
@@ -18,7 +18,7 @@ from tensorflow.keras.layers import Input, Dense, Embedding, GlobalAveragePoolin
 from tensorflow.keras.models import Model
 from tensorflow.keras.preprocessing.text import Tokenizer
 
-# Import A.R.C.A.N.E. components
+# Import ARCANE components
 from .layers import ResonantGSER, BioplasticDenseLayer, GSER, DenseGSER
 from .callbacks import DynamicSelfModelingReservoirCallback, NeuralResonanceCallback
 
@@ -40,7 +40,7 @@ except ImportError:
 class OllamaARCANEHybrid:
     """
     Create your own small semantic model by combining Ollama's knowledge
-    with A.R.C.A.N.E.'s biological neural mechanisms.
+    with ARCANE's biological neural mechanisms.
     
     This class provides a complete pipeline for:
     1. Generating training data using Ollama
@@ -58,7 +58,7 @@ class OllamaARCANEHybrid:
         model_name: str = "custom_neuromimetic_lm"
     ):
         """
-        Initialize the Ollama-A.R.C.A.N.E. hybrid model.
+        Initialize the Ollama-ARCANE hybrid model.
         
         Args:
             ollama_model: Name of the Ollama model to use for data generation
@@ -92,7 +92,7 @@ class OllamaARCANEHybrid:
     
     def build_neuromimetic_architecture(self) -> Model:
         """
-        Build a custom neuromimetic architecture using A.R.C.A.N.E. components.
+        Build a custom neuromimetic architecture using ARCANE components.
         
         Returns:
             TensorFlow model with neuromimetic layers
@@ -303,7 +303,7 @@ class OllamaARCANEHybrid:
         """
         Initialize the neuromimetic model with knowledge transferred from Ollama.
         This method uses knowledge distillation to transfer knowledge from the 
-        pre-trained Ollama model to the A.R.C.A.N.E. architecture.
+        pre-trained Ollama model to the ARCANE architecture.
         """
         print("Initializing model with Ollama knowledge transfer...")
         
@@ -614,7 +614,7 @@ class OllamaARCANEHybrid:
             
             raw_response = ollama_response['response']
             
-            # Apply A.R.C.A.N.E. enhancement (post-processing with neuromimetic principles)
+            # Apply ARCANE enhancement (post-processing with neuromimetic principles)
             enhanced_response = self._enhance_response_with_arcane_principles(raw_response, seed_text)
             
             return enhanced_response
@@ -750,7 +750,7 @@ class OllamaARCANEHybrid:
     
     def _enhance_response_with_arcane_principles(self, response: str, prompt: str) -> str:
         """
-        Enhance Ollama response using A.R.C.A.N.E. neuromimetic principles.
+        Enhance Ollama response using ARCANE neuromimetic principles.
         
         Args:
             response: Raw response from Ollama

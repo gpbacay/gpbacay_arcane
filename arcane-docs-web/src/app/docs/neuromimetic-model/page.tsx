@@ -22,7 +22,7 @@ export default function NeuromimeticModelPage() {
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Usage
         </h2>
-        <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
+        <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
           <code>{`from gpbacay_arcane import NeuromimeticSemanticModel
 
 model = NeuromimeticSemanticModel(vocab_size=1000)

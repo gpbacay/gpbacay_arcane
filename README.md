@@ -1,12 +1,12 @@
-# A.R.C.A.N.E.
+# ARCANE
 
 **Augmented Reconstruction of Consciousness through Artificial Neural Evolution**
 
-A Python library for building neuromimetic AI models inspired by biological neural principles. A.R.C.A.N.E. provides researchers and developers with biologically-plausible neural layers, models, and training mechanisms that bridge neuroscience and artificial intelligence.
+A Python library for building neuromimetic AI models inspired by biological neural principles. ARCANE provides researchers and developers with biologically-plausible neural layers, models, and training mechanisms that bridge neuroscience and artificial intelligence.
 
-## What is A.R.C.A.N.E.?
+## What is ARCANE?
 
-A.R.C.A.N.E. is a comprehensive Python library that enables you to build, train, and deploy neuromimetic AI models. Unlike traditional deep learning frameworks, A.R.C.A.N.E. incorporates biological neural principles such as:
+ARCANE is a comprehensive Python library that enables you to build, train, and deploy neuromimetic AI models. Unlike traditional deep learning frameworks, ARCANE incorporates biological neural principles such as:
 
 - **Neural Resonance**: Bi-directional state alignment between neural layers, enabling Inference-Time State Adaptation and Inference-Time Learning.
 - **Spiking Neural Dynamics**: Realistic neuron behavior with leak rates and thresholds.
@@ -114,7 +114,7 @@ generated = model.generate_text(
 
 ## Documentation Portal
 
-A.R.C.A.N.E. comes with a dedicated documentation web application built with Next.js, providing in-depth explanations of the underlying mechanisms and research papers.
+ARCANE comes with a dedicated documentation web application built with Next.js, providing in-depth explanations of the underlying mechanisms and research papers.
 
 To run the documentation portal locally:
 
@@ -128,7 +128,7 @@ The portal will be available at `http://localhost:3000`.
 
 ## Available Models
 
-A.R.C.A.N.E. provides two main model classes for different use cases:
+ARCANE provides two main model classes for different use cases:
 
 ### HierarchicalResonanceFoundationModel
 Advanced model with multi-level neural resonance, temporal coherence, and attention fusion. Best for:
@@ -179,13 +179,13 @@ gpbacay-arcane-version
 
 ## Performance and Benchmarks
 
-Comprehensive testing on the Tiny Shakespeare dataset shows A.R.C.A.N.E. models outperform traditional approaches:
+Comprehensive testing on the Tiny Shakespeare dataset shows ARCANE models outperform traditional approaches:
 
 | Model | Val Accuracy | Val Loss | Training Time | Parameters |
 |-------|--------------|----------|---------------|------------|
 | Traditional Deep LSTM | 9.50% | 6.85 | ~45s | ~195K |
-| A.R.C.A.N.E. Neuromimetic | 10.20% | 6.42 | ~58s | ~220K |
-| A.R.C.A.N.E. Hierarchical Resonance | 11.25% | 6.15 | ~95s | ~385K |
+| ARCANE Neuromimetic | 10.20% | 6.42 | ~58s | ~220K |
+| ARCANE Hierarchical Resonance | 11.25% | 6.15 | ~95s | ~385K |
 
 ### Key Advantages
 - 18.4% relative improvement in validation accuracy over traditional LSTM.
@@ -255,4 +255,5 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 
 **"Neurons that fire together, wire together, and now they learn together."**
 
-*A.R.C.A.N.E. - Building the future of biologically-inspired AI, one neural connection at a time.*
+*ARCANE - Building the future of biologically-inspired AI, one neural connection at a time.*
+

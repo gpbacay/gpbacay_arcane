@@ -50,7 +50,7 @@ export function SiteHeader() {
         {!isDocsPage && (
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden mr-4 p-2 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors"
+            className="md:hidden mr-4 p-2 rounded-none text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors"
             aria-label="Toggle mobile menu"
           >
             <svg
@@ -76,10 +76,10 @@ export function SiteHeader() {
               alt="Arcane Logo"
               width={32}
               height={32}
-              className="rounded-full transition-transform group-hover:rotate-12"
+              className="rounded-none transition-transform group-hover:rotate-12"
             />
             <span className="hidden font-bold sm:inline-block text-zinc-100 text-lg tracking-tight">
-              A.R.C.A.N.E.
+              ARCANE
             </span>
           </Link>
 
@@ -89,7 +89,7 @@ export function SiteHeader() {
               href="/docs"
               className="text-zinc-200 transition-colors hover:text-[#C785F2]"
             >
-              Documentation
+              Docs
             </Link>
             <Link
               href="/docs/blog"
@@ -105,12 +105,12 @@ export function SiteHeader() {
           <div className="w-full max-w-[140px] min-[450px]:max-w-sm md:w-auto md:flex-none">
             <button
               onClick={() => setSearchOpen(true)}
-              className="relative inline-flex items-center w-full md:w-64 h-9 sm:h-10 text-xs sm:text-sm text-zinc-500 border border-zinc-800 rounded-full px-3 sm:px-4 whitespace-nowrap bg-zinc-950 transition-all hover:border-[#835BD9]/50 hover:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-[#835BD9]/50"
+              className="relative inline-flex items-center w-full md:w-64 h-9 sm:h-10 text-xs sm:text-sm text-zinc-500 border border-zinc-800 rounded-none px-3 sm:px-4 whitespace-nowrap bg-zinc-950 transition-all hover:border-[#835BD9]/50 hover:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-[#835BD9]/50"
             >
               <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2 sm:mr-3 text-zinc-400" />
               <span className="hidden min-[450px]:inline truncate">Search documentation...</span>
               <span className="min-[450px]:hidden">Search...</span>
-              <kbd className="hidden sm:inline-flex ml-auto pointer-events-none h-5 select-none items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 font-mono text-[10px] font-medium text-zinc-500 opacity-100">
+              <kbd className="hidden sm:inline-flex ml-auto pointer-events-none h-5 select-none items-center gap-1 rounded-none border border-zinc-800 bg-zinc-900 px-1.5 font-mono text-[10px] font-medium text-zinc-500 opacity-100">
                 <span className="text-xs text-zinc-600">Ctrl</span>K
               </kbd>
             </button>

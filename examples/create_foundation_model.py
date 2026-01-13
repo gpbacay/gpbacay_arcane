@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-A.R.C.A.N.E. Foundation Small Semantic Model Creator
+ARCANE Foundation Small Semantic Model Creator
 
 This script creates a single neuromimetic foundation small semantic model by combining:
 - Ollama's llama3.2:1b pre-trained knowledge
-- A.R.C.A.N.E.'s biological neural mechanisms (spiking dynamics, Hebbian learning)
+- ARCANE's biological neural mechanisms (spiking dynamics, Hebbian learning)
 
 The model is saved to the /Models folder as required.
 
 Author: Gianne P. Bacay
-Project: A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
+Project: ARCANE (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
 """
 
 import os
@@ -142,8 +142,8 @@ def create_foundation_model_demo():
 
 
 def main():
-    """Create the A.R.C.A.N.E. Foundation Small Semantic Model."""
-    print("🧠 A.R.C.A.N.E. Foundation Small Semantic Model Creator")
+    """Create the ARCANE Foundation Small Semantic Model."""
+    print("🧠 ARCANE Foundation Small Semantic Model Creator")
     print("=" * 60)
     
     # Check if user wants demo or full Ollama integration
@@ -190,7 +190,7 @@ def main():
         print("🔄 Continuing anyway, assuming Ollama and llama3.2:1b are available...")
     
     # Create the foundation model
-    print("\n🏗️ Creating A.R.C.A.N.E. Foundation Model...")
+    print("\n🏗️ Creating ARCANE Foundation Model...")
     foundation_model = OllamaARCANEHybrid(
         ollama_model="llama3.2:1b",
         vocab_size=4000,  # Larger vocabulary for foundation model
@@ -216,7 +216,7 @@ def main():
     model.summary()
     
     # Train the foundation model
-    print("\n🎯 Training A.R.C.A.N.E. Foundation Model with Knowledge Transfer...")
+    print("\n🎯 Training ARCANE Foundation Model with Knowledge Transfer...")
     print("This may take several minutes depending on your hardware...")
     
     history = foundation_model.train_with_knowledge_transfer(
@@ -228,7 +228,7 @@ def main():
     )
     
     # Save the foundation model to /Models folder
-    print("\n💾 Saving A.R.C.A.N.E. Foundation Model...")
+    print("\n💾 Saving ARCANE Foundation Model...")
     save_path = foundation_model.save_model()  # Automatically saves to /Models
     
     print(f"✅ Foundation model saved to: {save_path}")
@@ -262,11 +262,11 @@ def main():
         print(f"Output: {generated}")
         print("-" * 50)
     
-    print("\n🎉 A.R.C.A.N.E. Foundation Small Semantic Model Created Successfully!")
+    print("\n🎉 ARCANE Foundation Small Semantic Model Created Successfully!")
     print(f"📂 Model Location: {save_path}")
     print(f"🧠 Type: Neuromimetic Semantic Foundation Model")
     print(f"⚡ Features: Spiking Neural Dynamics + Hebbian Learning")
-    print(f"🤖 Base: Ollama llama3.2:1b + A.R.C.A.N.E. Semantic Components")
+    print(f"🤖 Base: Ollama llama3.2:1b + ARCANE Semantic Components")
 
 
 if __name__ == "__main__":

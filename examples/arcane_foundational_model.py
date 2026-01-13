@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Arcane Foundational Small Semantic Model
-Enhances Ollama model responses using A.R.C.A.N.E. neuromimetic principles.
+Enhances Ollama model responses using ARCANE neuromimetic principles.
 
 Author: Gianne P. Bacay
-Project: A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
+Project: ARCANE (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
 """
 
 import os
@@ -18,9 +18,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from gpbacay_arcane.ollama_integration import OllamaARCANEHybrid
     from gpbacay_arcane.layers import DenseGSER, BioplasticDenseLayer, GSER
-    print("A.R.C.A.N.E. modules loaded successfully")
+    print("ARCANE modules loaded successfully")
 except ImportError as e:
-    print(f"Error importing A.R.C.A.N.E. modules: {e}")
+    print(f"Error importing ARCANE modules: {e}")
     sys.exit(1)
 
 
@@ -98,7 +98,7 @@ def chat_with_arcane_foundational_model():
             
             # Check for quit commands
             if user_input.lower() in ['quit', 'exit', 'bye']:
-                print("\nGoodbye! Thanks for chatting with A.R.C.A.N.E.")
+                print("\nGoodbye! Thanks for chatting with ARCANE")
                 break
             
             # Check for clear command
@@ -113,7 +113,7 @@ def chat_with_arcane_foundational_model():
             # Add to conversation history
             conversation_history.append(f"You: {user_input}")
             
-            print("🧠 A.R.C.A.N.E. is thinking...")
+            print("🧠 ARCANE is thinking...")
             
             # Generate enhanced response using the foundational model
             response = foundational_model.generate_text_with_improved_sampling(
@@ -123,17 +123,17 @@ def chat_with_arcane_foundational_model():
             )
             
             # Add to conversation history
-            conversation_history.append(f"A.R.C.A.N.E.: {response}")
+            conversation_history.append(f"ARCANE: {response}")
             
             # Display response
-            print(f"🤖 A.R.C.A.N.E.: {response}")
+            print(f"🤖 ARCANE: {response}")
             
         except KeyboardInterrupt:
-            print("\n\n👋 Goodbye! Thanks for chatting with A.R.C.A.N.E.")
+            print("\n\n👋 Goodbye! Thanks for chatting with ARCANE")
             break
         except Exception as e:
             print(f"Error during chat: {e}")
-            print("A.R.C.A.N.E.: I'm having trouble responding right now. Please try again.")
+            print("ARCANE: I'm having trouble responding right now. Please try again.")
 
 
 def main():

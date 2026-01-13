@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-A.R.C.A.N.E. Model Chat Interface
+ARCANE Model Chat Interface
 Chat with your pretrained neuromimetic semantic model.
 
 Author: Gianne P. Bacay
-Project: A.R.C.A.N.E. (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
+Project: ARCANE (Augmented Reconstruction of Consciousness through Artificial Neural Evolution)
 """
 
 import os
@@ -23,9 +23,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from gpbacay_arcane.ollama_integration import OllamaARCANEHybrid
     from gpbacay_arcane.layers import DenseGSER, BioplasticDenseLayer, GSER
-    print("A.R.C.A.N.E. modules loaded successfully")
+    print("ARCANE modules loaded successfully")
 except ImportError as e:
-    print(f"Error importing A.R.C.A.N.E. modules: {e}")
+    print(f"Error importing ARCANE modules: {e}")
     print("Please ensure all dependencies are installed:")
     print("pip install ollama sentence-transformers")
     sys.exit(1)
@@ -136,12 +136,12 @@ def generate_better_fallback_response():
         Better fallback response
     """
     fallback_responses = [
-        "I'm an AI assistant based on the A.R.C.A.N.E. neuromimetic model. I can help answer questions and have conversations.",
+        "I'm an AI assistant based on the ARCANE neuromimetic model. I can help answer questions and have conversations.",
         "I'm a bio-inspired semantic model that combines neural network principles with biological learning mechanisms.",
-        "Hello! I'm A.R.C.A.N.E., a neuromimetic AI that uses spiking neural dynamics and Hebbian learning.",
+        "Hello! I'm ARCANE, a neuromimetic AI that uses spiking neural dynamics and Hebbian learning.",
         "I'm designed to understand and generate human-like text using advanced neural processing techniques.",
         "As an AI, I can discuss various topics including science, technology, philosophy, and more.",
-        "I'm part of the A.R.C.A.N.E. project, which bridges neuroscience and artificial intelligence.",
+        "I'm part of the ARCANE project, which bridges neuroscience and artificial intelligence.",
         "I'm here to help with information, creative tasks, problem-solving, and conversation.",
         "My architecture includes spiking neural networks and biological learning principles for more natural processing."
     ]
@@ -152,7 +152,7 @@ def generate_better_fallback_response():
 def load_pretrained_model(model_path="Models/arcane_transfer_learned_lm_best.h5", 
                          tokenizer_path="Models/arcane_transfer_learned_lm_saved/tokenizer.pkl"):
     """
-    Load a pretrained A.R.C.A.N.E. model and tokenizer.
+    Load a pretrained ARCANE model and tokenizer.
     
     Args:
         model_path: Path to the saved model
@@ -161,7 +161,7 @@ def load_pretrained_model(model_path="Models/arcane_transfer_learned_lm_best.h5"
     Returns:
         Tuple of (model, tokenizer)
     """
-    print("Loading pretrained A.R.C.A.N.E. model...")
+    print("Loading pretrained ARCANE model...")
     
     try:
         # Load tokenizer
@@ -199,7 +199,7 @@ def load_ollama_hybrid_model(model_dir="Models/arcane_transfer_learned_lm_saved"
     Returns:
         OllamaARCANEHybrid instance
     """
-    print("Loading Ollama-A.R.C.A.N.E. Hybrid model...")
+    print("Loading Ollama-ARCANE Hybrid model...")
     
     try:
         # Create hybrid model instance
@@ -330,7 +330,7 @@ def chat_with_model():
     Interactive chat interface with the pretrained model.
     """
     print("\n" + "="*60)
-    print("A.R.C.A.N.E. Neuromimetic Semantic Model Chat Interface")
+    print("ARCANE Neuromimetic Semantic Model Chat Interface")
     print("="*60)
     
     # Try to load models in order of preference
@@ -388,7 +388,7 @@ def chat_with_model():
         return
     
     print("\n" + "="*60)
-    print("Chat with your A.R.C.A.N.E. model!")
+    print("Chat with your ARCANE model!")
     print("   Type 'quit' or 'exit' to end the conversation")
     print("   Type 'clear' to clear the conversation history")
     print("="*60)
@@ -403,7 +403,7 @@ def chat_with_model():
             
             # Check for quit commands
             if user_input.lower() in ['quit', 'exit', 'bye']:
-                print("\nGoodbye! Thanks for chatting with A.R.C.A.N.E.")
+                print("\nGoodbye! Thanks for chatting with ARCANE")
                 break
             
             # Check for clear command
@@ -426,7 +426,7 @@ def chat_with_model():
             if not seed_text:
                 seed_text = user_input
             
-            print("A.R.C.A.N.E. is thinking...")
+            print("ARCANE is thinking...")
             
             # Generate response using the appropriate method
             if hybrid_model is not None:
@@ -459,18 +459,18 @@ def chat_with_model():
                 improved_response += "."
             
             # Add to conversation history
-            conversation_history.append(f"A.R.C.A.N.E.: {improved_response}")
+            conversation_history.append(f"ARCANE: {improved_response}")
             
             # Display response
-            print(f"A.R.C.A.N.E.: {improved_response}")
+            print(f"ARCANE: {improved_response}")
             
         except KeyboardInterrupt:
-            print("\n\nGoodbye! Thanks for chatting with A.R.C.A.N.E.")
+            print("\n\nGoodbye! Thanks for chatting with ARCANE")
             break
         except Exception as e:
             print(f"Error during chat: {e}")
             fallback_response = generate_better_fallback_response()
-            print(f"A.R.C.A.N.E.: {fallback_response}")
+            print(f"ARCANE: {fallback_response}")
 
 
 def main():

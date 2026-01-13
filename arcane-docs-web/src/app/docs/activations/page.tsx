@@ -172,7 +172,7 @@ $$(y, V_t) = f(x, V_{t-1}, \\text{context})$$
 
       <div className="space-y-8 text-zinc-300 leading-7">
         <p>
-          In the A.R.C.A.N.E. framework, activation functions are not merely static mathematical non-linearities. 
+          In the ARCANE framework, activation functions are not merely static mathematical non-linearities. 
           They incorporate <strong>Inference-Time State Adaptation</strong>, <strong>Spiking Dynamics</strong>, 
           and <strong>Homeostatic Regulation</strong> to mirror the adaptive nature of biological neurons.
         </p>
@@ -206,7 +206,7 @@ $$(y, V_t) = f(x, V_{t-1}, \\text{context})$$
                   {activation.code && (
                     <div className="space-y-2">
                       <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 mt-4">Quick Implementation</p>
-                      <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300 shadow-inner">
+                      <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300 shadow-inner">
                         <code>{activation.code}</code>
                       </pre>
                     </div>
@@ -222,19 +222,19 @@ $$(y, V_t) = f(x, V_{t-1}, \\text{context})$$
         </h2>
         
         <div className="space-y-12">
-          <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl px-8 py-4">
+          <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-none px-8 py-4">
             <Markdown content={resonantMath} />
           </div>
 
-          <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl px-8 py-4">
+          <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-none px-8 py-4">
             <Markdown content={homeostaticMath} />
           </div>
 
-          <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl px-8 py-4">
+          <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-none px-8 py-4">
             <Markdown content={softplusMath} />
           </div>
 
-          <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl px-8 py-4">
+          <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-none px-8 py-4">
             <Markdown content={stateEvolutionMath} />
           </div>
         </div>
@@ -243,27 +243,27 @@ $$(y, V_t) = f(x, V_{t-1}, \\text{context})$$
           The Deliberative Advantage
         </h2>
         <div className="grid gap-6 md:grid-cols-3 pb-10">
-          <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-lg">
+          <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-none">
             <h4 className="text-zinc-100 font-bold mb-3 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+              <span className="w-1.5 h-1.5 rounded-none bg-purple-500"></span>
               Temporal Coherence
             </h4>
             <p className="text-sm text-zinc-400 leading-relaxed">
               Maintains internal state over time, allowing the model to naturally filter stimulus noise and integrate evidence across temporal windows.
             </p>
           </div>
-          <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-lg">
+          <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-none">
             <h4 className="text-zinc-100 font-bold mb-3 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+              <span className="w-1.5 h-1.5 rounded-none bg-purple-500"></span>
               Active Thresholding
             </h4>
             <p className="text-sm text-zinc-400 leading-relaxed">
               Suppresses ambiguous or low-confidence signals until hierarchical resonance provides enough gain to exceed the deliberative threshold.
             </p>
           </div>
-          <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-lg">
+          <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-none">
             <h4 className="text-zinc-100 font-bold mb-3 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+              <span className="w-1.5 h-1.5 rounded-none bg-purple-500"></span>
               Structural Stability
             </h4>
             <p className="text-sm text-zinc-400 leading-relaxed">

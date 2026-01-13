@@ -22,7 +22,7 @@ export function DocsPager() {
             {prev ? (
                 <Link
                     href={prev.href}
-                    className="group flex flex-row items-center gap-3 rounded-xl border border-zinc-800 px-5 py-4 transition-all hover:border-[#C785F2]/50 hover:bg-zinc-900/30 max-w-[48%]"
+                    className="group flex flex-row items-center gap-3 rounded-none border border-zinc-800 px-5 py-4 transition-all hover:border-[#C785F2]/50 hover:bg-zinc-900/30 max-w-[48%]"
                 >
                     <svg className="w-4 h-4 text-zinc-500 group-hover:text-[#C785F2] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
@@ -37,7 +37,7 @@ export function DocsPager() {
             {next ? (
                 <Link
                     href={next.href}
-                    className="group flex flex-row items-center gap-3 rounded-xl border border-zinc-800 px-5 py-4 text-right transition-all hover:border-[#C785F2]/50 hover:bg-zinc-900/30 max-w-[48%]"
+                    className="group flex flex-row items-center gap-3 rounded-none border border-zinc-800 px-5 py-4 text-right transition-all hover:border-[#C785F2]/50 hover:bg-zinc-900/30 max-w-[48%]"
                 >
                     <span className="text-sm font-bold text-zinc-300 group-hover:text-zinc-100 transition-colors line-clamp-1">
                         {next.title}

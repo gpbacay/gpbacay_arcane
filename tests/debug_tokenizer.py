@@ -15,14 +15,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from gpbacay_arcane.ollama_integration import OllamaARCANEHybrid
     from gpbacay_arcane.layers import DenseGSER, BioplasticDenseLayer, GSER
-    print("✅ A.R.C.A.N.E. modules loaded successfully")
+    print("✅ ARCANE modules loaded successfully")
 except ImportError as e:
-    print(f"❌ Error importing A.R.C.A.N.E. modules: {e}")
+    print(f"❌ Error importing ARCANE modules: {e}")
     sys.exit(1)
 
 def debug_tokenizer():
     """Debug the tokenizer functionality."""
-    print("🔄 Loading Ollama-A.R.C.A.N.E. Hybrid model...")
+    print("🔄 Loading Ollama-ARCANE Hybrid model...")
     
     try:
         # Create hybrid model instance

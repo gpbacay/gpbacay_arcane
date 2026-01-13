@@ -18,7 +18,7 @@ function MobileMenuButton({ tocOpen, setTocOpen, headings }: { tocOpen: boolean,
     <div className="md:hidden flex items-center justify-between px-6 py-3 border-b border-zinc-800 bg-black/50 backdrop-blur-sm sticky top-16 z-40">
       <button
         onClick={() => setOpenMobile(true)}
-        className="flex items-center gap-2 text-sm font-medium text-zinc-400 hover:text-zinc-100 transition-colors py-1 px-2 rounded-md hover:bg-zinc-900"
+        className="flex items-center gap-2 text-sm font-medium text-zinc-400 hover:text-zinc-100 transition-colors py-1 px-2 rounded-none hover:bg-zinc-900"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -29,7 +29,7 @@ function MobileMenuButton({ tocOpen, setTocOpen, headings }: { tocOpen: boolean,
       {headings.length > 0 && (
         <button
           onClick={() => setTocOpen(!tocOpen)}
-          className="flex items-center gap-2 text-sm font-medium text-zinc-400 hover:text-zinc-100 transition-colors py-1 px-2 rounded-md hover:bg-zinc-900"
+          className="flex items-center gap-2 text-sm font-medium text-zinc-400 hover:text-zinc-100 transition-colors py-1 px-2 rounded-none hover:bg-zinc-900"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
@@ -72,7 +72,7 @@ function DocsLayoutContent({ children, headings, tocOpen, setTocOpen }: { childr
                 <h2 className="text-lg font-bold text-white tracking-tight uppercase">On This Page</h2>
                 <button
                   onClick={() => setTocOpen(false)}
-                  className="p-2 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
+                  className="p-2 rounded-none text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

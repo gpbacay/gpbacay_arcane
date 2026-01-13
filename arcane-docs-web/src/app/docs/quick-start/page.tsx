@@ -19,7 +19,7 @@ export default function QuickStartPage() {
         <p>
           Create a simple neuromimetic model for semantic tasks.
         </p>
-        <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
+        <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
           <code>{`from gpbacay_arcane import NeuromimeticSemanticModel
 
 # Create a simple neuromimetic model
@@ -42,7 +42,7 @@ generated = model.generate_text(
         <p>
           Implement the biological "Thinking Phase" using hierarchical resonance.
         </p>
-        <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
+        <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
           <code>{`from gpbacay_arcane import HierarchicalResonanceFoundationModel, NeuralResonanceCallback
 
 # Create an advanced model with biological neural principles
@@ -61,7 +61,7 @@ resonance_callback = NeuralResonanceCallback(resonance_cycles=10)
 model.model.fit(X_train, y_train, callbacks=[resonance_callback])`}</code>
         </pre>
 
-        <div className="mt-8 rounded-lg border border-yellow-900/50 bg-yellow-900/10 p-4">
+        <div className="mt-8 rounded-none border border-yellow-900/50 bg-yellow-900/10 p-4">
           <p className="text-sm text-yellow-200">
             <strong>Note:</strong> Resonance cycles increase training time (~2x) but significantly improve stability and semantic alignment.
           </p>

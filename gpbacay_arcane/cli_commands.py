@@ -1,7 +1,7 @@
 """
 gpbacay_arcane CLI commands
 
-Command-line interface for the A.R.C.A.N.E. neuromimetic semantic model library.
+Command-line interface for the ARCANE neuromimetic semantic model library.
 """
 
 import argparse
@@ -11,7 +11,7 @@ def about():
     """Display information about the library."""
     print("""
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                              A.R.C.A.N.E.                                    ║
+║                              ARCANE                                    ║
 ║    Augmented Reconstruction of Consciousness through Artificial Neural       ║
 ║                              Evolution                                       ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
@@ -130,7 +130,7 @@ def version():
 def cli():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="A.R.C.A.N.E. - Neuromimetic Semantic Foundation Model CLI",
+        description="ARCANE - Neuromimetic Semantic Foundation Model CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
