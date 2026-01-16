@@ -21,7 +21,7 @@ const LetterGlitch = ({
   centerVignette = true,
   outerVignette = false,
   smooth = true,
-  characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ10_| ARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANE'
+  characters = '010101010101                     ARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANE'
 }: {
   glitchColors?: string[];
   className?: string;
@@ -197,18 +197,19 @@ const LetterGlitch = ({
       const x = (index % grid.current.columns) * charWidth;
       const y = Math.floor(index / grid.current.columns) * charHeight;
       
-      // Use special highlight color for ARCANE letters
       if (letter.isHighlighted) {
-        ctx.fillStyle = '#FFFFFF'; // White for highlighted letters
-        ctx.shadowColor = '#C785F2'; // Purple glow
-        ctx.shadowBlur = 8;
+        // Draw white background for ARCANE letters
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(x, y, charWidth, charHeight);
+        
+        // Draw dark text on white background
+        ctx.fillStyle = '#000000'; // Dark font color
+        ctx.fillText(letter.char, x, y);
       } else {
+        // Normal drawing for non-highlighted letters
         ctx.fillStyle = letter.color;
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
+        ctx.fillText(letter.char, x, y);
       }
-      
-      ctx.fillText(letter.char, x, y);
     });
   };
 
