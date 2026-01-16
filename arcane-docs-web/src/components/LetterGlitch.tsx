@@ -21,7 +21,7 @@ const LetterGlitch = ({
   centerVignette = true,
   outerVignette = false,
   smooth = true,
-  characters = '010101010101                     ARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANE'
+  characters = '01                     ARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANE'
 }: {
   glitchColors?: string[];
   className?: string;
