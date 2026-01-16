@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Check, Copy } from "lucide-react";
-import PrismaticBurst from "@/components/PrismaticBurst";
+import LetterGlitch from "@/components/LetterGlitch";
 import { SiteFooter } from "@/components/footer";
 import { SiteHeader } from "@/components/header";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -49,19 +49,15 @@ export default function Home() {
       <div className="flex flex-col bg-black text-white selection:bg-[#C785F2]/30 overflow-x-hidden relative font-sans w-full">
         <SiteHeader />
         <div className="h-[calc(100vh-64px)] flex flex-col items-center justify-center relative">
-          {/* PrismaticBurst Background */}
-          <PrismaticBurst
-            animationType="rotate3d"
-            intensity={2.8}
-            speed={0.4}
-            distort={1.2}
-            paused={false}
-            offset={{ x: 0, y: 0 }}
-            hoverDampness={0.25}
-            rayCount={32}
-            mixBlendMode="lighten"
-            colors={['#B9DFE0', '#F294C0', '#C785F2', '#835BD9', '#9DE4FA', '#8B5CF6']}
-          />
+          {/* Letter Glitch Background */}
+          <div className="absolute inset-0 z-0">
+            <LetterGlitch
+              glitchSpeed={50}
+              centerVignette={true}
+              outerVignette={false}
+              smooth={true}
+            />
+          </div>
 
           <main className="z-10 flex flex-col items-center text-center px-4 animate-in fade-in zoom-in duration-1000 max-w-4xl">
             <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-white/40 mb-10 drop-shadow-2xl max-w-3xl leading-[1.1]">
