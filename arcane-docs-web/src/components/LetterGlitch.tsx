@@ -5,6 +5,7 @@ interface Letter {
   color: string;
   targetColor: string;
   colorProgress: number;
+  isHighlighted?: boolean;
 }
 
 interface RGBColor {
@@ -20,7 +21,7 @@ const LetterGlitch = ({
   centerVignette = true,
   outerVignette = false,
   smooth = true,
-  characters = '111111111110000000000|ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ10_| ARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANEARCANE'
 }: {
   glitchColors?: string[];
   className?: string;
@@ -45,6 +46,66 @@ const LetterGlitch = ({
 
   const getRandomChar = () => {
     return lettersAndSymbols[Math.floor(Math.random() * lettersAndSymbols.length)];
+  };
+
+  const detectAndHighlightArcane = () => {
+    if (!letters.current || letters.current.length === 0) return;
+    
+    const targetWord = 'ARCANE';
+    const wordLength = targetWord.length;
+    
+    // Reset all highlights
+    letters.current.forEach(letter => {
+      letter.isHighlighted = false;
+    });
+    
+    // Check horizontal sequences
+    for (let row = 0; row < grid.current.rows; row++) {
+      for (let col = 0; col <= grid.current.columns - wordLength; col++) {
+        let found = true;
+        const indices = [];
+        
+        for (let i = 0; i < wordLength; i++) {
+          const index = row * grid.current.columns + (col + i);
+          if (index < letters.current.length && letters.current[index].char === targetWord[i]) {
+            indices.push(index);
+          } else {
+            found = false;
+            break;
+          }
+        }
+        
+        if (found) {
+          indices.forEach(idx => {
+            letters.current[idx].isHighlighted = true;
+          });
+        }
+      }
+    }
+    
+    // Check vertical sequences
+    for (let col = 0; col < grid.current.columns; col++) {
+      for (let row = 0; row <= grid.current.rows - wordLength; row++) {
+        let found = true;
+        const indices = [];
+        
+        for (let i = 0; i < wordLength; i++) {
+          const index = (row + i) * grid.current.columns + col;
+          if (index < letters.current.length && letters.current[index].char === targetWord[i]) {
+            indices.push(index);
+          } else {
+            found = false;
+            break;
+          }
+        }
+        
+        if (found) {
+          indices.forEach(idx => {
+            letters.current[idx].isHighlighted = true;
+          });
+        }
+      }
+    }
   };
 
   const getRandomColor = () => {
@@ -119,6 +180,7 @@ const LetterGlitch = ({
 
     const { columns, rows } = calculateGrid(rect.width, rect.height);
     initializeLetters(columns, rows);
+    detectAndHighlightArcane();
 
     drawLetters();
   };
@@ -128,13 +190,24 @@ const LetterGlitch = ({
     const ctx = context.current;
     const { width, height } = canvasRef.current!.getBoundingClientRect();
     ctx.clearRect(0, 0, width, height);
-    ctx.font = `${fontSize}px monospace`;
+    ctx.font = `bold ${fontSize}px monospace`;
     ctx.textBaseline = 'top';
 
     letters.current.forEach((letter, index) => {
       const x = (index % grid.current.columns) * charWidth;
       const y = Math.floor(index / grid.current.columns) * charHeight;
-      ctx.fillStyle = letter.color;
+      
+      // Use special highlight color for ARCANE letters
+      if (letter.isHighlighted) {
+        ctx.fillStyle = '#FFFFFF'; // White for highlighted letters
+        ctx.shadowColor = '#C785F2'; // Purple glow
+        ctx.shadowBlur = 8;
+      } else {
+        ctx.fillStyle = letter.color;
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+      }
+      
       ctx.fillText(letter.char, x, y);
     });
   };
@@ -185,6 +258,7 @@ const LetterGlitch = ({
     const now = Date.now();
     if (now - lastGlitchTime.current >= glitchSpeed) {
       updateLetters();
+      detectAndHighlightArcane();
       drawLetters();
       lastGlitchTime.current = now;
     }
