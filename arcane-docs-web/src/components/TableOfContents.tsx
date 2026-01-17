@@ -138,9 +138,10 @@ export function TableOfContents({ headings }: TOCProps) {
                             <path
                                 key={`bg-${seg.id}`}
                                 d={seg.path}
-                                stroke="rgba(39, 39, 42, 0.4)" // zinc-800/40
-                                strokeWidth="1"
+                                stroke="rgba(113, 113, 122, 0.8)" // zinc-500/80 - more visible
+                                strokeWidth="1.5"
                                 fill="none"
+                                strokeLinecap="round"
                             />
                         ))}
 

@@ -37,12 +37,51 @@ export default function DocsPage() {
         </div>
       </section>
 
+      {/* When to use Arcane */}
+      <section className="rounded-none border border-zinc-800 bg-zinc-900/30 p-8 backdrop-blur-sm relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform duration-500">
+          <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-[#C785F2]">
+            <path d="M9 12l2 2 4-4M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" />
+          </svg>
+        </div>
+        <h2 id="when-to-use-arcane" className="text-2xl font-bold text-white mb-4">When to use ARCANE?</h2>
+        <div className="space-y-4 text-zinc-300 leading-relaxed">
+          <p>
+            ARCANE is designed for researchers, developers, and organizations who want to push the boundaries of AI through biological inspiration rather than brute computational force.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <h3 className="text-[#C785F2] font-semibold text-lg">Perfect For:</h3>
+              <ul className="space-y-2 list-disc list-inside text-sm">
+                <li><strong>Research Applications</strong>: Exploring biologically-plausible neural mechanisms</li>
+                <li><strong>Stable Training</strong>: When you need more predictable and interpretable AI behavior</li>
+                <li><strong>Energy Efficiency</strong>: Applications where power consumption matters</li>
+                <li><strong>Complex Reasoning</strong>: Tasks requiring hierarchical information processing</li>
+                <li><strong>Neuroscience Integration</strong>: Bridging computational neuroscience and AI</li>
+              </ul>
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-red-400 font-semibold text-lg">Not Ideal For:</h3>
+              <ul className="space-y-2 list-disc list-inside text-sm">
+                <li><strong>Real-time Applications</strong>: Where inference speed is critical</li>
+                <li><strong>Large-scale Production</strong>: When you need maximum throughput</li>
+                <li><strong>Simple Classification</strong>: Standard deep learning works fine</li>
+                <li><strong>Resource-Constrained Edge</strong>: Very limited computational environments</li>
+              </ul>
+            </div>
+          </div>
+          <p className="text-zinc-400 italic">
+            Choose ARCANE when you prioritize biological accuracy, interpretability, and long-term AI sustainability over raw computational speed.
+          </p>
+        </div>
+      </section>
+
       {/* Developer and Origin */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">Who developed it?</h2>
           <p className="text-zinc-400 leading-relaxed">
-            ARCANE was developed by <Link href="https://www.gpbacay.xyz/" target="_blank" rel="noopener noreferrer" className="text-[#C785F2] hover:underline font-bold">Gianne P. Bacay</Link>, a developer and researcher dedicated to redefining human-computer interactions through disruptive AI innovations.
+            ARCANE was developed by <Link href="https://www.gpbacay.xyz/" target="_blank" rel="noopener noreferrer" className="text-[#C785F2] hover:underline font-bold">Gianne P. Bacay</Link> in 2024, a developer and researcher dedicated to redefining human-computer interactions through disruptive AI innovations.
           </p>
         </div>
         <div className="space-y-4">
