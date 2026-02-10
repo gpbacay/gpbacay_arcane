@@ -367,6 +367,159 @@ class ResonantGSERCell(Layer):
         return config
 
 
+class PredictiveResonantCell(Layer):
+    """
+    A neuromimetic recurrent cell that implements *local* predictive resonance.
+
+    Compared to `ResonantGSERCell`, this cell:
+    - Keeps the core recurrent dynamics explicit (via an internal LSTMCell)
+    - Maintains a per-sample alignment state as part of the RNN state
+      instead of a single global alignment vector
+    - Uses a lightweight predictive head to update the alignment state
+      toward a slow-moving internal prediction of future activity
+
+    This makes the resonance loop fully per-example and self-contained,
+    without relying on external callbacks or model references.
+    """
+
+    def __init__(
+        self,
+        units,
+        resonance_cycles=3,
+        resonance_step_size=0.2,
+        spike_threshold=0.5,
+        **kwargs,
+    ):
+        super(PredictiveResonantCell, self).__init__(**kwargs)
+        self.units = units
+        self.resonance_cycles = resonance_cycles
+        self.resonance_step_size = resonance_step_size
+        self.spike_threshold = spike_threshold
+
+        # state: [h, c, alignment]
+        self.state_size = [units, units, units]
+        self.output_size = units
+
+        self.lstm_cell = tf.keras.layers.LSTMCell(units)
+
+    def build(self, input_shape):
+        input_dim = input_shape[-1]
+        if input_dim is None:
+            input_dim = self.units
+
+        # Build base LSTM cell
+        self.lstm_cell.build((None, int(input_dim)))
+
+        # Predictive head: maps current state to a "target" alignment state
+        self.prediction_kernel = self.add_weight(
+            name="prediction_kernel",
+            shape=(self.units, self.units),
+            initializer="glorot_uniform",
+            trainable=True,
+        )
+        self.prediction_bias = self.add_weight(
+            name="prediction_bias",
+            shape=(self.units,),
+            initializer="zeros",
+            trainable=True,
+        )
+
+        # Resonance modulation and spiking parameters
+        self.resonance_gate = self.add_weight(
+            name="resonance_gate",
+            shape=(self.units,),
+            initializer=tf.keras.initializers.Constant(1.0),
+            trainable=True,
+        )
+        self.resonance_bias = self.add_weight(
+            name="resonance_bias",
+            shape=(self.units,),
+            initializer="zeros",
+            trainable=True,
+        )
+
+        # Track divergence for monitoring (mean squared error between state and alignment)
+        self.global_divergence = self.add_weight(
+            name="global_divergence",
+            shape=(),
+            initializer="zeros",
+            trainable=False,
+        )
+
+        super(PredictiveResonantCell, self).build(input_shape)
+
+    def _resonance_loop(self, h_initial, alignment):
+        """
+        Per-example resonance loop: iteratively move h toward alignment.
+        """
+        if alignment is None:
+            return h_initial
+
+        h_current = h_initial
+        step = self.resonance_step_size
+
+        for _ in range(self.resonance_cycles):
+            delta = h_current - alignment
+            h_current = h_current - step * delta
+
+        # Track divergence for analysis
+        final_delta = h_current - alignment
+        divergence = tf.reduce_mean(tf.square(final_delta))
+        self.global_divergence.assign(divergence)
+
+        return h_current
+
+    def call(self, inputs, states, **kwargs):
+        """
+        Forward pass:
+        1. Standard LSTM update
+        2. Resonance loop toward current alignment state
+        3. Spiking + modulation
+        4. Predictive update of alignment state (slow-moving target)
+        """
+        if isinstance(states, (list, tuple)):
+            h_prev, c_prev, align_prev = states
+        else:
+            # Fallback, should not normally happen
+            h_prev = states
+            c_prev = tf.zeros_like(h_prev)
+            align_prev = tf.zeros_like(h_prev)
+
+        training = kwargs.get("training", None)
+
+        # 1. Base LSTM dynamics
+        h_lstm, [h_new, c_new] = self.lstm_cell(inputs, [h_prev, c_prev], training=training)
+
+        # 2. Local resonance toward alignment state (per-example)
+        h_resonant = self._resonance_loop(h_new, align_prev)
+
+        # 3. Resonance modulation + spiking
+        res_mod = tf.sigmoid(self.resonance_gate)
+        h_modulated = h_resonant * (1.0 + res_mod) + self.resonance_bias
+
+        spikes = tf.cast(tf.greater(h_modulated, self.spike_threshold), tf.float32)
+        h_final = tf.where(spikes > 0.0, h_modulated - self.spike_threshold, h_modulated)
+
+        # 4. Predictive update of alignment: slow-moving target toward projected future state
+        predicted = tf.matmul(h_final, self.prediction_kernel) + self.prediction_bias
+        alpha = 0.1  # slow update rate for alignment state
+        align_new = (1.0 - alpha) * align_prev + alpha * predicted
+
+        return h_final, [h_final, c_new, align_new]
+
+    def get_config(self):
+        config = super(PredictiveResonantCell, self).get_config()
+        config.update(
+            {
+                "units": self.units,
+                "resonance_cycles": self.resonance_cycles,
+                "resonance_step_size": self.resonance_step_size,
+                "spike_threshold": self.spike_threshold,
+            }
+        )
+        return config
+
+
 class MultiheadLinearSelfAttentionKernalization(Layer):
     """
     A Multi-head linear self-attention mechanism with kernel approximation, designed for efficient

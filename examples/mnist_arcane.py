@@ -1,10 +1,22 @@
 import os
+import sys
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras.layers import Input, Reshape, GlobalAveragePooling1D, Dense, Dropout, LayerNormalization, Add
 from tensorflow.keras.models import Model
-from gpbacay_arcane.layers import ResonantGSER, BioplasticDenseLayer, SpatioTemporalSummarization
+
+# Ensure we import the local workspace version of gpbacay_arcane, not the pip-installed one
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from gpbacay_arcane.layers import (
+    ResonantGSER,
+    PredictiveResonantLayer,
+    BioplasticDenseLayer,
+    SpatioTemporalSummarization,
+)
 
 def build_mnist_arcane_model(hidden_dim=128, resonance_factor=0.2, resonance_cycles=1):
     """
@@ -16,51 +28,35 @@ def build_mnist_arcane_model(hidden_dim=128, resonance_factor=0.2, resonance_cyc
     # Normalize input
     x = tf.keras.layers.Rescaling(1./255)(inputs)
     
-    # Hierarchical Resonant Levels
-    # We use two resonant layers with feedback connections to achieve "Prospective Alignment"
-    res_layer_1 = ResonantGSER(
+    # Predictive Resonant Levels
+    # We use two PredictiveResonantLayer blocks stacked for deeper reasoning.
+    pred_layer_1 = PredictiveResonantLayer(
         units=hidden_dim,
-        resonance_factor=resonance_factor,
+        resonance_cycles=resonance_cycles,
+        resonance_step_size=0.2,
         spike_threshold=0.4,
-        resonance_cycles=resonance_cycles,
         return_sequences=True,
-        name='resonant_logic_primary'
+        name="predictive_resonant_primary",
     )
-    
-    res_layer_2 = ResonantGSER(
+
+    pred_layer_2 = PredictiveResonantLayer(
         units=hidden_dim,
-        resonance_factor=resonance_factor + 0.1, # Higher layers have more deliberative weight
+        resonance_cycles=resonance_cycles,
+        resonance_step_size=0.25,
         spike_threshold=0.35,
-        resonance_cycles=resonance_cycles,
         return_sequences=True,
-        name='resonant_logic_secondary'
+        name="predictive_resonant_secondary",
     )
-    
-    # Initial forward pass
-    s1 = res_layer_1(x)
-    s1_norm = LayerNormalization()(s1)
-    
-    s2 = res_layer_2(s1_norm)
-    
-    res_layer_3 = ResonantGSER(
-        units=hidden_dim,
-        resonance_factor=resonance_factor + 0.2, # Even higher layers for more deliberation
-        spike_threshold=0.3,
-        resonance_cycles=resonance_cycles,
-        return_sequences=True,
-        name='resonant_logic_tertiary'
-    )
-    
-    s3 = res_layer_3(s2)
-    
-    # Establish Hierarchical Feedback (for the reasoning phase)
-    res_layer_3.set_lower_layer(res_layer_2)
-    res_layer_2.set_higher_layer(res_layer_3)
-    res_layer_2.set_lower_layer(res_layer_1)
-    res_layer_1.set_higher_layer(res_layer_2)
+
+    # Initial forward pass through predictive resonant hierarchy
+    s1 = pred_layer_1(x)
+    s1_norm = LayerNormalization(name="pr_layer_norm_1")(s1)
+
+    s2 = pred_layer_2(s1_norm)
+    s2_norm = LayerNormalization(name="pr_layer_norm_2")(s2)
     
     # Spatio-Temporal Summarization (Global context mixing)
-    summary = SpatioTemporalSummarization(d_model=hidden_dim)(s3)
+    summary = SpatioTemporalSummarization(d_model=hidden_dim)(s2_norm)
     
     # Feature Pooling
     pooled = GlobalAveragePooling1D()(summary)

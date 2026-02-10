@@ -1,10 +1,11 @@
 import tensorflow as tf
 import numpy as np
 from .mechanisms import (
-    GSER, 
-    ResonantGSERCell, 
-    MultiheadLinearSelfAttentionKernalization, 
-    SpatioTemporalSummaryMixingLayer
+    GSER,
+    ResonantGSERCell,
+    PredictiveResonantCell,
+    MultiheadLinearSelfAttentionKernalization,
+    SpatioTemporalSummaryMixingLayer,
 )
 
 class ExpandDimensionLayer(tf.keras.layers.Layer):
@@ -204,6 +205,63 @@ class ResonantGSER(tf.keras.layers.RNN):
         """Set the higher layer reference for hierarchical feedback."""
         self.higher_layer_name = layer.name if layer else None
         self._higher_layer_ref = layer  # Store direct reference as backup
+
+
+class PredictiveResonantLayer(tf.keras.layers.RNN):
+    """
+    PredictiveResonantLayer
+    ------------------------
+
+    A new neuromimetic recurrent layer that implements *local* predictive resonance.
+
+    Key ideas:
+    - Per-example alignment: alignment is part of the recurrent state (h, c, align),
+      not a single global vector shared across the batch.
+    - Self-contained: does not depend on external callbacks or model references.
+    - Predictive coding flavour: the layer maintains a slow-moving alignment state
+      that acts as an internal prediction of future activity, and the fast state
+      resonates toward that prediction on each step.
+    """
+
+    def __init__(
+        self,
+        units,
+        resonance_cycles=3,
+        resonance_step_size=0.2,
+        spike_threshold=0.5,
+        return_sequences=False,
+        return_state=False,
+        **kwargs,
+    ):
+        cell = PredictiveResonantCell(
+            units=units,
+            resonance_cycles=resonance_cycles,
+            resonance_step_size=resonance_step_size,
+            spike_threshold=spike_threshold,
+        )
+
+        super(PredictiveResonantLayer, self).__init__(
+            cell,
+            return_sequences=return_sequences,
+            return_state=return_state,
+            **kwargs,
+        )
+        self.units = units
+        self.resonance_cycles = resonance_cycles
+        self.resonance_step_size = resonance_step_size
+        self.spike_threshold = spike_threshold
+
+    def get_config(self):
+        config = super(PredictiveResonantLayer, self).get_config()
+        config.update(
+            {
+                "units": self.units,
+                "resonance_cycles": self.resonance_cycles,
+                "resonance_step_size": self.resonance_step_size,
+                "spike_threshold": self.spike_threshold,
+            }
+        )
+        return config
 
 class RelationalConceptModeling(tf.keras.layers.Layer):
     """
