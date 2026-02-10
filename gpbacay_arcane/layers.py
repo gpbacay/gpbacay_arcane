@@ -120,6 +120,8 @@ class ResonantGSER(tf.keras.layers.RNN):
         # Use names instead of direct object references to avoid recursion errors
         self.higher_layer_name = None
         self.lower_layer_name = None
+        self._higher_layer_ref = None
+        self._lower_layer_ref = None
 
     def get_config(self):
         config = super().get_config()
@@ -130,11 +132,6 @@ class ResonantGSER(tf.keras.layers.RNN):
         })
         return config
     
-    def set_higher_layer(self, layer):
-        self.higher_layer_name = layer.name if layer else None
-    
-    def set_lower_layer(self, layer):
-        self.lower_layer_name = layer.name if layer else None
     
     def project_feedback(self, representation=None):
         """
@@ -167,6 +164,46 @@ class ResonantGSER(tf.keras.layers.RNN):
     def get_divergence(self):
         """Get the current global divergence metric from the cell."""
         return self.cell.global_divergence.numpy()
+    
+    def propagate_feedback_to_lower(self):
+        """
+        Convenience method to propagate feedback to the lower layer.
+        Projects this layer's state down to the lower layer and sets its resonance_alignment.
+        
+        Note: This method requires that set_lower_layer() has been called to establish
+        the hierarchical connection, and that the layer has access to the model via _model attribute.
+        """
+        if self.lower_layer_name is None:
+            return
+        
+        # Find the lower layer by name from the model
+        lower_layer = None
+        if hasattr(self, '_model') and self._model is not None:
+            for layer in self._model.layers:
+                if layer.name == self.lower_layer_name:
+                    lower_layer = layer
+                    break
+        
+        if lower_layer is None:
+            # If model reference not available, try direct reference if stored
+            if hasattr(self, '_lower_layer_ref'):
+                lower_layer = self._lower_layer_ref
+            else:
+                return
+        
+        # Project feedback from this layer to the lower layer
+        projection = self.project_feedback()
+        lower_layer.harmonize_states(projection)
+    
+    def set_lower_layer(self, layer):
+        """Set the lower layer reference for hierarchical feedback."""
+        self.lower_layer_name = layer.name if layer else None
+        self._lower_layer_ref = layer  # Store direct reference as backup
+    
+    def set_higher_layer(self, layer):
+        """Set the higher layer reference for hierarchical feedback."""
+        self.higher_layer_name = layer.name if layer else None
+        self._higher_layer_ref = layer  # Store direct reference as backup
 
 class RelationalConceptModeling(tf.keras.layers.Layer):
     """

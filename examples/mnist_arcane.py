@@ -6,7 +6,7 @@ from tensorflow.keras.layers import Input, Reshape, GlobalAveragePooling1D, Dens
 from tensorflow.keras.models import Model
 from gpbacay_arcane.layers import ResonantGSER, BioplasticDenseLayer, SpatioTemporalSummarization
 
-def build_mnist_arcane_model(hidden_dim=256, resonance_factor=0.2):
+def build_mnist_arcane_model(hidden_dim=128, resonance_factor=0.2, resonance_cycles=1):
     """
     Builds a neuromimetic MNIST classifier using ResonantGSER and Bioplastic layers.
     Treats MNIST images (28x28) as a sequence of 28 rows.
@@ -22,7 +22,7 @@ def build_mnist_arcane_model(hidden_dim=256, resonance_factor=0.2):
         units=hidden_dim,
         resonance_factor=resonance_factor,
         spike_threshold=0.4,
-        resonance_cycles=3,
+        resonance_cycles=resonance_cycles,
         return_sequences=True,
         name='resonant_logic_primary'
     )
@@ -31,7 +31,7 @@ def build_mnist_arcane_model(hidden_dim=256, resonance_factor=0.2):
         units=hidden_dim,
         resonance_factor=resonance_factor + 0.1, # Higher layers have more deliberative weight
         spike_threshold=0.35,
-        resonance_cycles=3,
+        resonance_cycles=resonance_cycles,
         return_sequences=True,
         name='resonant_logic_secondary'
     )
@@ -46,7 +46,7 @@ def build_mnist_arcane_model(hidden_dim=256, resonance_factor=0.2):
         units=hidden_dim,
         resonance_factor=resonance_factor + 0.2, # Even higher layers for more deliberation
         spike_threshold=0.3,
-        resonance_cycles=3,
+        resonance_cycles=resonance_cycles,
         return_sequences=True,
         name='resonant_logic_tertiary'
     )
@@ -90,7 +90,10 @@ def train_and_evaluate():
     (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
     
     # 2. Build Model
-    model = build_mnist_arcane_model()
+    # Use a lighter ARCANE configuration by default so MNIST trains in minutes,
+    # even on CPU-only machines. You can increase hidden_dim and resonance_cycles
+    # if you want a heavier, more deliberative configuration.
+    model = build_mnist_arcane_model(hidden_dim=128, resonance_factor=0.2, resonance_cycles=1)
     
     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3, clipnorm=1.0)
     model.compile(
@@ -106,7 +109,7 @@ def train_and_evaluate():
     history = model.fit(
         x_train, y_train,
         epochs=10,
-        batch_size=128,
+        batch_size=256,
         validation_split=0.1,
         verbose=1
     )
@@ -164,3 +167,4 @@ if __name__ == "__main__":
     train_and_evaluate()
 
 # python examples/mnist_arcane.py
+# python examples/test_infer_2test.py

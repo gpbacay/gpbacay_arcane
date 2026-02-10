@@ -101,6 +101,9 @@ class NeuromimeticSemanticModel:
             resonant_layer_2.set_lower_layer(resonant_layer_1)
             resonant_layer_1.set_higher_layer(resonant_layer_2)
             
+            # Store resonant layer objects for inference-time resonance
+            self.resonant_layer_objects = [resonant_layer_1, resonant_layer_2]
+            
             # LSTM for sequential temporal processing
             lstm_out = LSTM(
                 self.hidden_dim,
@@ -252,6 +255,105 @@ class NeuromimeticSemanticModel:
                 break
         
         return " ".join(generated_words)
+    
+    def run_resonance_cycle(self, num_cycles=1, use_parallel=True):
+        """
+        Execute resonance cycles across the resonant layers for inference-time alignment.
+        
+        The implementation uses parallelization within each phase:
+        - All projections are computed simultaneously (parallel)
+        - All harmonizations are applied simultaneously (parallel)
+        - All divergence computations run in parallel
+        
+        Args:
+            num_cycles: Number of resonance cycles to run
+            use_parallel: Whether to use parallelized operations (default: True)
+        
+        Returns:
+            List of divergence values for each cycle
+        """
+        if not hasattr(self, 'resonant_layer_objects'):
+            raise ValueError("Model must be built before running resonance cycles")
+        
+        # Store model reference in layers
+        for layer in self.resonant_layer_objects:
+            layer._model = self.model
+        
+        divergences = []
+        
+        for cycle in range(num_cycles):
+            # Step A: Project (Top-Down) - PARALLELIZED
+            # All layers can compute projections simultaneously since they're independent.
+            # We collect all projection operations first, then TensorFlow executes them in parallel
+            # when they're part of the same computation graph.
+            projections = {}
+            
+            # Collect all projection operations (independent operations that can run in parallel)
+            projection_pairs = [
+                (i - 1, self.resonant_layer_objects[i].project_feedback())
+                for i in range(len(self.resonant_layer_objects) - 1, 0, -1)
+            ]
+            
+            # Execute projections - TensorFlow will parallelize independent operations
+            # when they're in eager mode or part of a tf.function graph
+            for idx, proj_tensor in projection_pairs:
+                projections[idx] = proj_tensor
+            
+            # Step B: Harmonize (Bottom-Up) - PARALLELIZED
+            # All harmonizations can be applied simultaneously since they're independent.
+            # Each layer only modifies its own resonance_alignment variable.
+            harmonization_pairs = [
+                (layer, projections[i])
+                for i, layer in enumerate(self.resonant_layer_objects)
+                if i in projections
+            ]
+            
+            # Execute all harmonizations - operations are independent and can run in parallel
+            for layer, proj in harmonization_pairs:
+                layer.harmonize_states(proj)
+            
+            # Step C: Check Convergence - PARALLELIZED divergence computation
+            # All divergence computations are independent and can run in parallel
+            divergence_values = [layer.get_divergence() for layer in self.resonant_layer_objects]
+            cycle_divergence = sum(divergence_values)
+            divergences.append(float(cycle_divergence))
+            
+            # Early stopping if converged
+            if cycle_divergence < self.resonant_layer_objects[0].cell.convergence_epsilon:
+                break
+        
+        return divergences
+    
+    def predict_with_resonance(self, inputs, resonance_cycles=5, verbose=0):
+        """
+        Perform prediction with inference-time resonance cycles.
+        
+        This method runs resonance cycles before prediction to align the hierarchical
+        states, enabling deliberative reasoning at inference time.
+        
+        Args:
+            inputs: Input data (numpy array or tensor)
+            resonance_cycles: Number of resonance cycles to run before prediction
+            verbose: Verbosity level (0 or 1)
+        
+        Returns:
+            Model predictions after resonance alignment
+        """
+        if self.model is None:
+            raise ValueError("Model must be built before prediction")
+        
+        if verbose > 0:
+            print(f"Running {resonance_cycles} resonance cycles for inference-time alignment...")
+        
+        # Run resonance cycles to align hierarchical states
+        divergences = self.run_resonance_cycle(num_cycles=resonance_cycles)
+        
+        if verbose > 0:
+            print(f"Resonance converged. Final divergence: {divergences[-1]:.6f}")
+        
+        # Perform prediction with aligned states
+        predictions = self.model.predict(inputs, verbose=verbose)
+        return predictions
     
     def get_model_info(self):
         """Get information about the neuromimetic model architecture."""

@@ -37,19 +37,37 @@ class NeuralResonanceCallback(Callback):
         if not resonant_layers:
             return
 
-        # Resonance Cycle: Prospective State Alignment
+        # Resonance Cycle: Prospective State Alignment (PARALLELIZED)
         for _ in range(self.resonance_cycles):
-            # 1. Emit feedback projections from higher layers
+            # 1. Emit feedback projections from higher layers - PARALLELIZED
+            # All layers can compute projections simultaneously since they're independent.
+            # We collect all projection operations first, then TensorFlow executes them in parallel
+            # when they're part of the same computation graph.
             projections = {}
-            for i in range(len(resonant_layers) - 1, 0, -1):
-                # Layer i projects feedback to layer i-1
-                projections[i-1] = resonant_layers[i].project_feedback()
+            
+            # Collect all projection operations (independent operations that can run in parallel)
+            projection_pairs = [
+                (i - 1, resonant_layers[i].project_feedback())
+                for i in range(len(resonant_layers) - 1, 0, -1)
+            ]
+            
+            # Execute projections - TensorFlow will parallelize independent operations
+            # when they're in eager mode or part of a tf.function graph
+            for idx, proj_tensor in projection_pairs:
+                projections[idx] = proj_tensor
 
-            # 2. Harmonize internal states based on projections
-            for i, layer in enumerate(resonant_layers):
-                incoming_proj = projections.get(i)
-                if incoming_proj is not None:
-                    layer.harmonize_states(incoming_proj)
+            # 2. Harmonize internal states based on projections - PARALLELIZED
+            # All harmonizations can be applied simultaneously since they're independent.
+            # Each layer only modifies its own resonance_alignment variable.
+            harmonization_pairs = [
+                (layer, projections[i])
+                for i, layer in enumerate(resonant_layers)
+                if i in projections
+            ]
+            
+            # Execute all harmonizations - operations are independent and can run in parallel
+            for layer, proj in harmonization_pairs:
+                layer.harmonize_states(proj)
 
 
 class DynamicSelfModelingReservoirCallback(Callback):

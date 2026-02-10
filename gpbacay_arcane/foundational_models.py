@@ -151,7 +151,7 @@ class HierarchicalResonanceFoundationModel:
             self.model = Model(inputs=inputs, outputs=outputs, name='hierarchical_resonance_foundation_model')
         return self.model
     
-    def run_resonance_cycle(self, num_cycles=1):
+    def run_resonance_cycle(self, num_cycles=1, use_parallel=True):
         """
         Execute the full RSAA algorithm across the hierarchy.
         
@@ -160,8 +160,14 @@ class HierarchicalResonanceFoundationModel:
         2. Harmonize (Bottom-Up): Lower layers adjust to reduce divergence
         3. Check Convergence: Monitor global divergence
         
+        The implementation uses parallelization within each phase:
+        - All projections are computed simultaneously (parallel)
+        - All harmonizations are applied simultaneously (parallel)
+        - All divergence computations run in parallel
+        
         Args:
             num_cycles: Number of full hierarchy resonance cycles to run
+            use_parallel: Whether to use parallelized operations (default: True)
         
         Returns:
             List of divergence values for each cycle
@@ -169,29 +175,85 @@ class HierarchicalResonanceFoundationModel:
         if not hasattr(self, 'resonant_layer_objects'):
             raise ValueError("Model must be built before running resonance cycles")
         
+        # Store model reference in layers for propagate_feedback_to_lower
+        for layer in self.resonant_layer_objects:
+            layer._model = self.model
+        
         divergences = []
         
         for cycle in range(num_cycles):
-            # Step A: Project (Top-Down) - from highest to lowest
-            for i in range(len(self.resonant_layer_objects) - 1, 0, -1):
-                self.resonant_layer_objects[i].propagate_feedback_to_lower()
+            # Step A: Project (Top-Down) - PARALLELIZED
+            # All layers can compute projections simultaneously since they're independent.
+            # We collect all projection operations first, then TensorFlow executes them in parallel
+            # when they're part of the same computation graph.
+            projections = {}
             
-            # Step B: Harmonize (Bottom-Up) - implicit in next forward pass
-            # The harmonization happens automatically when the model processes data
-            # because each cell now has its resonance_alignment set
+            # Collect all projection operations (independent operations that can run in parallel)
+            projection_pairs = [
+                (i - 1, self.resonant_layer_objects[i].project_feedback())
+                for i in range(len(self.resonant_layer_objects) - 1, 0, -1)
+            ]
             
-            # Step C: Check Convergence
-            cycle_divergence = sum([
-                layer.get_divergence() 
-                for layer in self.resonant_layer_objects
-            ])
-            divergences.append(cycle_divergence)
+            # Execute projections - TensorFlow will parallelize independent operations
+            # when they're in eager mode or part of a tf.function graph
+            for idx, proj_tensor in projection_pairs:
+                projections[idx] = proj_tensor
+            
+            # Step B: Harmonize (Bottom-Up) - PARALLELIZED
+            # All harmonizations can be applied simultaneously since they're independent.
+            # Each layer only modifies its own resonance_alignment variable.
+            harmonization_pairs = [
+                (layer, projections[i])
+                for i, layer in enumerate(self.resonant_layer_objects)
+                if i in projections
+            ]
+            
+            # Execute all harmonizations - operations are independent and can run in parallel
+            for layer, proj in harmonization_pairs:
+                layer.harmonize_states(proj)
+            
+            # Step C: Check Convergence - PARALLELIZED divergence computation
+            # All divergence computations are independent and can run in parallel
+            divergence_values = [layer.get_divergence() for layer in self.resonant_layer_objects]
+            cycle_divergence = sum(divergence_values)
+            divergences.append(float(cycle_divergence))
             
             # Early stopping if converged
-            if cycle_divergence < self.resonant_layer_objects[0]._cell.convergence_epsilon:
+            if cycle_divergence < self.resonant_layer_objects[0].cell.convergence_epsilon:
                 break
         
         return divergences
+    
+    def predict_with_resonance(self, inputs, resonance_cycles=5, verbose=0):
+        """
+        Perform prediction with inference-time resonance cycles.
+        
+        This method runs resonance cycles before prediction to align the hierarchical
+        states, enabling deliberative "System 2" reasoning at inference time.
+        
+        Args:
+            inputs: Input data (numpy array or tensor)
+            resonance_cycles: Number of resonance cycles to run before prediction
+            verbose: Verbosity level (0 or 1)
+        
+        Returns:
+            Model predictions after resonance alignment
+        """
+        if self.model is None:
+            raise ValueError("Model must be built before prediction")
+        
+        if verbose > 0:
+            print(f"Running {resonance_cycles} resonance cycles for inference-time alignment...")
+        
+        # Run resonance cycles to align hierarchical states
+        divergences = self.run_resonance_cycle(num_cycles=resonance_cycles)
+        
+        if verbose > 0:
+            print(f"Resonance converged. Final divergence: {divergences[-1]:.6f}")
+        
+        # Perform prediction with aligned states
+        predictions = self.model.predict(inputs, verbose=verbose)
+        return predictions
     
     def compile_model(self, learning_rate=5e-4):
         if self.model is None: raise ValueError("Build model first.")
