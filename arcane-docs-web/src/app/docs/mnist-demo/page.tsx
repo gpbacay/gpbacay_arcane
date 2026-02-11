@@ -256,6 +256,7 @@ export default function MnistDemoPage() {
               </p>
             )}
             <div className="p-4 rounded-none border border-zinc-700 bg-zinc-900/80">
+              <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2">ARCANE MNIST Classifier</p>
               <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Prediction</p>
               <p className="text-3xl font-bold text-[#C785F2]">
                 {prediction ? prediction.digit : loading ? "..." : "—"}
@@ -276,7 +277,7 @@ export default function MnistDemoPage() {
                     title={prediction ? `${i}: ${(p * 100).toFixed(1)}%` : undefined}
                   >
                     <div
-                      className="w-6 bg-zinc-700 rounded-sm overflow-hidden"
+                      className="w-6 bg-zinc-700 rounded-sm overflow-hidden flex flex-col justify-end"
                       style={{ height: 60 }}
                     >
                       <div
