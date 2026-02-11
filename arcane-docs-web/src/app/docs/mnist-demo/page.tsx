@@ -45,13 +45,15 @@ export default function MnistDemoPage() {
     ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
   }, []);
 
-  const startDraw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  const getCoords = useCallback((target: HTMLCanvasElement, clientX: number, clientY: number) => {
+    const rect = target.getBoundingClientRect();
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }, []);
+
+  const startDrawAt = useCallback((x: number, y: number) => {
     isDrawing.current = true;
     const ctx = getCtx();
     if (!ctx) return;
-    const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.strokeStyle = "#000000";
@@ -60,13 +62,10 @@ export default function MnistDemoPage() {
     ctx.lineJoin = "round";
   }, [getCtx]);
 
-  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  const drawTo = useCallback((x: number, y: number) => {
     if (!isDrawing.current) return;
     const ctx = getCtx();
     if (!ctx) return;
-    const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
     ctx.lineTo(x, y);
     ctx.stroke();
   }, [getCtx]);
@@ -74,6 +73,37 @@ export default function MnistDemoPage() {
   const endDraw = useCallback(() => {
     isDrawing.current = false;
   }, []);
+
+  const startDraw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const { x, y } = getCoords(e.target as HTMLCanvasElement, e.clientX, e.clientY);
+    startDrawAt(x, y);
+  }, [getCoords, startDrawAt]);
+
+  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const { x, y } = getCoords(e.target as HTMLCanvasElement, e.clientX, e.clientY);
+    drawTo(x, y);
+  }, [getCoords, drawTo]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (!touch) return;
+    const { x, y } = getCoords(e.target as HTMLCanvasElement, touch.clientX, touch.clientY);
+    startDrawAt(x, y);
+  }, [getCoords, startDrawAt]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (!touch) return;
+    const { x, y } = getCoords(e.target as HTMLCanvasElement, touch.clientX, touch.clientY);
+    drawTo(x, y);
+  }, [getCoords, drawTo]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    endDraw();
+  }, [endDraw]);
 
   const predict = useCallback(async () => {
     const canvas = canvasRef.current;
@@ -157,11 +187,15 @@ export default function MnistDemoPage() {
               width={CANVAS_SIZE}
               height={CANVAS_SIZE}
               className="border-2 border-zinc-700 bg-white cursor-crosshair touch-none rounded-none"
-              style={{ imageRendering: "pixelated" }}
+              style={{ imageRendering: "pixelated", touchAction: "none" }}
               onMouseDown={startDraw}
               onMouseMove={draw}
               onMouseUp={endDraw}
               onMouseLeave={endDraw}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onTouchCancel={handleTouchEnd}
             />
             <div className="flex gap-2">
               <button
