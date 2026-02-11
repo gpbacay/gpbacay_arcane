@@ -5,6 +5,7 @@ import Link from "next/link";
 
 const CANVAS_SIZE = 280;
 const MODEL_SIZE = 28;
+const DEBOUNCE_MS = 400; // Run inference this many ms after user stops drawing.
 // Always use same-origin proxy so it works on Vercel; backend URL is set via MNIST_API_URL (server-side).
 const PREDICT_URL = "/api/mnist-predict";
 
@@ -20,6 +21,8 @@ export default function MnistDemoPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isDrawing = useRef(false);
+  const hasDrawn = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getCtx = useCallback(() => {
     const canvas = canvasRef.current;
@@ -28,6 +31,11 @@ export default function MnistDemoPage() {
   }, []);
 
   const clearCanvas = useCallback(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    hasDrawn.current = false;
     const ctx = getCtx();
     if (!ctx) return;
     ctx.fillStyle = "#ffffff";
@@ -51,7 +59,12 @@ export default function MnistDemoPage() {
   }, []);
 
   const startDrawAt = useCallback((x: number, y: number) => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
     isDrawing.current = true;
+    hasDrawn.current = true;
     const ctx = getCtx();
     if (!ctx) return;
     ctx.beginPath();
@@ -73,37 +86,6 @@ export default function MnistDemoPage() {
   const endDraw = useCallback(() => {
     isDrawing.current = false;
   }, []);
-
-  const startDraw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const { x, y } = getCoords(e.target as HTMLCanvasElement, e.clientX, e.clientY);
-    startDrawAt(x, y);
-  }, [getCoords, startDrawAt]);
-
-  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const { x, y } = getCoords(e.target as HTMLCanvasElement, e.clientX, e.clientY);
-    drawTo(x, y);
-  }, [getCoords, drawTo]);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    if (!touch) return;
-    const { x, y } = getCoords(e.target as HTMLCanvasElement, touch.clientX, touch.clientY);
-    startDrawAt(x, y);
-  }, [getCoords, startDrawAt]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    if (!touch) return;
-    const { x, y } = getCoords(e.target as HTMLCanvasElement, touch.clientX, touch.clientY);
-    drawTo(x, y);
-  }, [getCoords, drawTo]);
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    endDraw();
-  }, [endDraw]);
 
   const predict = useCallback(async () => {
     const canvas = canvasRef.current;
@@ -150,6 +132,57 @@ export default function MnistDemoPage() {
     }
   }, []);
 
+  const schedulePredict = useCallback(() => {
+    if (!hasDrawn.current) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      predict();
+    }, DEBOUNCE_MS);
+  }, [predict]);
+
+  const handleEndDraw = useCallback(() => {
+    endDraw();
+    schedulePredict();
+  }, [endDraw, schedulePredict]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const startDraw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const { x, y } = getCoords(e.target as HTMLCanvasElement, e.clientX, e.clientY);
+    startDrawAt(x, y);
+  }, [getCoords, startDrawAt]);
+
+  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const { x, y } = getCoords(e.target as HTMLCanvasElement, e.clientX, e.clientY);
+    drawTo(x, y);
+  }, [getCoords, drawTo]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (!touch) return;
+    const { x, y } = getCoords(e.target as HTMLCanvasElement, touch.clientX, touch.clientY);
+    startDrawAt(x, y);
+  }, [getCoords, startDrawAt]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (!touch) return;
+    const { x, y } = getCoords(e.target as HTMLCanvasElement, touch.clientX, touch.clientY);
+    drawTo(x, y);
+  }, [getCoords, drawTo]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    handleEndDraw();
+  }, [handleEndDraw]);
+
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
       <div className="mb-10">
@@ -177,7 +210,7 @@ export default function MnistDemoPage() {
           Try it
         </h2>
         <p>
-          Draw a digit (0–9) in the box below, then click <strong>Predict</strong>. The model returns the predicted class and confidence.
+          Draw a digit (0–9) in the box below. Inference runs automatically shortly after you stop drawing. You can also click <strong>Predict</strong> for immediate results.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-8 items-start">
@@ -190,8 +223,8 @@ export default function MnistDemoPage() {
               style={{ imageRendering: "pixelated", touchAction: "none" }}
               onMouseDown={startDraw}
               onMouseMove={draw}
-              onMouseUp={endDraw}
-              onMouseLeave={endDraw}
+              onMouseUp={handleEndDraw}
+              onMouseLeave={handleEndDraw}
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
