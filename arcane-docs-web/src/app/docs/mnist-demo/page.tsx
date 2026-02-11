@@ -255,42 +255,40 @@ export default function MnistDemoPage() {
                 {error}
               </p>
             )}
-            {prediction && (
-              <>
-                <div className="p-4 rounded-none border border-zinc-700 bg-zinc-900/80">
-                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Prediction</p>
-                  <p className="text-3xl font-bold text-[#C785F2]">{prediction.digit}</p>
-                  <p className="text-zinc-400 text-sm mt-1">
-                    Confidence: <span className="text-white font-medium">{(prediction.confidence * 100).toFixed(1)}%</span>
-                  </p>
-                </div>
-                {prediction.probabilities.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-zinc-500 text-xs uppercase tracking-wider">All classes</p>
-                    <div className="flex gap-1 flex-wrap">
-                      {prediction.probabilities.map((p, i) => (
-                        <div
-                          key={i}
-                          className="flex flex-col items-center gap-0.5"
-                          title={`${i}: ${(p * 100).toFixed(1)}%`}
-                        >
-                          <div
-                            className="w-6 bg-zinc-700 rounded-sm overflow-hidden"
-                            style={{ height: 60 }}
-                          >
-                            <div
-                              className="w-full bg-[#C785F2] transition-all"
-                              style={{ height: `${p * 100}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-zinc-500">{i}</span>
-                        </div>
-                      ))}
+            <div className="p-4 rounded-none border border-zinc-700 bg-zinc-900/80">
+              <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Prediction</p>
+              <p className="text-3xl font-bold text-[#C785F2]">
+                {prediction ? prediction.digit : loading ? "..." : "—"}
+              </p>
+              <p className="text-zinc-400 text-sm mt-1">
+                Confidence: <span className="text-white font-medium">
+                  {prediction ? `${(prediction.confidence * 100).toFixed(1)}%` : loading ? "..." : "—"}
+                </span>
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-zinc-500 text-xs uppercase tracking-wider">All classes</p>
+              <div className="flex gap-1 flex-wrap">
+                {(prediction?.probabilities ?? Array(10).fill(0)).map((p, i) => (
+                  <div
+                    key={i}
+                    className="flex flex-col items-center gap-0.5"
+                    title={prediction ? `${i}: ${(p * 100).toFixed(1)}%` : undefined}
+                  >
+                    <div
+                      className="w-6 bg-zinc-700 rounded-sm overflow-hidden"
+                      style={{ height: 60 }}
+                    >
+                      <div
+                        className="w-full bg-[#C785F2] transition-all"
+                        style={{ height: `${p * 100}%` }}
+                      />
                     </div>
+                    <span className="text-xs text-zinc-500">{i}</span>
                   </div>
-                )}
-              </>
-            )}
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
