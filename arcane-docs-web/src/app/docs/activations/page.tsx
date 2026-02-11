@@ -188,7 +188,7 @@ $$(y, V_t) = f(x, V_{t-1}, \\text{context})$$
                 <div className="flex flex-col gap-1">
                   <h3 
                     id={activation.id}
-                    className="text-lg font-bold text-zinc-100 group-hover:text-purple-400 transition-colors m-0"
+                    className="text-lg font-bold text-zinc-100 group-hover:text-purple-400 group-data-[state=open]:text-purple-400 transition-colors m-0"
                   >
                     {activation.name}
                   </h3>
