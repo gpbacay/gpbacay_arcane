@@ -112,6 +112,30 @@ layer = ResonantGSER(
 - **Feedback Projection**: `project_feedback()` for top-down signals
 - **State Harmonization**: `harmonize_states()` for bottom-up alignment
 
+### PredictiveResonantLayer: Local Predictive Resonance
+
+For sequence models that do not require cross-layer hierarchical wiring, ARCANE provides **PredictiveResonantLayer**, which implements *local* predictive resonance in a self-contained RNN:
+
+- **Per-example alignment**: Alignment is part of the recurrent state `(h, c, align)`, not a single global vector. Each sequence has its own resonance target.
+- **No external callbacks**: The layer does not depend on model references or custom training callbacks; it resonates toward an internal slow-moving prediction of future activity.
+- **Optional stateful resonance**: Set `persist_alignment=True` so alignment state carries across separate forward passes (e.g. repeated inference on the same or different inputs), enabling inference-time state adaptation.
+- **Typical use**: Sequence classification (e.g. MNIST as 28 time steps), when you want predictive-coding-style resonance without configuring a hierarchy of ResonantGSER layers.
+
+```python
+from gpbacay_arcane import PredictiveResonantLayer
+
+layer = PredictiveResonantLayer(
+    units=128,
+    resonance_cycles=3,
+    resonance_step_size=0.2,
+    spike_threshold=0.4,
+    return_sequences=True,
+    persist_alignment=False   # True for stateful resonance across calls
+)
+```
+
+Combine with `BioplasticDenseLayer(..., enable_inference_plasticity=True)` for inference-time Hebbian plasticity in the same model.
+
 ## Integration in Models
 
 ### NeuromimeticSemanticModel

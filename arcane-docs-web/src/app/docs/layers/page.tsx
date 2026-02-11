@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import {
   Accordion,
   AccordionContent,
@@ -6,6 +9,15 @@ import {
 } from "@/components/ui/accordion";
 
 export default function BiologicalLayersPage() {
+  const [openItem, setOpenItem] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const hash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
+    if (hash === "predictive-resonant") {
+      setOpenItem("predictive-resonant");
+    }
+  }, []);
+
   const layers = [
     {
       id: "resonant-gser",
@@ -13,7 +25,7 @@ export default function BiologicalLayersPage() {
       description: "Hierarchical resonant layer with bi-directional feedback, spiking dynamics, and reservoir computing.",
       details: "The ResonantGSER is the core of ARCANE's deliberative reasoning. It implements the Resonant State Alignment Algorithm (RSAA) to synchronize internal states between hierarchical levels, allowing the model to 'think' before committing to an output. It features spectral radius control, leak rates, and spike thresholds.",
       link: "/docs/resonant-gser",
-      code: `from gpbacay_arcane.layers import ResonantGSER
+      code: `from gpbacay_arcane import ResonantGSER
 
 layer = ResonantGSER(
     units=128,
@@ -23,31 +35,49 @@ layer = ResonantGSER(
 )`
     },
     {
+      id: "predictive-resonant",
+      name: "PredictiveResonantLayer",
+      description: "RNN layer for local predictive resonance with per-example alignment and no external callbacks.",
+      details: "Alignment is stored per example in the recurrent state (h, c, align), so the layer needs no external callbacks or model references. A slow-moving alignment vector acts as an internal prediction; each step the hidden state is updated toward it. Set persist_alignment=True to carry alignment across separate forward passes for stateful resonance. Use with BioplasticDenseLayer inference plasticity for inference-time adaptation. Good for sequence models (e.g. MNIST as rows) when you want resonance without wiring a hierarchy of layers.",
+      code: `from gpbacay_arcane import PredictiveResonantLayer
+
+layer = PredictiveResonantLayer(
+    units=128,
+    resonance_cycles=3,
+    resonance_step_size=0.2,
+    spike_threshold=0.4,
+    return_sequences=True,
+    persist_alignment=False  # True for stateful resonance across calls
+)`
+    },
+    {
       id: "bioplastic-dense",
       name: "BioplasticDenseLayer",
       description: "Implements Hebbian learning ('neurons that fire together, wire together') and homeostatic plasticity.",
       details: "This layer mimics biological synaptic adaptation by strengthening connections between co-active neurons. It incorporates homeostatic regulation to maintain stable activity levels, preventing runaway excitation or neural silence through synaptic scaling.",
-      code: `from gpbacay_arcane.layers import BioplasticDenseLayer
+      code: `from gpbacay_arcane import BioplasticDenseLayer
 
 layer = BioplasticDenseLayer(
     units=64,
     target_avg=0.12,
     homeostatic_rate=5e-5,
-    learning_rate=1e-3
+    learning_rate=1e-3,
+    enable_inference_plasticity=False
 )`
     },
     {
       id: "gser",
       name: "GSER",
       description: "Gated Spiking Elastic Reservoir with dynamic structural adaptation (neurogenesis and pruning).",
-      details: "The Gated Spiking Elastic Reservoir (GSER) supports dynamic reservoir sizing. During training, the layer can grow new neurons (neurogenesis) or prune weak connections and inactive neurons (apoptosis) based on performance metrics, allowing the architecture to evolve with the data.",
-      code: `from gpbacay_arcane.layers import GSER
+      details: "The Gated Spiking Elastic Reservoir (GSER) supports dynamic reservoir sizing. During training, the layer can grow new neurons (neurogenesis) or prune weak connections and inactive neurons (apoptosis) based on performance metrics, allowing the architecture to evolve with the data. Use via ResonantGSERCell or the GSER mechanism from gpbacay_arcane.mechanisms.",
+      code: `from gpbacay_arcane import DenseGSER
 
-layer = GSER(
+layer = DenseGSER(
     units=256,
     spectral_radius=0.95,
     leak_rate=0.1,
-    use_neurogenesis=True
+    spike_threshold=0.5,
+    activation='gelu'
 )`
     },
     {
@@ -55,24 +85,18 @@ layer = GSER(
       name: "LatentTemporalCoherence",
       description: "Distills temporal dynamics into coherence vectors for stable sequence processing.",
       details: "This layer focuses on the temporal stability of semantic representations. It ensures that the latent space evolves smoothly over time, reducing noise and capturing the long-term contextual essence of sequential information.",
-      code: `from gpbacay_arcane.layers import LatentTemporalCoherence
+      code: `from gpbacay_arcane import LatentTemporalCoherence
 
-layer = LatentTemporalCoherence(
-    coherence_factor=0.1,
-    temporal_window=10
-)`
+layer = LatentTemporalCoherence(d_coherence=64)`
     },
     {
       id: "relational-concept",
       name: "RelationalConceptModeling",
       description: "Multi-head attention mechanism for high-level semantic concept extraction.",
       details: "Uses specialized attention heads to identify and model relationships between different semantic concepts in the latent space, fostering a more structured and interpretable semantic hierarchy.",
-      code: `from gpbacay_arcane.layers import RelationalConceptModeling
+      code: `from gpbacay_arcane import RelationalConceptModeling
 
-layer = RelationalConceptModeling(
-    num_heads=8,
-    key_dim=64
-)`
+layer = RelationalConceptModeling(d_model=64, num_heads=8)`
     },
     {
       id: "neuromimetic-activations",
@@ -111,7 +135,7 @@ activation = NeuromimeticActivation(
           Available Layers
         </h2>
 
-        <Accordion type="single" collapsible className="w-full">
+        <Accordion type="single" collapsible className="w-full" value={openItem ?? ""} onValueChange={setOpenItem}>
           {layers.map((layer) => (
             <AccordionItem key={layer.id} value={layer.id} className="border-zinc-800">
               <AccordionTrigger className="hover:no-underline py-4 text-left group">
@@ -122,7 +146,7 @@ activation = NeuromimeticActivation(
                   >
                     {layer.name}
                   </h3>
-                  <span className="text-sm font-normal text-zinc-400 line-clamp-1">
+                  <span className="text-sm font-normal text-zinc-400">
                     {layer.description}
                   </span>
                 </div>

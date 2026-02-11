@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
+import Link from "next/link";
 
 const CANVAS_SIZE = 280;
 const MODEL_SIZE = 28;
@@ -131,6 +132,17 @@ export default function MnistDemoPage() {
       </div>
 
       <div className="space-y-6 text-zinc-300">
+        <h2 id="model-architecture" className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
+          Model architecture
+        </h2>
+        <p className="leading-relaxed">
+          The classifier treats each 28×28 image as a sequence of 28 rows. Input is normalized (Rescaling 1/255), then passed through two stacked{" "}
+          <Link href="/docs/layers#predictive-resonant" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
+            PredictiveResonantLayer
+          </Link>{" "}
+          blocks (128 units, local predictive resonance with optional stateful alignment), each followed by LayerNorm. A SpatioTemporalSummarization layer mixes global context, then GlobalAveragePooling1D pools over time. A BioplasticDenseLayer (128 units, with optional inference-time plasticity) and Dropout(0.2) feed into a Dense(10, softmax) output. Weights are saved as <code className="bg-zinc-900 px-1.5 py-0.5 rounded">mnist_arcane_model.weights.h5</code>.
+        </p>
+
         <h2 id="try-it" className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Try it
         </h2>

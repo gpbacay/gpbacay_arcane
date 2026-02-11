@@ -121,6 +121,16 @@ After resonance cycles complete, the `resonance_alignment` values are set in eac
 | **Weight Updates** | Yes (after resonance) | No (inference only) |
 | **Automatic** | Yes (via callback) | No (must call explicitly) |
 
+### 4. PredictiveResonantLayer and BioplasticDenseLayer Inference-Time Features
+
+**PredictiveResonantLayer** (local predictive resonance) and **BioplasticDenseLayer** support additional inference-time behavior without manual resonance cycles:
+
+- **PredictiveResonantLayer with `persist_alignment=True`**: The layer keeps a slow-moving alignment state across separate forward passes. Each call updates an internal alignment memory used as the initial resonance target for the next call, so repeated inference (e.g. on the same or new inputs) exhibits stateful resonance across calls. Weights are unchanged; only the non-trainable alignment state evolves.
+
+- **BioplasticDenseLayer with `enable_inference_plasticity=True`**: During inference, the layer applies a lightweight Hebbian-style update to a non-trainable plastic weight component. The effective weights are `kernel + plastic_kernel`; only `plastic_kernel` is updated at inference time, so gradient-based training remains unchanged. This gives inference-time learning (e.g. confidence or predictions adapting over repeated calls) without a separate training step.
+
+Use these options in sequence models (e.g. MNIST classifier with PredictiveResonantLayer and BioplasticDenseLayer) when you want the model to adapt its internal state or readout during repeated inference.
+
 ## Benefits
 
 ### 1. Deliberative Reasoning

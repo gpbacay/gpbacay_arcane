@@ -19,8 +19,9 @@ The library provides ready-to-use models, customizable neural layers, and traini
 ## Key Features
 
 ### Biological Neural Layers
-- **ResonantGSER**: Spiking neural dynamics with reservoir computing and spectral radius control.
-- **BioplasticDenseLayer**: Hebbian learning with homeostatic plasticity regulation.
+- **ResonantGSER**: Spiking neural dynamics with reservoir computing and hierarchical resonance.
+- **PredictiveResonantLayer**: Local predictive resonance RNN with optional stateful alignment for inference-time adaptation.
+- **BioplasticDenseLayer**: Hebbian learning with homeostatic plasticity; optional inference-time plasticity.
 - **Hierarchical Resonance**: Multi-level neural architectures with bi-directional feedback.
 - **Neural Reservoir Computing**: Dynamic temporal processing with configurable parameters.
 - **Relational Concept Graph Reasoning**: Unified mechanism for concept extraction and relational reasoning.
@@ -151,7 +152,8 @@ Standard neuromimetic model with biological learning rules. Best for:
 | `GSER` | Gated Spiking Elastic Reservoir with dynamic reservoir sizing |
 | `DenseGSER` | Dense layer with spiking dynamics and conceptual gating |
 | `ResonantGSER` | Hierarchical resonant layer with bi-directional feedback |
-| `BioplasticDenseLayer` | Hebbian learning with homeostatic plasticity |
+| `PredictiveResonantLayer` | Local predictive resonance RNN; optional stateful alignment across calls |
+| `BioplasticDenseLayer` | Hebbian learning with homeostatic plasticity; optional inference-time plasticity |
 | `HebbianHomeostaticNeuroplasticity` | Simplified Hebbian learning layer |
 | `RelationalConceptModeling` | Multi-head attention for concept extraction |
 | `RelationalGraphAttentionReasoning` | Graph attention for relational reasoning |

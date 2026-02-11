@@ -17,6 +17,7 @@ from .cli_commands import about
 from .layers import (
     DenseGSER,
     ResonantGSER,
+    PredictiveResonantLayer,
     BioplasticDenseLayer,
     HebbianHomeostaticNeuroplasticity,
     RelationalConceptModeling,
@@ -86,6 +87,7 @@ __all__ = [
     "GSER",
     "DenseGSER",
     "ResonantGSER",
+    "PredictiveResonantLayer",
     "BioplasticDenseLayer",
     "HebbianHomeostaticNeuroplasticity",
     "RelationalConceptModeling",

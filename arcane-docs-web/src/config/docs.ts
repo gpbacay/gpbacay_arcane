@@ -43,7 +43,7 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
         { 
           title: "Biological Layers", 
           href: "/docs/layers",
-          keywords: ["bioplastic", "hebbian", "homeostatic", "plasticity", "dense", "synapse", "neuroplasticity"]
+          keywords: ["bioplastic", "hebbian", "homeostatic", "plasticity", "dense", "synapse", "neuroplasticity", "PredictiveResonantLayer", "predictive resonance", "local resonance"]
         },
         { 
           title: "ResonantGSER", 
