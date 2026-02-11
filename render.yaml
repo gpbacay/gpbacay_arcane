@@ -8,7 +8,7 @@ services:
     runtime: python
     region: oregon
 
-    buildCommand: pip install -r requirements-api.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: python examples/serve_mnist_api.py
 
     envVars:

@@ -12,11 +12,10 @@ matplotlib>=3.5.0
 # HTTP client (for downloading datasets)
 requests>=2.28.0
 
-# Optional: MNIST demo API server (docs site)
-# pip install fastapi uvicorn Pillow
-# fastapi>=0.100.0
-# uvicorn>=0.22.0
-# Pillow>=9.0.0
+# MNIST demo API server (serve_mnist_api.py, Render)
+fastapi>=0.100.0
+uvicorn>=0.22.0
+Pillow>=9.0.0
 
 # Development dependencies (optional)
 # pip install gpbacay-arcane[dev]
