@@ -388,6 +388,7 @@ class PredictiveResonantCell(Layer):
         resonance_cycles=3,
         resonance_step_size=0.2,
         spike_threshold=0.5,
+        persist_alignment=False,
         **kwargs,
     ):
         super(PredictiveResonantCell, self).__init__(**kwargs)
@@ -395,6 +396,10 @@ class PredictiveResonantCell(Layer):
         self.resonance_cycles = resonance_cycles
         self.resonance_step_size = resonance_step_size
         self.spike_threshold = spike_threshold
+        # If True, we keep a slow-moving alignment memory across separate
+        # forward passes (and even across separate inputs within the same
+        # process), giving you "stateful resonance across calls".
+        self.persist_alignment = persist_alignment
 
         # state: [h, c, alignment]
         self.state_size = [units, units, units]
@@ -446,6 +451,18 @@ class PredictiveResonantCell(Layer):
             trainable=False,
         )
 
+        # Optional persistent alignment memory (batch-agnostic).
+        # When enabled, this provides a default alignment state for the next
+        # sequence, even if it is a different input or comes from a different
+        # call site, enabling stateful resonance behaviour.
+        if self.persist_alignment:
+            self.alignment_memory = self.add_weight(
+                name="alignment_memory",
+                shape=(self.units,),
+                initializer="zeros",
+                trainable=False,
+            )
+
         super(PredictiveResonantCell, self).build(input_shape)
 
     def _resonance_loop(self, h_initial, alignment):
@@ -468,6 +485,28 @@ class PredictiveResonantCell(Layer):
         self.global_divergence.assign(divergence)
 
         return h_current
+
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
+        """
+        Initial state for the predictive resonant cell.
+
+        When `persist_alignment` is enabled, the alignment part of the state
+        is initialized from a batch-agnostic `alignment_memory` variable so
+        that resonance can carry over across independent calls.
+        """
+        if batch_size is None and inputs is not None:
+            batch_size = tf.shape(inputs)[0]
+        dtype = dtype or tf.float32
+
+        h0 = tf.zeros((batch_size, self.units), dtype=dtype)
+        c0 = tf.zeros((batch_size, self.units), dtype=dtype)
+
+        if getattr(self, "persist_alignment", False) and hasattr(self, "alignment_memory"):
+            align0 = tf.tile(tf.expand_dims(tf.cast(self.alignment_memory, dtype), 0), [batch_size, 1])
+        else:
+            align0 = tf.zeros((batch_size, self.units), dtype=dtype)
+
+        return [h0, c0, align0]
 
     def call(self, inputs, states, **kwargs):
         """
@@ -505,6 +544,12 @@ class PredictiveResonantCell(Layer):
         alpha = 0.1  # slow update rate for alignment state
         align_new = (1.0 - alpha) * align_prev + alpha * predicted
 
+        # Optionally store a batch-agnostic summary of the new alignment so
+        # that subsequent calls can start from a more informed resonance target.
+        if getattr(self, "persist_alignment", False) and hasattr(self, "alignment_memory"):
+            mean_align = tf.reduce_mean(align_new, axis=0)
+            self.alignment_memory.assign(mean_align)
+
         return h_final, [h_final, c_new, align_new]
 
     def get_config(self):
@@ -515,6 +560,7 @@ class PredictiveResonantCell(Layer):
                 "resonance_cycles": self.resonance_cycles,
                 "resonance_step_size": self.resonance_step_size,
                 "spike_threshold": self.spike_threshold,
+                "persist_alignment": self.persist_alignment,
             }
         )
         return config

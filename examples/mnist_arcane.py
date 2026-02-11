@@ -18,7 +18,13 @@ from gpbacay_arcane.layers import (
     SpatioTemporalSummarization,
 )
 
-def build_mnist_arcane_model(hidden_dim=128, resonance_factor=0.2, resonance_cycles=1):
+def build_mnist_arcane_model(
+    hidden_dim=128,
+    resonance_factor=0.2,
+    resonance_cycles=1,
+    persistent_predictive=False,
+    bioplastic_inference_plasticity=False,
+):
     """
     Builds a neuromimetic MNIST classifier using ResonantGSER and Bioplastic layers.
     Treats MNIST images (28x28) as a sequence of 28 rows.
@@ -36,6 +42,7 @@ def build_mnist_arcane_model(hidden_dim=128, resonance_factor=0.2, resonance_cyc
         resonance_step_size=0.2,
         spike_threshold=0.4,
         return_sequences=True,
+        persist_alignment=persistent_predictive,
         name="predictive_resonant_primary",
     )
 
@@ -45,6 +52,7 @@ def build_mnist_arcane_model(hidden_dim=128, resonance_factor=0.2, resonance_cyc
         resonance_step_size=0.25,
         spike_threshold=0.35,
         return_sequences=True,
+        persist_alignment=persistent_predictive,
         name="predictive_resonant_secondary",
     )
 
@@ -69,6 +77,7 @@ def build_mnist_arcane_model(hidden_dim=128, resonance_factor=0.2, resonance_cyc
         target_avg=0.1,
         homeostatic_rate=1e-4,
         activation='gelu',
+        enable_inference_plasticity=bioplastic_inference_plasticity,
         name='neuromimetic_refining'
     )(pooled)
     
@@ -87,9 +96,16 @@ def train_and_evaluate():
     
     # 2. Build Model
     # Use a lighter ARCANE configuration by default so MNIST trains in minutes,
-    # even on CPU-only machines. You can increase hidden_dim and resonance_cycles
-    # if you want a heavier, more deliberative configuration.
-    model = build_mnist_arcane_model(hidden_dim=128, resonance_factor=0.2, resonance_cycles=1)
+    # even on CPU-only machines. Build with the same architecture as test_infer
+    # (persistent_predictive + bioplastic_inference_plasticity) so saved weights
+    # are compatible and inference can use stateful resonance and inference learning.
+    model = build_mnist_arcane_model(
+        hidden_dim=128,
+        resonance_factor=0.2,
+        resonance_cycles=1,
+        persistent_predictive=True,
+        bioplastic_inference_plasticity=True,
+    )
     
     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3, clipnorm=1.0)
     model.compile(
@@ -163,4 +179,4 @@ if __name__ == "__main__":
     train_and_evaluate()
 
 # python examples/mnist_arcane.py
-# python examples/test_infer_2test.py
+# python examples/test_infer.py

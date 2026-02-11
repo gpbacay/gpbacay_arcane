@@ -17,7 +17,12 @@ def load_model(script_dir: str):
     from mnist_arcane import build_mnist_arcane_model
 
     print("Rebuilding ARCANE MNIST model and loading weights...")
-    model = build_mnist_arcane_model()
+    # Enable persistent predictive resonance and inference-time plasticity
+    # so that the model can adapt slightly during repeated inference calls.
+    model = build_mnist_arcane_model(
+        persistent_predictive=True,
+        bioplastic_inference_plasticity=True,
+    )
 
     # Dummy forward pass to initialize custom layers
     model(np.zeros((1, 28, 28), dtype=np.float32))
@@ -80,7 +85,7 @@ def main():
             img_path = os.path.join(script_dir, img_path)
     else:
         # Default to a sample digit image in the examples folder
-        img_path = os.path.join(script_dir, "4test.png")
+        img_path = os.path.join(script_dir, "5test.png")
 
     print(f"Using test image: {img_path}")
 
@@ -130,6 +135,15 @@ def main():
     viz_path = os.path.join(script_dir, "mnist_arcane_infer_result.png")
     plt.savefig(viz_path)
     print(f"Inference visualization saved to: {viz_path}")
+
+    # 6. Optionally persist inference-time plasticity updates so that
+    # repeated calls to this script can gradually adapt the model.
+    weights_path = os.path.join(os.path.dirname(script_dir), "mnist_arcane_model.weights.h5")
+    try:
+        model.save_weights(weights_path)
+        print(f"Updated weights (including plasticity state) saved to: {weights_path}")
+    except Exception as e:
+        print(f"Warning: could not save updated weights: {e}")
 
 
 if __name__ == "__main__":

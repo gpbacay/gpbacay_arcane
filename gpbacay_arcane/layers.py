@@ -231,6 +231,7 @@ class PredictiveResonantLayer(tf.keras.layers.RNN):
         spike_threshold=0.5,
         return_sequences=False,
         return_state=False,
+        persist_alignment=False,
         **kwargs,
     ):
         cell = PredictiveResonantCell(
@@ -238,6 +239,7 @@ class PredictiveResonantLayer(tf.keras.layers.RNN):
             resonance_cycles=resonance_cycles,
             resonance_step_size=resonance_step_size,
             spike_threshold=spike_threshold,
+            persist_alignment=persist_alignment,
         )
 
         super(PredictiveResonantLayer, self).__init__(
@@ -250,6 +252,7 @@ class PredictiveResonantLayer(tf.keras.layers.RNN):
         self.resonance_cycles = resonance_cycles
         self.resonance_step_size = resonance_step_size
         self.spike_threshold = spike_threshold
+        self.persist_alignment = persist_alignment
 
     def get_config(self):
         config = super(PredictiveResonantLayer, self).get_config()
@@ -259,6 +262,7 @@ class PredictiveResonantLayer(tf.keras.layers.RNN):
                 "resonance_cycles": self.resonance_cycles,
                 "resonance_step_size": self.resonance_step_size,
                 "spike_threshold": self.spike_threshold,
+                "persist_alignment": self.persist_alignment,
             }
         )
         return config
@@ -446,7 +450,7 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
     """
     def __init__(self, units, learning_rate=1e-3, anti_hebbian_rate=0.1, target_avg=0.12, 
                  homeostatic_rate=5e-5, bcm_tau=800.0, activation='gelu', normalization='l2', 
-                 dropout_rate=0.1, **kwargs):
+                 dropout_rate=0.1, enable_inference_plasticity=False, **kwargs):
         super().__init__(**kwargs)
         self.units = units
         self.learning_rate = learning_rate
@@ -458,6 +462,11 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
         self.normalization_type = normalization
         self.dropout_rate = dropout_rate
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
+        # When True, we apply a lightweight Hebbian-style plasticity update
+        # to a non-trainable "plastic" weight component during inference.
+        # This gives you inference-time learning without interfering with
+        # gradient-based training.
+        self.enable_inference_plasticity = enable_inference_plasticity
 
     def get_config(self):
         config = super().get_config()
@@ -470,7 +479,8 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
             "bcm_tau": self.bcm_tau,
             "activation": tf.keras.activations.serialize(self.activation),
             "normalization": self.normalization_type,
-            "dropout_rate": self.dropout_rate
+            "dropout_rate": self.dropout_rate,
+            "enable_inference_plasticity": self.enable_inference_plasticity,
         })
         return config
 
@@ -487,6 +497,14 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
             trainable=True,
             name='bias'
         )
+        # Non-trainable plastic component that can be updated online during
+        # inference without interfering with optimizer updates.
+        self.plastic_kernel = self.add_weight(
+            shape=(input_shape[-1], self.units),
+            initializer='zeros',
+            trainable=False,
+            name='plastic_kernel'
+        )
         self.trace = self.add_weight(
             shape=(self.units,),
             initializer='zeros',
@@ -495,10 +513,48 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
         )
 
     def call(self, inputs, training=False):
-        x = tf.matmul(inputs, self.kernel) + self.bias
+        # Effective weights are the sum of the trained kernel and the
+        # non-trainable plastic component.
+        effective_kernel = self.kernel + self.plastic_kernel
+        x = tf.matmul(inputs, effective_kernel) + self.bias
         x = self.activation(x)
+
         if training:
+            # Standard dropout path during supervised training.
             x = self.dropout(x, training=training)
+        elif self.enable_inference_plasticity:
+            # Lightweight Hebbian-style plasticity during inference:
+            # ΔW ∝ pre^T * post (with simple anti-Hebbian and homeostatic
+            # components to avoid runaway growth).
+            # This runs only when not in training mode, so it won't
+            # interfere with backprop.
+            pre = inputs
+            post = x
+
+            # Optional L2 normalization for stability
+            if self.normalization_type == "l2":
+                pre = tf.nn.l2_normalize(pre, axis=-1)
+                post = tf.nn.l2_normalize(post, axis=-1)
+
+            # Use safe denominator so this works in graph mode (batch_size may be symbolic).
+            batch_size = tf.cast(tf.shape(pre)[0], tf.float32)
+            batch_size_safe = tf.maximum(batch_size, 1.0)
+            hebb = tf.einsum("bi,bj->ij", pre, post) / batch_size_safe
+
+            # Simple BCM-like running average of postsynaptic activity
+            mean_post = tf.reduce_mean(post, axis=0)
+            new_trace = (1.0 - 1.0 / self.bcm_tau) * self.trace + (1.0 / self.bcm_tau) * mean_post
+            self.trace.assign(new_trace)
+
+            # Hebbian minus anti-Hebbian component
+            dw = self.learning_rate * (hebb - self.anti_hebbian_rate * tf.abs(hebb))
+
+            # Homeostatic scaling to keep weights in a reasonable range
+            self.plastic_kernel.assign_add(dw)
+            self.plastic_kernel.assign_sub(
+                self.homeostatic_rate * self.plastic_kernel
+            )
+
         return x
 
 class HebbianHomeostaticNeuroplasticity(tf.keras.layers.Layer):
