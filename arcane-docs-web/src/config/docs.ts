@@ -51,6 +51,11 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
           keywords: ["spiking", "reservoir", "dynamics", "spectral radius", "leak rate", "threshold", "reservoir computing"]
         },
         { 
+          title: "PredictiveResonantLayer",
+          href: "/docs/predictive-resonant-layer",
+          keywords: ["predictive resonance", "local resonance", "recurrent", "alignment", "autonomy"]
+        },
+        { 
           title: "Activations", 
           href: "/docs/activations",
           keywords: ["spike", "gelu", "softplus", "neuromimetic", "stateful", "lif"]

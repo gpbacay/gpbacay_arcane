@@ -369,16 +369,18 @@ class ResonantGSERCell(Layer):
 
 class PredictiveResonantCell(Layer):
     """
-    A neuromimetic recurrent cell that implements *local* predictive resonance.
-
+    A neuromimetic recurrent cell that implements *local* predictive resonance, modeled after homeostatic loops in biological neural circuits.
+    
+    This mechanism implements the core principle of **Predictive Coding**: that neural state should minimize the divergence between sensory input and internal expectation.
+    
     Compared to `ResonantGSERCell`, this cell:
-    - Keeps the core recurrent dynamics explicit (via an internal LSTMCell)
-    - Maintains a per-sample alignment state as part of the RNN state
-      instead of a single global alignment vector
-    - Uses a lightweight predictive head to update the alignment state
-      toward a slow-moving internal prediction of future activity
+    - Keeps the core recurrent dynamics explicit (mimicking somatic integration)
+    - Maintains a per-sample alignment state acting as a **synaptic memory trace**
+    - Uses a lightweight predictive head (like a dendritic prediction) to update the alignment state
+      toward a slow-moving internal expectation of future activity
 
-    This makes the resonance loop fully per-example and self-contained,
+    This creates a fully autonomous, self-contained resonance loop similar to the behavior of
+    isolated cortical columns.
     without relying on external callbacks or model references.
     """
 

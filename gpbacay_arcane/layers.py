@@ -209,13 +209,15 @@ class ResonantGSER(tf.keras.layers.RNN):
 
 class PredictiveResonantLayer(tf.keras.layers.RNN):
     """
-    RNN layer that implements local predictive resonance.
-
-    Alignment is stored per example in the recurrent state (h, c, align), so the
-    layer needs no external callbacks or model references. A slow-moving
-    alignment vector acts as an internal prediction; each step the hidden state
-    is updated toward it. Set persist_alignment=True to carry alignment across
-    separate forward passes for stateful resonance.
+    RNN layer that implements local predictive resonance, inspired by **Predictive Coding** theories in neuroscience.
+    
+    This layer models the behavior of cortical columns that maintain an internal prediction of future inputs.
+    Alignment is stored per example in the recurrent state (h, c, align), functioning like a local
+    "expectation memory." A slow-moving alignment vector acts as this internal prediction; each step 
+    the hidden state is iteratively harmonized toward it to minimize prediction error.
+    
+    Set persist_alignment=True to carry these semantic expectations across separate forward passes,
+    mimicking long-term potentiation (LTP) in biological synapses.
     """
 
     def __init__(

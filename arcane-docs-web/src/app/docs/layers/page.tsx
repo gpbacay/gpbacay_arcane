@@ -37,8 +37,9 @@ layer = ResonantGSER(
     {
       id: "predictive-resonant",
       name: "PredictiveResonantLayer",
-      description: "RNN layer for local predictive resonance with per-example alignment and no external callbacks.",
-      details: "Alignment is stored per example in the recurrent state (h, c, align), so the layer needs no external callbacks or model references. A slow-moving alignment vector acts as an internal prediction; each step the hidden state is updated toward it. Set persist_alignment=True to carry alignment across separate forward passes for stateful resonance. Use with BioplasticDenseLayer inference plasticity for inference-time adaptation. Good for sequence models (e.g. MNIST as rows) when you want resonance without wiring a hierarchy of layers.",
+      description: "Implements Local Predictive Resonance inspired by Predictive Coding, modeling autonomous neural clusters that minimize prediction error.",
+      details: "Inspired by neuroscience, this layer mimics the brain's ability to minimize divergence between internal predictions and sensory inputs. Unlike the hierarchical resonance of ResonantGSER, it models the local homeostatic alignment of individual clusters, maintaining a fully autonomous, per-sample world model.",
+      link: "/docs/predictive-resonant-layer",
       code: `from gpbacay_arcane import PredictiveResonantLayer
 
 layer = PredictiveResonantLayer(
@@ -170,7 +171,7 @@ activation = NeuromimeticActivation(
                     <div className="pt-2">
                       <a 
                         href={layer.link} 
-                        className="inline-flex items-center text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors"
+                        className="inline-flex items-center text-sm font-medium text-[#C785F2] hover:text-[#C785F2]/80 transition-colors"
                       >
                         View detailed documentation <span className="ml-1">&rarr;</span>
                       </a>
