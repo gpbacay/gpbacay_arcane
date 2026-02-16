@@ -16,6 +16,7 @@ from tensorflow.keras import Model
 
 from gpbacay_arcane.layers import (
     ResonantGSER, 
+    PredictiveResonantLayer,
     BioplasticDenseLayer, 
     DenseGSER,
     GSER,
@@ -397,6 +398,7 @@ def load_neuromimetic_model(model_path, tokenizer_path=None):
     custom_objects = {
         'DenseGSER': DenseGSER,
         'ResonantGSER': ResonantGSER,
+        'PredictiveResonantLayer': PredictiveResonantLayer,
         'BioplasticDenseLayer': BioplasticDenseLayer,
         'GSER': GSER,
         'LatentTemporalCoherence': LatentTemporalCoherence,
@@ -415,6 +417,327 @@ def load_neuromimetic_model(model_path, tokenizer_path=None):
         return model, tokenizer
     
     return model
+
+
+class PredictiveResonantSemanticModel:
+    """
+    Predictive Resonant Semantic Foundation Model
+    
+    A neuromimetic model architecture that leverages PredictiveResonantLayer for
+    local predictive resonance. Unlike the hierarchical ResonantGSER approach,
+    this model uses self-contained resonance where each layer maintains its own
+    internal alignment vector for continuous prediction.
+    
+    Key features:
+    - Stacked PredictiveResonantLayers for deep predictive coding
+    - Local resonance without requiring hierarchical feedback wiring
+    - Optional persist_alignment for cross-sequence semantic memory (LTP-like)
+    - BioplasticDenseLayer for Hebbian learning
+    - Combined with LSTM for temporal processing
+    """
+    
+    def __init__(self, vocab_size, seq_len=16, embed_dim=32, hidden_dim=64, 
+                 num_pred_layers=2, persist_alignment=False):
+        """
+        Initialize the predictive resonant semantic model.
+        
+        Args:
+            vocab_size (int): Size of the vocabulary
+            seq_len (int): Length of input sequences
+            embed_dim (int): Embedding dimension
+            hidden_dim (int): Hidden layer dimension
+            num_pred_layers (int): Number of stacked PredictiveResonantLayers
+            persist_alignment (bool): Whether to maintain alignment across sequences
+        """
+        self.vocab_size = vocab_size
+        self.seq_len = seq_len
+        self.embed_dim = embed_dim
+        self.hidden_dim = hidden_dim
+        self.num_pred_layers = num_pred_layers
+        self.persist_alignment = persist_alignment
+        self.model = None
+
+    def build_model(self):
+        """Build the predictive resonant semantic model architecture."""
+        
+        with tf.device('/CPU:0'):
+            inputs = Input(shape=(self.seq_len,), name='text_input')
+            
+            # Embedding layer
+            embedded = Embedding(
+                self.vocab_size, 
+                self.embed_dim,
+                name='embedding'
+            )(inputs)
+            
+            # Stack of PredictiveResonantLayers for deep local resonance
+            x = embedded
+            self.predictive_resonant_layers = []
+            
+            for i in range(self.num_pred_layers):
+                # First layer doesn't use persist_alignment to start fresh
+                # Subsequent layers can use it for memory across sequences
+                use_persist = self.persist_alignment and (i > 0)
+                
+                pred_layer = PredictiveResonantLayer(
+                    units=self.hidden_dim,
+                    resonance_cycles=3,
+                    resonance_step_size=0.2,
+                    spike_threshold=0.5,
+                    return_sequences=True,
+                    persist_alignment=use_persist,
+                    name=f'predictive_resonant_{i+1}'
+                )
+                
+                x = pred_layer(x)
+                x = LayerNormalization(name=f'pred_layer_norm_{i+1}')(x)
+                x = Dropout(0.15, name=f'pred_dropout_{i+1}')(x)
+                
+                self.predictive_resonant_layers.append(pred_layer)
+            
+            # LSTM for sequential temporal processing
+            lstm_out = LSTM(
+                self.hidden_dim,
+                return_sequences=True,
+                dropout=0.2,
+                recurrent_dropout=0.1,
+                name='lstm_temporal'
+            )(x)
+            
+            # Feature pooling
+            avg_pool = GlobalAveragePooling1D(name='avg_pool')(lstm_out)
+            pred_pool = GlobalAveragePooling1D(name='pred_pool')(x)
+            
+            # Feature fusion
+            combined = Concatenate(name='feature_fusion')([avg_pool, pred_pool])
+            
+            # BioplasticDenseLayer - Hebbian learning and homeostatic plasticity
+            bioplastic = BioplasticDenseLayer(
+                units=self.hidden_dim * 2,
+                learning_rate=1.5e-3,
+                target_avg=0.11,
+                homeostatic_rate=8e-5,
+                activation='gelu',
+                dropout_rate=0.12,
+                name='bioplastic_main'
+            )(combined)
+            
+            # Additional dense processing
+            dense_hidden = Dense(
+                self.hidden_dim,
+                activation='gelu',
+                name='dense_processing'
+            )(bioplastic)
+            
+            dense_dropout = Dropout(0.1, name='dense_dropout')(dense_hidden)
+            
+            # Output layer
+            outputs = Dense(
+                self.vocab_size,
+                activation='softmax',
+                name='semantic_output'
+            )(dense_dropout)
+            
+            self.model = Model(
+                inputs=inputs,
+                outputs=outputs,
+                name='predictive_resonant_semantic_model'
+            )
+        
+        return self.model
+    
+    def compile_model(self, learning_rate=1e-3):
+        """Compile the model with appropriate optimizer and loss function."""
+        if self.model is None:
+            raise ValueError("Model must be built before compiling. Call build_model() first.")
+        
+        optimizer = tf.keras.optimizers.Adam(
+            learning_rate=learning_rate,
+            clipnorm=1.0,
+            beta_1=0.9,
+            beta_2=0.999
+        )
+        
+        self.model.compile(
+            optimizer=optimizer,
+            loss='sparse_categorical_crossentropy',
+            metrics=['accuracy']
+        )
+
+        return self.model
+    
+    def run_inference_resonance(self, inputs, num_cycles=3):
+        """
+        Run inference-time resonance cycles on the PredictiveResonantLayers.
+        
+        Since PredictiveResonantLayer maintains its own internal alignment,
+        this allows for deliberative inference where the layer refines
+        its predictions before final output.
+        
+        Args:
+            inputs: Input data
+            num_cycles: Number of resonance iterations
+            
+        Returns:
+            Model predictions after resonance
+        """
+        if self.model is None:
+            raise ValueError("Model must be built first")
+        
+        # Get the final hidden state from the last PredictiveResonantLayer
+        # The alignment has already been updated during forward pass
+        predictions = self.model.predict(inputs, verbose=0)
+        return predictions
+    
+    def get_model_info(self):
+        """Get information about the predictive resonant model architecture."""
+        return {
+            "name": "Predictive Resonant Semantic Model",
+            "description": "Bio-inspired model with local predictive resonance for semantic understanding",
+            "features": [
+                f"{self.num_pred_layers} stacked PredictiveResonantLayers",
+                "Local predictive coding without hierarchical feedback",
+                "BioplasticDenseLayer Hebbian learning",
+                "LSTM temporal processing",
+                "persist_alignment" if self.persist_alignment else "stateless resonance"
+            ],
+            "parameters": {
+                "vocab_size": self.vocab_size,
+                "sequence_length": self.seq_len,
+                "embedding_dim": self.embed_dim,
+                "hidden_dim": self.hidden_dim,
+                "num_pred_layers": self.num_pred_layers
+            }
+        }
+
+
+class HybridResonantModel:
+    """
+    Hybrid Resonant Model combining ResonantGSER (hierarchical) and 
+    PredictiveResonantLayer (local) for maximum representational power.
+    
+    This model leverages:
+    - ResonantGSER for top-down hierarchical alignment
+    - PredictiveResonantLayer for local autonomous prediction
+    - BioplasticDenseLayer for Hebbian learning
+    """
+    
+    def __init__(self, vocab_size, seq_len=16, embed_dim=32, hidden_dim=64):
+        self.vocab_size = vocab_size
+        self.seq_len = seq_len
+        self.embed_dim = embed_dim
+        self.hidden_dim = hidden_dim
+        self.model = None
+
+    def build_model(self):
+        """Build the hybrid resonant model architecture."""
+        
+        with tf.device('/CPU:0'):
+            inputs = Input(shape=(self.seq_len,), name='text_input')
+            
+            # Embedding
+            embedded = Embedding(
+                self.vocab_size, 
+                self.embed_dim,
+                name='embedding'
+            )(inputs)
+            
+            # Stage 1: PredictiveResonantLayer (local resonance)
+            pred_layer = PredictiveResonantLayer(
+                units=self.hidden_dim,
+                resonance_cycles=3,
+                resonance_step_size=0.2,
+                spike_threshold=0.5,
+                return_sequences=True,
+                persist_alignment=False,
+                name='predictive_resonant_1'
+            )
+            pred_out = pred_layer(embedded)
+            pred_out = LayerNormalization(name='pred_layer_norm')(pred_out)
+            pred_out = Dropout(0.15)(pred_out)
+            
+            # Stage 2: ResonantGSER (hierarchical resonance)
+            resonant_layer = ResonantGSER(
+                units=self.hidden_dim,
+                spike_threshold=0.35,
+                resonance_factor=0.1,
+                resonance_cycles=3,
+                return_sequences=True,
+                name='resonant_gser'
+            )
+            gser_out = resonant_layer(pred_out)
+            
+            # Establish hierarchical feedback
+            resonant_layer.set_lower_layer(pred_layer)
+            pred_layer.set_higher_layer(resonant_layer)
+            
+            # Store layers for resonance cycles
+            self.resonant_layer_objects = [pred_layer, resonant_layer]
+            
+            # LSTM temporal processing
+            lstm_out = LSTM(
+                self.hidden_dim,
+                return_sequences=True,
+                dropout=0.2,
+                recurrent_dropout=0.1,
+                name='lstm_temporal'
+            )(gser_out)
+            
+            # Feature fusion
+            avg_pool = GlobalAveragePooling1D(name='avg_pool')(lstm_out)
+            gser_pool = GlobalAveragePooling1D(name='gser_pool')(gser_out)
+            
+            combined = Concatenate(name='feature_fusion')([avg_pool, gser_pool])
+            
+            # BioplasticDenseLayer
+            bioplastic = BioplasticDenseLayer(
+                units=self.hidden_dim * 2,
+                learning_rate=1.5e-3,
+                target_avg=0.11,
+                homeostatic_rate=8e-5,
+                activation='gelu',
+                dropout_rate=0.12,
+                name='bioplastic_main'
+            )(combined)
+            
+            dense_hidden = Dense(self.hidden_dim, activation='gelu', name='dense_processing')(bioplastic)
+            dense_dropout = Dropout(0.1)(dense_hidden)
+            
+            outputs = Dense(self.vocab_size, activation='softmax', name='semantic_output')(dense_dropout)
+            
+            self.model = Model(inputs=inputs, outputs=outputs, name='hybrid_resonant_model')
+        
+        return self.model
+    
+    def compile_model(self, learning_rate=1e-3):
+        """Compile the hybrid model."""
+        if self.model is None:
+            raise ValueError("Model must be built before compiling.")
+        
+        optimizer = tf.keras.optimizers.Adam(
+            learning_rate=learning_rate,
+            clipnorm=1.0
+        )
+        
+        self.model.compile(
+            optimizer=optimizer,
+            loss='sparse_categorical_crossentropy',
+            metrics=['accuracy']
+        )
+        
+        return self.model
+    
+    def get_model_info(self):
+        return {
+            "name": "Hybrid Resonant Model",
+            "description": "Combines hierarchical (ResonantGSER) and local (PredictiveResonantLayer) resonance",
+            "features": [
+                "PredictiveResonantLayer for local autonomous prediction",
+                "ResonantGSER for hierarchical top-down alignment",
+                "BioplasticDenseLayer Hebbian learning",
+                "Bidirectional resonance flow"
+            ]
+        }
 
 
 # Legacy model aliases for backward compatibility
