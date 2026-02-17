@@ -13,7 +13,7 @@ with open('README.md', encoding='utf-8') as f:
 
 setup(
     name='gpbacay-arcane',
-    version='3.0.2',
+    version='4.0.0',
     author='Gianne P. Bacay',
     author_email='giannebacay2004@gmail.com',
     description='A neuromimetic semantic foundation model library with biologically-inspired neural mechanisms including spiking neural networks, Hebbian learning, and homeostatic plasticity',
