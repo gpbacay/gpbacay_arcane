@@ -81,7 +81,7 @@ export default function DocsPage() {
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-white">Who developed it?</h2>
           <p className="text-zinc-400 leading-relaxed">
-            ARCANE was developed by <Link href="https://www.gpbacay.xyz/" target="_blank" rel="noopener noreferrer" className="text-[#C785F2] hover:underline font-bold">Gianne P. Bacay</Link> in 2024, a developer and researcher dedicated to redefining human-computer interactions through disruptive AI innovations.
+            ARCANE was developed by <Link href="https://personal-portfolio-2025-delta.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-[#C785F2] hover:underline font-bold">Gianne P. Bacay</Link> in 2024, a developer and researcher dedicated to redefining human-computer interactions through disruptive AI innovations.
           </p>
         </div>
         <div className="space-y-4">

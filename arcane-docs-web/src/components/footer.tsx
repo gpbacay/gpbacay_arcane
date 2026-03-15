@@ -20,7 +20,7 @@ export function SiteFooter() {
             </div>
             <div className="space-y-4 text-[13px] font-mono leading-relaxed opacity-70">
               <Link 
-                href="https://www.gpbacay.xyz/" 
+                href="https://personal-portfolio-2025-delta.vercel.app/" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:text-white transition-colors cursor-pointer"
