@@ -1,6 +1,8 @@
+from __future__ import annotations
+from typing import Optional
 import tensorflow as tf
 import numpy as np
-from tensorflow.keras.layers import Layer
+from tensorflow.keras.layers import Layer, Dense, Dropout, LayerNormalization
 
 class GSER(Layer):
     """
@@ -22,7 +24,7 @@ class GSER(Layer):
         self.neurogenesis_rate = neurogenesis_rate
         self.pruning_rate = pruning_rate
         self.use_semantic_gate = use_semantic_gate
-        self.current_reservoir_size = None
+        self.current_reservoir_size: Optional[tf.Variable] = None
         self.state_size = [self.max_dynamic_reservoir_dim]
         self.output_size = self.max_dynamic_reservoir_dim
         
@@ -555,7 +557,7 @@ class PredictiveResonantCell(Layer):
         return h_final, [h_final, c_new, align_new]
 
     def get_config(self):
-        config = super(PredictiveResonantCell, self).get_config()
+        config = super().get_config()
         config.update(
             {
                 "units": self.units,
@@ -670,7 +672,6 @@ class SpatioTemporalSummaryMixingLayer(Layer):
         self.use_weighted_summary = use_weighted_summary
 
     def build(self, input_shape):
-        from tensorflow.keras.layers import Dense, Dropout, LayerNormalization
         self.local_dense1 = Dense(4 * self.d_model)
         self.local_dense2 = Dense(self.d_model)
         self.local_dropout = Dropout(self.dropout_rate)
@@ -684,7 +685,7 @@ class SpatioTemporalSummaryMixingLayer(Layer):
         self.combiner_dropout = Dropout(self.dropout_rate)
         self.dynamic_dense = Dense(self.d_model)
         self.layer_norm = LayerNormalization(epsilon=1e-6)
-        super(SpatioTemporalSummaryMixingLayer, self).build(input_shape)
+        super().build(input_shape)
 
     def call(self, inputs, training=False):
         local_output = self.local_dense1(inputs)
@@ -711,4 +712,156 @@ class SpatioTemporalSummaryMixingLayer(Layer):
     def get_config(self):
         config = super().get_config()
         config.update({'d_model': self.d_model, 'dropout_rate': self.dropout_rate, 'use_weighted_summary': self.use_weighted_summary})
+        return config
+
+
+class AttentionResidual(Layer):
+    """
+    Attention Residuals (AttnRes) for Arcane.
+    
+    Replaces standard fixed-weight additive residual connections with learned,
+    input-dependent softmax attention over the full depth of preceding layer outputs.
+    
+    Based on the 'Attention Residuals' paper (Kimi Team, 2026):
+       h_l = Σ α_{i→l} · v_i,   where α_{i→l} = softmax(w_l · RMSNorm(v_i))
+    
+    Key advantages over standard residuals:
+    - Selective depth aggregation: each layer can selectively retrieve earlier
+      layer outputs rather than blindly accumulating all prior info.
+    - Bounded output magnitudes: prevents the PreNorm dilution problem where
+      hidden-state magnitudes grow as O(L) with depth.
+    - Uniform gradient flow: softmax competition prevents gradient over-concentration
+      in the earliest layers.
+    - Enables learned skip connections across depth (e.g. early embedding retrieval).
+    
+    Usage:
+        history = [embed_out]
+        for block in blocks:
+            x = AttentionResidual(d_model)(history)  # selective read
+            x = block(x)
+            history.append(x)
+    """
+    def __init__(self, d_model, eps=1e-6, **kwargs):
+        super().__init__(**kwargs)
+        self.d_model = d_model
+        self.eps = eps
+
+    def build(self, _):
+        # Pseudo-query vector w_l: zero-init → uniform weighting at start (safe training onset)
+        self.wl = self.add_weight(
+            shape=(self.d_model,),
+            initializer='zeros',
+            trainable=True,
+            name='pseudo_query'
+        )
+        # RMSNorm scaling parameter for keys
+        self.gamma = self.add_weight(
+            shape=(self.d_model,),
+            initializer='ones',
+            trainable=True,
+            name='rmsnorm_gamma'
+        )
+        super().build(_)
+
+    def call(self, history):
+        """
+        Args:
+            history: list of tensors, each shape (batch_size, ..., d_model).
+                     Represents v_0, v_1, ..., v_{l-1} (embedding + all prior layer outputs).
+        Returns:
+            Tensor of shape (batch_size, ..., d_model): selectively aggregated representation.
+        """
+        V = tf.stack(history, axis=-2)   # (..., L, d_model)
+        # RMSNorm over feature dimension to prevent magnitude dominance
+        rms = tf.sqrt(tf.reduce_mean(V ** 2, axis=-1, keepdims=True) + self.eps)
+        K = (V / rms) * self.gamma        # (..., L, d_model)
+        # Compute attention scores: w_l · k_i, summed over d_model → (..., L)
+        scores = tf.einsum('...d,...ld->...l', tf.ones_like(V[..., 0, :]) * self.wl, K)
+        scores = tf.reduce_sum(
+            tf.expand_dims(self.wl, 0) * K, axis=-1
+        )  # (..., L)
+        alpha = tf.nn.softmax(scores, axis=-1)   # (..., L)
+        # Weighted combination over depth
+        out = tf.einsum('...l,...ld->...d', alpha, V)  # (..., d_model)
+        return out
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({'d_model': self.d_model, 'eps': self.eps})
+        return config
+
+
+class BlockAttentionResidual(Layer):
+    """
+    Block Attention Residuals (Block AttnRes) for Arcane.
+    
+    A memory-efficient variant of AttentionResidual. Instead of attending over
+    all L individual layer outputs (O(Ld) memory), layers are partitioned into N
+    blocks. Within each block, outputs are summed into a single block representation 
+    b_n. Across blocks, softmax attention is applied over the N block-level summaries
+    plus the current partial intra-block accumulation.
+    
+    Memory: O(Nd) instead of O(Ld) — practical at scale with N ≈ 8.
+    
+    Training behaviour:
+    - Intra-block: standard additive residuals (local)
+    - Inter-block: learned softmax attention over block summaries (global)
+    
+    Usage:
+        completed_blocks = [embed_block_rep]  # b_0 = embedding block
+        partial = embed_out
+        for i, sublayer in enumerate(sublayers):
+            x = BlockAttentionResidual(d_model)([completed_blocks, partial])
+            x = sublayer(x)
+            partial = partial + x
+            if end_of_block:
+                completed_blocks.append(partial)
+                partial = zero
+    """
+    def __init__(self, d_model, eps=1e-6, **kwargs):
+        super().__init__(**kwargs)
+        self.d_model = d_model
+        self.eps = eps
+
+    def build(self, _):
+        self.wl = self.add_weight(
+            shape=(self.d_model,),
+            initializer='zeros',
+            trainable=True,
+            name='pseudo_query'
+        )
+        self.gamma = self.add_weight(
+            shape=(self.d_model,),
+            initializer='ones',
+            trainable=True,
+            name='rmsnorm_gamma'
+        )
+        super().build(_)
+
+    def call(self, inputs):
+        """
+        Args:
+            inputs: tuple/list of (completed_blocks, partial_block)
+                - completed_blocks: list of tensors, each (batch, d_model) — one per finished block
+                - partial_block: tensor (batch, d_model) — intra-block accumulation so far
+        Returns:
+            Tensor (batch, d_model): aggregated from all block sources.
+        """
+        completed_blocks, partial_block = inputs
+        all_sources = completed_blocks + [partial_block]
+
+        V = tf.stack(all_sources, axis=1)         # (B, N+1, d_model)
+        rms = tf.sqrt(tf.reduce_mean(V ** 2, axis=-1, keepdims=True) + self.eps)
+        K = (V / rms) * self.gamma                # (B, N+1, d_model)
+        # scores: w_l · k_i  →  (B, N+1)
+        scores = tf.reduce_sum(
+            tf.reshape(self.wl, (1, 1, self.d_model)) * K, axis=-1
+        )
+        alpha = tf.nn.softmax(scores, axis=-1)    # (B, N+1)
+        out = tf.einsum('bn,bnd->bd', alpha, V)   # (B, d_model)
+        return out
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({'d_model': self.d_model, 'eps': self.eps})
         return config
