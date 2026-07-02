@@ -61,17 +61,20 @@ export default function DocsPage() {
               </ul>
             </div>
             <div className="space-y-3">
-              <h3 className="text-red-400 font-semibold text-lg">Not Ideal For:</h3>
+              <h3 className="text-[#B9DFE0] font-semibold text-lg">Long-Term Goals:</h3>
+              <p className="text-xs text-zinc-500 leading-relaxed">
+                ARCANE is built toward these applications. The library is a proof of concept today—early adopters can explore the architecture while production-scale capabilities are still maturing.
+              </p>
               <ul className="space-y-2 list-disc list-inside text-sm">
-                <li><strong>Real-time Applications</strong>: Where inference speed is critical</li>
-                <li><strong>Large-scale Production</strong>: When you need maximum throughput</li>
-                <li><strong>Simple Classification</strong>: Standard deep learning works fine</li>
-                <li><strong>Resource-Constrained Edge</strong>: Very limited computational environments</li>
+                <li><strong>Real-time Applications</strong>: Low-latency inference for speed-critical workloads</li>
+                <li><strong>Large-scale Production</strong>: High-throughput deployment at scale</li>
+                <li><strong>Efficient Classification</strong>: Fast, lightweight pattern recognition without brute-force compute</li>
+                <li><strong>Resource-Constrained Edge</strong>: Running on limited hardware with brain-like efficiency</li>
               </ul>
             </div>
           </div>
           <p className="text-zinc-400 italic">
-            Choose ARCANE when you prioritize biological accuracy, interpretability, and long-term AI sustainability over raw computational speed.
+            Choose ARCANE when you want to help shape biologically inspired AI—from research and prototyping today toward real-time, efficient, production-ready systems tomorrow.
           </p>
         </div>
       </section>
