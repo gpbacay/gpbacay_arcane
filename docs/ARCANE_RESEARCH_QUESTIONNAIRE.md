@@ -10,7 +10,7 @@
 
 ### 1. Who is on the development team, and what are their qualifications?
 
-I am the sole inventor, developer, and researcher behind ARCANE. I have hands-on experience in AI systems development, computational neuroscience-inspired modeling, and open-source software engineering, and I built the project as both a research framework and a practical Python SDK on TensorFlow/Keras. Collaborators are welcome, but the core invention and direction remain under my leadership.
+I am the sole inventor, developer, and researcher behind ARCANE. I built it while still pursuing my BSIT degree, as a side project and hobby driven by my passion for AI, not as part of a funded lab or company. Working on my own time, I developed hands-on experience in AI systems, computational neuroscience-inspired modeling, and open-source software engineering, and turned ARCANE into both a research framework and a practical Python SDK on TensorFlow/Keras. Collaborators are welcome, but the core invention and direction remain under my leadership.
 
 ### 2. Where was the invention developed?
 
@@ -60,7 +60,9 @@ ARCANE is a proof of concept today. It runs on TensorFlow/Keras only with no nat
 
 ### 9. Were there any breakthroughs, unexpected failures, or false paths during the development process?
 
-My key breakthroughs were formalizing the Resonant State Alignment Algorithm, decoupling state alignment from weight updates, developing the PredictiveResonantLayer, and demonstrating measurable gains over traditional LSTMs. My main false paths were relying on pure backpropagation alone, which could not fix the Alignment Gap; depending on deep gradient chains, which caused instability; and using uniform activations, which lacked biological sparsity until I introduced spiking dynamics.
+My biggest breakthrough was figuring out how to make the system's layers agree on meaning before giving an answer, which I formalized as the Resonant State Alignment Algorithm. I also learned to separate that internal alignment from the usual process of retraining the whole model, so the system could harmonize its understanding without starting over every time. Building the PredictiveResonantLayer, where individual parts of the network can predict and correct themselves, and seeing ARCANE perform better than standard approaches on my tests, confirmed that this path was worth pursuing.
+
+Not everything worked on the first try. I initially relied on the same training methods most AI uses today, but they could not fix the Alignment Gap because information still only flowed in one direction. Long chains of error correction across many layers kept causing instability, like a message that gets more distorted the further it travels. I also tried keeping every part of the network active all the time, but real brains do not work that way. Switching to sparse, spike-like signaling, where activity happens only when needed, made the system more stable, more efficient, and closer to how biology actually operates.
 
 ### 10. Are there any broader societal or environmental applications for ARCANE?
 
