@@ -18,7 +18,7 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
         { 
           title: "Introduction", 
           href: "/docs",
-          keywords: ["about", "mission", "vision", "goals", "faq", "sentient ai", "consciousness", "developer", "philosophy", "semantic engineering"]
+          keywords: ["about", "mission", "vision", "goals", "faq", "sentient ai", "consciousness", "developer", "philosophy", "semantic engineering", "team", "funding", "intellectual property", "breakthrough", "timeline", "layman", "societal", "environmental", "limitations", "research questions"]
         },
         { 
           title: "Installation", 

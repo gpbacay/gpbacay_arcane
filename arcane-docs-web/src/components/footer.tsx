@@ -63,7 +63,7 @@ export function SiteFooter() {
           <div className="md:px-12">
             <h3 className="text-xs font-medium text-zinc-600 mb-6 lowercase">More</h3>
             <ul className="space-y-4 text-[13px] font-bold text-zinc-100 tracking-wide uppercase">
-              <li><Link href="/docs#research-applications" className="hover:text-[#C785F2] transition-colors">RESEARCH</Link></li>
+              <li><Link href="/docs#research-questions" className="hover:text-[#C785F2] transition-colors">RESEARCH</Link></li>
               <li><Link href="https://github.com/gpbacay/gpbacay_arcane/blob/main/README.md#contributing" className="hover:text-[#C785F2] transition-colors">CONTRIBUTING</Link></li>
               <li><Link href="https://github.com/gpbacay/gpbacay_arcane/blob/main/LICENSE" className="hover:text-[#C785F2] transition-colors">LICENSE</Link></li>
               <li><Link href="https://github.com/gpbacay/gpbacay_arcane" className="hover:text-[#C785F2] transition-colors">SOURCE CODE</Link></li>
