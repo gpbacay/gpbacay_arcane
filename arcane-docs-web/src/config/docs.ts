@@ -91,6 +91,11 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
           keywords: ["mnist", "demo", "draw", "digit", "inference", "test", "predict", "weights"]
         },
         { 
+          title: "ARCANE Fruitfly Brain", 
+          href: "/docs/fruitfly",
+          keywords: ["fruit fly", "drosophila", "brain", "mnist", "digit", "predict", "flywire", "fafbseg", "connectome", "rsaa", "arcane", "optic"]
+        },
+        { 
           title: "Benchmarks", 
           href: "/docs/benchmarks",
           keywords: ["performance", "accuracy", "loss", "comparison", "metrics", "test", "shakespeare"]

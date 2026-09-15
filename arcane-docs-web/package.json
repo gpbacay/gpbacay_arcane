@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:with-mnist": "node scripts/start-with-mnist.js",
+    "dev:with-flywire": "node scripts/start-with-flywire.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

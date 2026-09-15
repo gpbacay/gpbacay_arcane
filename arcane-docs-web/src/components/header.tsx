@@ -15,7 +15,7 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { docsConfig } from "@/config/docs";
-import { Search, FileText, Zap, Brain, Layers, Cpu, BarChart3, Terminal, Menu } from "lucide-react";
+import { Search, FileText, Zap, Brain, Layers, Cpu, BarChart3, Terminal, Menu, Bug } from "lucide-react";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 
 export function SiteHeader() {
@@ -179,6 +179,7 @@ export function SiteHeader() {
                   item.title.includes("Model") || item.title.includes("GSER") ? Cpu :
                   item.title.includes("CLI") ? Terminal :
                   item.title.includes("Benchmarks") ? BarChart3 :
+                  item.title.includes("Fruit Fly") ? Bug :
                   FileText;
                 
                 return (

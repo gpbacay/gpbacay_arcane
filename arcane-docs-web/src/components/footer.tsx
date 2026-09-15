@@ -44,6 +44,7 @@ export function SiteFooter() {
               <li><Link href="/docs/resonant-gser" className="hover:text-[#C785F2] transition-colors">RESONANT GSER</Link></li>
               <li><Link href="/docs/cli" className="hover:text-[#C785F2] transition-colors">CLI TOOLS</Link></li>
               <li><Link href="/docs/benchmarks" className="hover:text-[#C785F2] transition-colors">BENCHMARKS</Link></li>
+              <li><Link href="/docs/fruitfly" className="hover:text-[#C785F2] transition-colors">ARCANE FRUITFLY</Link></li>
             </ul>
           </div>
 

@@ -1,0 +1,756 @@
+{
+  "dataset": "flywire_fafb_public",
+  "materialization": 783,
+  "name": "Looming escape and locomotor descending circuit",
+  "description": "Real FlyWire v783 neurons: Giant Fiber (DNp01), looming visual PNs (LC4, LPLC2), and locomotor descending neurons (DNp09, MDN, DNa01/02). Synapse counts are from the public FlyWire connectivity release (synapses >= 5). Metadata from Schlegel et al. 2024 annotations.",
+  "citations": [
+    {
+      "title": "Neuronal wiring diagram of an adult brain",
+      "doi": "10.1038/s41586-024-07558-y"
+    },
+    {
+      "title": "Whole-brain annotation and multi-connectome cell typing of Drosophila",
+      "doi": "10.1038/s41586-024-07686-5"
+    }
+  ],
+  "tools": [
+    "fafbseg-py",
+    "FlyWire Codex public v783"
+  ],
+  "neurons": [
+    {
+      "id": "720575940604737708",
+      "label": "DNa02",
+      "cell_type": "DNa02",
+      "hemibrain_type": "DNa02",
+      "super_class": "descending",
+      "layer": "descending",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw000695",
+      "x": 653.728,
+      "y": 169.856,
+      "z": 43.0
+    },
+    {
+      "id": "720575940610236514",
+      "label": "MDN",
+      "cell_type": "MDN",
+      "hemibrain_type": "MDN",
+      "super_class": "descending",
+      "layer": "descending",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw010262",
+      "x": 530.976,
+      "y": 120.48,
+      "z": 122.72
+    },
+    {
+      "id": "720575940612462307",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "hemibrain_type": "LPLC2",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw005582",
+      "x": 695.04,
+      "y": 202.112,
+      "z": 164.6
+    },
+    {
+      "id": "720575940612518055",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "hemibrain_type": "LC4",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw001187",
+      "x": 335.456,
+      "y": 225.184,
+      "z": 163.88
+    },
+    {
+      "id": "720575940613470947",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "hemibrain_type": "LPLC2",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw014584",
+      "x": 340.192,
+      "y": 172.32,
+      "z": 195.08
+    },
+    {
+      "id": "720575940614526974",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "hemibrain_type": "LPLC2",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw013706",
+      "x": 700.768,
+      "y": 193.44,
+      "z": 166.32
+    },
+    {
+      "id": "720575940614572742",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "hemibrain_type": "LC4",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw020738",
+      "x": 382.24,
+      "y": 271.424,
+      "z": 161.8
+    },
+    {
+      "id": "720575940614582946",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "hemibrain_type": "LC4",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw016528",
+      "x": 677.824,
+      "y": 284.928,
+      "z": 127.64
+    },
+    {
+      "id": "720575940614738444",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "hemibrain_type": "LPLC2",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw013946",
+      "x": 353.088,
+      "y": 183.52,
+      "z": 193.12
+    },
+    {
+      "id": "720575940615575007",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "hemibrain_type": "LC4",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw018964",
+      "x": 348.16,
+      "y": 233.92,
+      "z": 167.92
+    },
+    {
+      "id": "720575940616026939",
+      "label": "MDN",
+      "cell_type": "MDN",
+      "hemibrain_type": "MDN",
+      "super_class": "descending",
+      "layer": "descending",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw033214",
+      "x": 517.568,
+      "y": 100.832,
+      "z": 113.88
+    },
+    {
+      "id": "720575940618709158",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "hemibrain_type": "LC4",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw019214",
+      "x": 676.512,
+      "y": 280.896,
+      "z": 118.8
+    },
+    {
+      "id": "720575940620314612",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "hemibrain_type": "LC4",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw023309",
+      "x": 683.424,
+      "y": 279.872,
+      "z": 125.96
+    },
+    {
+      "id": "720575940622838154",
+      "label": "Giant Fiber",
+      "cell_type": "DNp01",
+      "hemibrain_type": "Giant Fiber",
+      "super_class": "descending",
+      "layer": "descending",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw036981",
+      "x": 443.808,
+      "y": 202.752,
+      "z": 211.28
+    },
+    {
+      "id": "720575940624903064",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "hemibrain_type": "LPLC2",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw015201",
+      "x": 705.056,
+      "y": 185.312,
+      "z": 195.08
+    },
+    {
+      "id": "720575940625906702",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "hemibrain_type": "LC4",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw017951",
+      "x": 716.128,
+      "y": 239.904,
+      "z": 127.72
+    },
+    {
+      "id": "720575940625932421",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "hemibrain_type": "LC4",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw009527",
+      "x": 682.304,
+      "y": 282.048,
+      "z": 122.84
+    },
+    {
+      "id": "720575940626447848",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "hemibrain_type": "LPLC2",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw000636",
+      "x": 689.184,
+      "y": 195.52,
+      "z": 180.8
+    },
+    {
+      "id": "720575940626626895",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "hemibrain_type": "LC4",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw020214",
+      "x": 342.144,
+      "y": 256.832,
+      "z": 141.12
+    },
+    {
+      "id": "720575940627652358",
+      "label": "DNp09",
+      "cell_type": "DNp09",
+      "hemibrain_type": "DNp09",
+      "super_class": "descending",
+      "layer": "descending",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw005318",
+      "x": 634.624,
+      "y": 198.368,
+      "z": 212.0
+    },
+    {
+      "id": "720575940627787609",
+      "label": "DNa01",
+      "cell_type": "DNa01",
+      "hemibrain_type": "VES006",
+      "super_class": "descending",
+      "layer": "descending",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw036021",
+      "x": 420.256,
+      "y": 173.152,
+      "z": 69.04
+    },
+    {
+      "id": "720575940627902979",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "hemibrain_type": "LPLC2",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw016297",
+      "x": 711.232,
+      "y": 181.536,
+      "z": 178.64
+    },
+    {
+      "id": "720575940628699560",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "hemibrain_type": "LC4",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw016738",
+      "x": 344.832,
+      "y": 226.656,
+      "z": 168.16
+    },
+    {
+      "id": "720575940629292785",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "hemibrain_type": "LPLC2",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw014291",
+      "x": 348.416,
+      "y": 174.656,
+      "z": 198.88
+    },
+    {
+      "id": "720575940629327659",
+      "label": "DNa02",
+      "cell_type": "DNa02",
+      "hemibrain_type": "DNa02",
+      "super_class": "descending",
+      "layer": "descending",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw003628",
+      "x": 405.312,
+      "y": 171.008,
+      "z": 84.24
+    },
+    {
+      "id": "720575940631032657",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "hemibrain_type": "LC4",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw004169",
+      "x": 689.536,
+      "y": 281.856,
+      "z": 121.96
+    },
+    {
+      "id": "720575940631082808",
+      "label": "MDN",
+      "cell_type": "MDN",
+      "hemibrain_type": "MDN",
+      "super_class": "descending",
+      "layer": "descending",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw000083",
+      "x": 526.016,
+      "y": 119.008,
+      "z": 123.32
+    },
+    {
+      "id": "720575940631095158",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "hemibrain_type": "LPLC2",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw015455",
+      "x": 695.008,
+      "y": 192.32,
+      "z": 185.96
+    },
+    {
+      "id": "720575940632080146",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "hemibrain_type": "LPLC2",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw014843",
+      "x": 344.576,
+      "y": 177.536,
+      "z": 191.6
+    },
+    {
+      "id": "720575940632499757",
+      "label": "Giant Fiber",
+      "cell_type": "DNp01",
+      "hemibrain_type": "Giant Fiber",
+      "super_class": "descending",
+      "layer": "descending",
+      "side": "right",
+      "nt": "glutamate",
+      "vfb_id": "fw036980",
+      "x": 635.008,
+      "y": 185.728,
+      "z": 191.04
+    },
+    {
+      "id": "720575940633580384",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "hemibrain_type": "LC4",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw001194",
+      "x": 332.064,
+      "y": 216.512,
+      "z": 162.6
+    },
+    {
+      "id": "720575940634146967",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "hemibrain_type": "LPLC2",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw015492",
+      "x": 703.04,
+      "y": 187.68,
+      "z": 184.8
+    },
+    {
+      "id": "720575940635872101",
+      "label": "DNp09",
+      "cell_type": "DNp09",
+      "hemibrain_type": "DNp09",
+      "super_class": "descending",
+      "layer": "descending",
+      "side": "left",
+      "nt": "acetylcholine",
+      "vfb_id": "fw002700",
+      "x": 424.224,
+      "y": 195.616,
+      "z": 218.72
+    },
+    {
+      "id": "720575940639177449",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "hemibrain_type": "LPLC2",
+      "super_class": "visual_projection",
+      "layer": "sensory",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw017293",
+      "x": 699.392,
+      "y": 188.8,
+      "z": 193.04
+    },
+    {
+      "id": "720575940640331472",
+      "label": "MDN",
+      "cell_type": "MDN",
+      "hemibrain_type": "MDN",
+      "super_class": "descending",
+      "layer": "descending",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw033226",
+      "x": 528.416,
+      "y": 124.416,
+      "z": 126.12
+    },
+    {
+      "id": "720575940644438551",
+      "label": "DNa01",
+      "cell_type": "DNa01",
+      "hemibrain_type": "VES006",
+      "super_class": "descending",
+      "layer": "descending",
+      "side": "right",
+      "nt": "acetylcholine",
+      "vfb_id": "fw028858",
+      "x": 628.704,
+      "y": 171.808,
+      "z": 41.36
+    }
+  ],
+  "edges": [
+    {
+      "pre": "720575940614526974",
+      "post": "720575940624903064",
+      "synapses": 6.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940622838154",
+      "post": "720575940614738444",
+      "synapses": 8.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940639177449",
+      "post": "720575940625906702",
+      "synapses": 8.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940626447848",
+      "post": "720575940632499757",
+      "synapses": 12.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940639177449",
+      "post": "720575940632499757",
+      "synapses": 13.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940632080146",
+      "post": "720575940613470947",
+      "synapses": 7.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940631082808",
+      "post": "720575940644438551",
+      "synapses": 10.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940635872101",
+      "post": "720575940629327659",
+      "synapses": 24.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940624903064",
+      "post": "720575940614526974",
+      "synapses": 6.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940616026939",
+      "post": "720575940644438551",
+      "synapses": 9.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940622838154",
+      "post": "720575940613470947",
+      "synapses": 6.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940627652358",
+      "post": "720575940604737708",
+      "synapses": 31.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940614582946",
+      "post": "720575940632499757",
+      "synapses": 16.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940632499757",
+      "post": "720575940618709158",
+      "synapses": 7.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940631032657",
+      "post": "720575940632499757",
+      "synapses": 14.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940614526974",
+      "post": "720575940632499757",
+      "synapses": 15.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940625906702",
+      "post": "720575940632499757",
+      "synapses": 15.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940632499757",
+      "post": "720575940624903064",
+      "synapses": 5.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940612462307",
+      "post": "720575940632499757",
+      "synapses": 15.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940614738444",
+      "post": "720575940622838154",
+      "synapses": 12.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940610236514",
+      "post": "720575940627787609",
+      "synapses": 5.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940629292785",
+      "post": "720575940622838154",
+      "synapses": 15.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940633580384",
+      "post": "720575940622838154",
+      "synapses": 14.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940627902979",
+      "post": "720575940632499757",
+      "synapses": 12.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940625932421",
+      "post": "720575940632499757",
+      "synapses": 12.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940634146967",
+      "post": "720575940632499757",
+      "synapses": 14.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940626626895",
+      "post": "720575940622838154",
+      "synapses": 13.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940614572742",
+      "post": "720575940622838154",
+      "synapses": 14.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940618709158",
+      "post": "720575940632499757",
+      "synapses": 13.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940632080146",
+      "post": "720575940622838154",
+      "synapses": 14.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940624903064",
+      "post": "720575940632499757",
+      "synapses": 12.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940631095158",
+      "post": "720575940632499757",
+      "synapses": 14.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940615575007",
+      "post": "720575940622838154",
+      "synapses": 12.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940620314612",
+      "post": "720575940632499757",
+      "synapses": 12.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940632499757",
+      "post": "720575940626447848",
+      "synapses": 5.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940628699560",
+      "post": "720575940622838154",
+      "synapses": 13.0,
+      "sign": -1
+    },
+    {
+      "pre": "720575940612518055",
+      "post": "720575940622838154",
+      "synapses": 12.0,
+      "sign": 1
+    },
+    {
+      "pre": "720575940613470947",
+      "post": "720575940622838154",
+      "synapses": 12.0,
+      "sign": -1
+    }
+  ]
+}

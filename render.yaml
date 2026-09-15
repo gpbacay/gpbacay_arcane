@@ -14,6 +14,18 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
-    # Optional: override weights path if you store them elsewhere
-    # - key: MNIST_WEIGHTS_PATH
-    #   value: /opt/render/project/src/mnist_arcane_model.weights.h5
+
+  - type: web
+    name: arcane-flywire-api
+    runtime: python
+    region: oregon
+
+    buildCommand: pip install -r requirements-flywire.txt
+    startCommand: python examples/serve_flywire_api.py
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+    # Optional live FlyWire queries (https://fafbseg-py.readthedocs.io/en/stable/source/tutorials/flywire_setup.html)
+    # - key: FLYWIRE_SECRET
+    #   sync: false
