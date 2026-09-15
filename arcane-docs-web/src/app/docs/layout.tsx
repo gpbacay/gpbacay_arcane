@@ -163,7 +163,7 @@ export default function DocsLayout({
   const pathname = usePathname();
 
   useEffect(() => {
-    // Extract headings from the page content for the TOC
+    let scheduled = 0;
     const extractHeadings = () => {
       const mainContent = document.querySelector("main");
       if (!mainContent) return;
@@ -171,23 +171,51 @@ export default function DocsLayout({
       const headingElements = Array.from(mainContent.querySelectorAll("h2, h3"));
       const extracted = headingElements
         .map((el) => {
-          // Ensure element has an ID for linking
           if (!el.id) {
             el.id = el.textContent?.toLowerCase().replace(/\s+/g, "-") || "";
           }
           return {
             id: el.id,
-            text: el.textContent || "",
-            level: parseInt(el.tagName[1]),
+            text: (el.textContent || "").trim(),
+            level: parseInt(el.tagName[1], 10),
           };
         })
-        .filter((h) => h.text.toLowerCase() !== "command palette");
-      setHeadings(extracted);
+        .filter((h) => h.text && h.text.toLowerCase() !== "command palette");
+
+      setHeadings((prev) => {
+        if (
+          prev.length === extracted.length &&
+          prev.every((h, i) => h.id === extracted[i].id && h.text === extracted[i].text && h.level === extracted[i].level)
+        ) {
+          return prev;
+        }
+        return extracted;
+      });
     };
 
-    // Need to wait for content to be rendered
-    const timer = setTimeout(extractHeadings, 800);
-    return () => clearTimeout(timer);
+    const queueExtract = () => {
+      if (scheduled) return;
+      scheduled = window.setTimeout(() => {
+        scheduled = 0;
+        extractHeadings();
+      }, 80);
+    };
+
+    extractHeadings();
+    const t1 = setTimeout(extractHeadings, 50);
+    const t2 = setTimeout(extractHeadings, 400);
+    const mainContent = document.querySelector("main");
+    const observer = mainContent
+      ? new MutationObserver(queueExtract)
+      : null;
+    observer?.observe(mainContent as Node, { childList: true, subtree: true });
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      if (scheduled) clearTimeout(scheduled);
+      observer?.disconnect();
+    };
   }, [pathname]);
 
   return (

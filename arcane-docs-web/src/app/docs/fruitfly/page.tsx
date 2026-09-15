@@ -14,25 +14,28 @@ export default function FruitFlyPage() {
           ARCANE Fruitfly Brain
         </h1>
         <p className="text-xl text-zinc-400">
-          Adult <em>Drosophila</em> visual and descending circuits (FAFB v783) running ARCANE resonance on a
+          Adult <em>Drosophila</em> brain and ventral nerve cord (FAFB v783 + MANC/FANC) running ARCANE resonance on a
           handwritten digit.
         </p>
       </div>
 
       <div className="space-y-6 text-zinc-300">
+        <h2 id="live-connectome" className="text-2xl font-bold tracking-tight text-zinc-100 mt-2 mb-4 border-b border-zinc-800 pb-2">
+          Live connectome
+        </h2>
         <FlyWireConnectome />
 
-        <h2 id="what-this-is" className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
+        <h2 id="what-it-does" className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           What it does
         </h2>
         <p className="leading-relaxed">
           The pad is the retina. Strokes drive LC4 and LPLC2 cells in the optic lobes; spikes propagate through the
-          reconstructed FAFB connectome.{" "}
+          reconstructed FAFB brain and down descending axons into the ventral nerve cord — the body CNS that drives
+          legs, wings, and abdomen.{" "}
           <Link href="/docs/research" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
             RSAA
           </Link>{" "}
-          reads a softmax over digits 0–9 from that state. Nearby shapes share probability (a 1 that leans toward 4 is
-          reported as a split, not 100% / 0%). Cells stay quiet until there is ink.
+          reads a softmax over digits 0–9 from that state. Nearby shapes share probability. Cells stay quiet until there is ink.
         </p>
         <p className="leading-relaxed text-sm text-zinc-500">
           Connectome: Google DeepMind / FlyWire FAFB v783 (
@@ -43,7 +46,11 @@ export default function FruitFlyPage() {
           <a href="https://doi.org/10.1038/s41586-024-07686-5" target="_blank" rel="noreferrer" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
             Schlegel et al., 2024
           </a>
-          ). Dynamics:{" "}
+          ). Body: ventral nerve cord (
+          <a href="https://doi.org/10.1038/s41586-024-07389-x" target="_blank" rel="noreferrer" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
+            Azevedo et al., 2024
+          </a>
+          ; MANC). Dynamics:{" "}
           <Link href="/docs/activations" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
             resonant spiking
           </Link>
@@ -59,7 +66,7 @@ export default function FruitFlyPage() {
         </h2>
         <ol className="list-decimal list-inside space-y-2 leading-relaxed">
           <li>Draw a digit. The large numeral is the top class; the ten bars are P(0)…P(9).</li>
-          <li>Drag to orbit, scroll to zoom. Region chips isolate optic lobes, neuropil, or descending cells.</li>
+          <li>Drag to orbit in any direction. Scroll to zoom. Region chips isolate optic lobes, neuropil, descending cells, or the ventral nerve cord.</li>
         </ol>
       </div>
     </div>

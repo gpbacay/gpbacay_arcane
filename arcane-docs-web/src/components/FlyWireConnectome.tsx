@@ -35,6 +35,7 @@ type Prediction = {
 };
 
 const CIRCUIT_URL = "/api/flywire/circuit";
+const FOCUS_Y = -0.62;
 const PAD = 112;
 const MODEL_SIZE = 28;
 
@@ -118,15 +119,43 @@ function padImage(canvas: HTMLCanvasElement) {
   return { left: left / nL, right: right / nR, pixels: gray };
 }
 
+type OrbitQuat = { x: number; y: number; z: number; w: number };
+
+function quatMul(a: OrbitQuat, b: OrbitQuat): OrbitQuat {
+  return {
+    x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+    y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+    z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+    w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+  };
+}
+
+function quatAxisAngle(ax: number, ay: number, az: number, angle: number): OrbitQuat {
+  const h = angle * 0.5;
+  const s = Math.sin(h);
+  return { x: ax * s, y: ay * s, z: az * s, w: Math.cos(h) };
+}
+
+function quatNormalize(q: OrbitQuat): OrbitQuat {
+  const n = Math.hypot(q.x, q.y, q.z, q.w) || 1;
+  return { x: q.x / n, y: q.y / n, z: q.z / n, w: q.w / n };
+}
+
+function quatFromYawPitch(yaw: number, pitch: number): OrbitQuat {
+  return quatMul(quatAxisAngle(0, 1, 0, yaw), quatAxisAngle(1, 0, 0, pitch));
+}
+
+const ORBIT_SENSITIVITY = 0.008;
+const IDLE_SPIN = 0.00045;
+
 export function FlyWireConnectome() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const padRef = useRef<HTMLCanvasElement>(null);
   const circuitRef = useRef<Circuit | null>(null);
   const simulatorRef = useRef<FruitflyCircuitSimulator | null>(null);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
-  const yawRef = useRef(0.15);
-  const pitchRef = useRef(-0.12);
-  const zoomRef = useRef(8.2);
+  const orbitRef = useRef<OrbitQuat>(quatFromYawPitch(0.15, -0.22));
+  const zoomRef = useRef(11.4);
   const draggingRef = useRef(false);
   const drawingRef = useRef(false);
   const maskRef = useRef(ALL_REGION_MASK);
@@ -245,8 +274,8 @@ export function FlyWireConnectome() {
     gl.disable(gl.DEPTH_TEST);
 
     const camera = new Camera(gl, { fov: 28, near: 0.1, far: 40 });
-    camera.position.set(0, 0.06, 8.2);
-    camera.lookAt([0, 0.06, 0]);
+    camera.position.set(0, FOCUS_Y, 11.4);
+    camera.lookAt([0, FOCUS_Y, 0]);
 
     const scene = new Transform();
     scene.scale.set(0.86, 0.86, 0.86);
@@ -312,7 +341,7 @@ export function FlyWireConnectome() {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const next = zoomRef.current * (e.deltaY > 0 ? 1.08 : 0.92);
-      zoomRef.current = Math.max(3.4, Math.min(14.5, next));
+      zoomRef.current = Math.max(4.2, Math.min(18.5, next));
     };
     canvas.addEventListener("wheel", onWheel, { passive: false });
 
@@ -337,11 +366,13 @@ export function FlyWireConnectome() {
         canvas.style.height = "100%";
         camera.perspective({ aspect: w / h });
       }
-      if (!draggingRef.current) yawRef.current += 0.0004;
-      scene.rotation.y = yawRef.current;
-      scene.rotation.x = pitchRef.current;
-      camera.position.set(0, 0.06, zoomRef.current);
-      camera.lookAt([0, 0.06, 0]);
+      if (!draggingRef.current) {
+        orbitRef.current = quatMul(quatAxisAngle(0, 1, 0, IDLE_SPIN), orbitRef.current);
+      }
+      const q = orbitRef.current;
+      scene.quaternion.set(q.x, q.y, q.z, q.w);
+      camera.position.set(0, FOCUS_Y, zoomRef.current);
+      camera.lookAt([0, FOCUS_Y, 0]);
 
       const data = circuitRef.current;
       if (data && !circuitMesh) rebuildCircuit(data);
@@ -397,17 +428,23 @@ export function FlyWireConnectome() {
   }, [circuit]);
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = { x: e.clientX, y: e.clientY };
     draggingRef.current = true;
   };
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!dragRef.current) return;
-    yawRef.current += (e.clientX - dragRef.current.x) * 0.007;
-    pitchRef.current += (e.clientY - dragRef.current.y) * 0.007;
-    pitchRef.current = Math.max(-0.85, Math.min(0.65, pitchRef.current));
+    const dx = (e.clientX - dragRef.current.x) * ORBIT_SENSITIVITY;
+    const dy = (e.clientY - dragRef.current.y) * ORBIT_SENSITIVITY;
     dragRef.current = { x: e.clientX, y: e.clientY };
+    orbitRef.current = quatNormalize(
+      quatMul(quatAxisAngle(0, 1, 0, dx), quatMul(quatAxisAngle(1, 0, 0, dy), orbitRef.current)),
+    );
   };
-  const onPointerUp = () => {
+  const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
     dragRef.current = null;
     draggingRef.current = false;
   };
@@ -448,11 +485,11 @@ export function FlyWireConnectome() {
       <div className="relative overflow-hidden border border-zinc-800 bg-[#07070c]">
         <canvas
           ref={canvasRef}
-          className="block h-[420px] w-full touch-none cursor-grab sm:h-[560px]"
+          className="block h-[480px] w-full touch-none cursor-grab active:cursor-grabbing sm:h-[620px]"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          onPointerLeave={onPointerUp}
+          onPointerCancel={onPointerUp}
           aria-label="ARCANE fruitfly brain"
         />
 

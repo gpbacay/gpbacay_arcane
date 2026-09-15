@@ -1,0 +1,649 @@
+{
+  "dataset": "flywire_fafb_public",
+  "materialization": 783,
+  "format": "triangles",
+  "skeletonSource": "https://flyem.mrc-lmb.cam.ac.uk/flyconnectome/flywire_skeletons_783/",
+  "meshSource": "https://raw.githubusercontent.com/navis-org/navis-flybrains/main/flybrains/meshes/FLYWIRE.ply",
+  "tools": [
+    "fafbseg-py skeleton service (https://github.com/navis-org/fafbseg-py)",
+    "navis-flybrains FLYWIRE neuropil"
+  ],
+  "units": "display-space from FlyWire nanometers",
+  "centerNm": [
+    521696.5,
+    254042.875,
+    141896.421875
+  ],
+  "scale": 5.031442762457326e-06,
+  "axis": [
+    1.0,
+    -1.0,
+    1.0
+  ],
+  "bin": "/data/flywire-geometry.bin",
+  "byteLength": 22917720,
+  "mesh": {
+    "count": 151248,
+    "posOffset": 0,
+    "nrmOffset": 1814976,
+    "regOffset": 3629952
+  },
+  "neurons": [
+    {
+      "id": "720575940604737708",
+      "label": "DNa02",
+      "cell_type": "DNa02",
+      "layer": "descending",
+      "side": "right",
+      "soma": [
+        0.6583,
+        0.42181,
+        -0.49321
+      ],
+      "count": 22320,
+      "posOffset": 3781200,
+      "nrmOffset": 4049040,
+      "distOffset": 4316880,
+      "regOffset": 4406160
+    },
+    {
+      "id": "720575940610236514",
+      "label": "MDN",
+      "cell_type": "MDN",
+      "layer": "descending",
+      "side": "right",
+      "soma": [
+        0.04758,
+        0.66931,
+        -0.09471
+      ],
+      "count": 20124,
+      "posOffset": 4428480,
+      "nrmOffset": 4669968,
+      "distOffset": 4911456,
+      "regOffset": 4991952
+    },
+    {
+      "id": "720575940612462307",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.87217,
+        0.26057,
+        0.11596
+      ],
+      "count": 16920,
+      "posOffset": 5012076,
+      "nrmOffset": 5215116,
+      "distOffset": 5418156,
+      "regOffset": 5485836
+    },
+    {
+      "id": "720575940612518055",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "layer": "sensory",
+      "side": "left",
+      "soma": [
+        -0.93476,
+        0.1443,
+        0.11191
+      ],
+      "count": 16092,
+      "posOffset": 5502756,
+      "nrmOffset": 5695860,
+      "distOffset": 5888964,
+      "regOffset": 5953332
+    },
+    {
+      "id": "720575940613470947",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "layer": "sensory",
+      "side": "left",
+      "soma": [
+        -0.91302,
+        0.41136,
+        0.26807
+      ],
+      "count": 18684,
+      "posOffset": 5969424,
+      "nrmOffset": 6193632,
+      "distOffset": 6417840,
+      "regOffset": 6492576
+    },
+    {
+      "id": "720575940614526974",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.90072,
+        0.30528,
+        0.12337
+      ],
+      "count": 21564,
+      "posOffset": 6511260,
+      "nrmOffset": 6770028,
+      "distOffset": 7028796,
+      "regOffset": 7115052
+    },
+    {
+      "id": "720575940614572742",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "layer": "sensory",
+      "side": "left",
+      "soma": [
+        -0.71003,
+        0.01323,
+        0.46865
+      ],
+      "count": 15264,
+      "posOffset": 7136616,
+      "nrmOffset": 7319784,
+      "distOffset": 7502952,
+      "regOffset": 7564008
+    },
+    {
+      "id": "720575940614582946",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.78381,
+        -0.15663,
+        -0.07063
+      ],
+      "count": 12204,
+      "posOffset": 7579272,
+      "nrmOffset": 7725720,
+      "distOffset": 7872168,
+      "regOffset": 7920984
+    },
+    {
+      "id": "720575940614738444",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "layer": "sensory",
+      "side": "left",
+      "soma": [
+        -0.84829,
+        0.35522,
+        0.25788
+      ],
+      "count": 16704,
+      "posOffset": 7933188,
+      "nrmOffset": 8133636,
+      "distOffset": 8334084,
+      "regOffset": 8400900
+    },
+    {
+      "id": "720575940615575007",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "layer": "sensory",
+      "side": "left",
+      "soma": [
+        -0.87395,
+        0.10171,
+        0.13179
+      ],
+      "count": 17496,
+      "posOffset": 8417604,
+      "nrmOffset": 8627556,
+      "distOffset": 8837508,
+      "regOffset": 8907492
+    },
+    {
+      "id": "720575940616026939",
+      "label": "MDN",
+      "cell_type": "MDN",
+      "layer": "descending",
+      "side": "left",
+      "soma": [
+        -0.02016,
+        0.7712,
+        -0.14093
+      ],
+      "count": 20556,
+      "posOffset": 8924988,
+      "nrmOffset": 9171660,
+      "distOffset": 9418332,
+      "regOffset": 9500556
+    },
+    {
+      "id": "720575940618709158",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.77887,
+        -0.13502,
+        -0.11604
+      ],
+      "count": 22968,
+      "posOffset": 9521112,
+      "nrmOffset": 9796728,
+      "distOffset": 10072344,
+      "regOffset": 10164216
+    },
+    {
+      "id": "720575940620314612",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.81328,
+        -0.12986,
+        -0.0799
+      ],
+      "count": 13896,
+      "posOffset": 10187184,
+      "nrmOffset": 10353936,
+      "distOffset": 10520688,
+      "regOffset": 10576272
+    },
+    {
+      "id": "720575940622838154",
+      "label": "Giant Fiber",
+      "cell_type": "DNp01",
+      "layer": "descending",
+      "side": "left",
+      "soma": [
+        -0.3961,
+        0.24915,
+        0.35782
+      ],
+      "count": 22536,
+      "posOffset": 10590168,
+      "nrmOffset": 10860600,
+      "distOffset": 11131032,
+      "regOffset": 11221176
+    },
+    {
+      "id": "720575940624903064",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.92311,
+        0.3452,
+        0.26932
+      ],
+      "count": 16452,
+      "posOffset": 11243712,
+      "nrmOffset": 11441136,
+      "distOffset": 11638560,
+      "regOffset": 11704368
+    },
+    {
+      "id": "720575940625906702",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.87927,
+        -0.31874,
+        0.01893
+      ],
+      "count": 16956,
+      "posOffset": 11720820,
+      "nrmOffset": 11924292,
+      "distOffset": 12127764,
+      "regOffset": 12195588
+    },
+    {
+      "id": "720575940625932421",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.80858,
+        -0.13882,
+        -0.09528
+      ],
+      "count": 14004,
+      "posOffset": 12212544,
+      "nrmOffset": 12380592,
+      "distOffset": 12548640,
+      "regOffset": 12604656
+    },
+    {
+      "id": "720575940626447848",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.84313,
+        0.29376,
+        0.19496
+      ],
+      "count": 14616,
+      "posOffset": 12618660,
+      "nrmOffset": 12794052,
+      "distOffset": 12969444,
+      "regOffset": 13027908
+    },
+    {
+      "id": "720575940626626895",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "layer": "sensory",
+      "side": "left",
+      "soma": [
+        -0.90194,
+        -0.01509,
+        -0.0009
+      ],
+      "count": 13464,
+      "posOffset": 13042524,
+      "nrmOffset": 13204092,
+      "distOffset": 13365660,
+      "regOffset": 13419516
+    },
+    {
+      "id": "720575940627652358",
+      "label": "DNp09",
+      "cell_type": "DNp09",
+      "layer": "descending",
+      "side": "right",
+      "soma": [
+        0.57999,
+        0.28097,
+        0.35168
+      ],
+      "count": 21708,
+      "posOffset": 13432980,
+      "nrmOffset": 13693476,
+      "distOffset": 13953972,
+      "regOffset": 14040804
+    },
+    {
+      "id": "720575940627787609",
+      "label": "DNa01",
+      "cell_type": "DNa01",
+      "layer": "descending",
+      "side": "left",
+      "soma": [
+        -0.50903,
+        0.40815,
+        -0.36209
+      ],
+      "count": 22320,
+      "posOffset": 14062512,
+      "nrmOffset": 14330352,
+      "distOffset": 14598192,
+      "regOffset": 14687472
+    },
+    {
+      "id": "720575940627902979",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.95292,
+        0.36388,
+        0.18528
+      ],
+      "count": 15624,
+      "posOffset": 14709792,
+      "nrmOffset": 14897280,
+      "distOffset": 15084768,
+      "regOffset": 15147264
+    },
+    {
+      "id": "720575940628699560",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "layer": "sensory",
+      "side": "left",
+      "soma": [
+        -0.89019,
+        0.13836,
+        0.13322
+      ],
+      "count": 16200,
+      "posOffset": 15162888,
+      "nrmOffset": 15357288,
+      "distOffset": 15551688,
+      "regOffset": 15616488
+    },
+    {
+      "id": "720575940629292785",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "layer": "sensory",
+      "side": "left",
+      "soma": [
+        -0.87179,
+        0.39937,
+        0.28642
+      ],
+      "count": 12924,
+      "posOffset": 15632688,
+      "nrmOffset": 15787776,
+      "distOffset": 15942864,
+      "regOffset": 15994560
+    },
+    {
+      "id": "720575940629327659",
+      "label": "DNa02",
+      "cell_type": "DNa02",
+      "layer": "descending",
+      "side": "left",
+      "soma": [
+        -0.56465,
+        0.41975,
+        -0.29867
+      ],
+      "count": 21420,
+      "posOffset": 16007484,
+      "nrmOffset": 16264524,
+      "distOffset": 16521564,
+      "regOffset": 16607244
+    },
+    {
+      "id": "720575940631032657",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.84207,
+        -0.13853,
+        -0.09919
+      ],
+      "count": 15768,
+      "posOffset": 16628664,
+      "nrmOffset": 16817880,
+      "distOffset": 17007096,
+      "regOffset": 17070168
+    },
+    {
+      "id": "720575940631082808",
+      "label": "MDN",
+      "cell_type": "MDN",
+      "layer": "descending",
+      "side": "left",
+      "soma": [
+        0.02158,
+        0.6795,
+        -0.09287
+      ],
+      "count": 20592,
+      "posOffset": 17085936,
+      "nrmOffset": 17333040,
+      "distOffset": 17580144,
+      "regOffset": 17662512
+    },
+    {
+      "id": "720575940631095158",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.87251,
+        0.31092,
+        0.22151
+      ],
+      "count": 17244,
+      "posOffset": 17683104,
+      "nrmOffset": 17890032,
+      "distOffset": 18096960,
+      "regOffset": 18165936
+    },
+    {
+      "id": "720575940632080146",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "layer": "sensory",
+      "side": "left",
+      "soma": [
+        -0.89165,
+        0.38502,
+        0.24989
+      ],
+      "count": 19188,
+      "posOffset": 18183180,
+      "nrmOffset": 18413436,
+      "distOffset": 18643692,
+      "regOffset": 18720444
+    },
+    {
+      "id": "720575940632499757",
+      "label": "Giant Fiber",
+      "cell_type": "DNp01",
+      "layer": "descending",
+      "side": "right",
+      "soma": [
+        -0.16061,
+        -0.51419,
+        0.6863
+      ],
+      "count": 20412,
+      "posOffset": 18739632,
+      "nrmOffset": 18984576,
+      "distOffset": 19229520,
+      "regOffset": 19311168
+    },
+    {
+      "id": "720575940633580384",
+      "label": "LC4",
+      "cell_type": "LC4",
+      "layer": "sensory",
+      "side": "left",
+      "soma": [
+        -0.95387,
+        0.18795,
+        0.10382
+      ],
+      "count": 14364,
+      "posOffset": 19331580,
+      "nrmOffset": 19503948,
+      "distOffset": 19676316,
+      "regOffset": 19733772
+    },
+    {
+      "id": "720575940634146967",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.91218,
+        0.33409,
+        0.2161
+      ],
+      "count": 20736,
+      "posOffset": 19748136,
+      "nrmOffset": 19996968,
+      "distOffset": 20245800,
+      "regOffset": 20328744
+    },
+    {
+      "id": "720575940635872101",
+      "label": "DNp09",
+      "cell_type": "DNp09",
+      "layer": "descending",
+      "side": "left",
+      "soma": [
+        -0.4916,
+        0.2959,
+        0.38621
+      ],
+      "count": 22860,
+      "posOffset": 20349480,
+      "nrmOffset": 20623800,
+      "distOffset": 20898120,
+      "regOffset": 20989560
+    },
+    {
+      "id": "720575940639177449",
+      "label": "LPLC2",
+      "cell_type": "LPLC2",
+      "layer": "sensory",
+      "side": "right",
+      "soma": [
+        0.89367,
+        0.32854,
+        0.25807
+      ],
+      "count": 22932,
+      "posOffset": 21012420,
+      "nrmOffset": 21287604,
+      "distOffset": 21562788,
+      "regOffset": 21654516
+    },
+    {
+      "id": "720575940640331472",
+      "label": "MDN",
+      "cell_type": "MDN",
+      "layer": "descending",
+      "side": "right",
+      "soma": [
+        0.03438,
+        0.6517,
+        -0.07991
+      ],
+      "count": 20952,
+      "posOffset": 21677448,
+      "nrmOffset": 21928872,
+      "distOffset": 22180296,
+      "regOffset": 22264104
+    },
+    {
+      "id": "720575940644438551",
+      "label": "DNa01",
+      "cell_type": "DNa01",
+      "layer": "descending",
+      "side": "right",
+      "soma": [
+        0.53836,
+        0.41243,
+        -0.50599
+      ],
+      "count": 21816,
+      "posOffset": 22285056,
+      "nrmOffset": 22546848,
+      "distOffset": 22808640,
+      "regOffset": 22895904
+    }
+  ],
+  "citation": [
+    "Dorkenwald et al., Nature 2024, 10.1038/s41586-024-07558-y",
+    "Schlegel et al., Nature 2024, 10.1038/s41586-024-07686-5"
+  ]
+}

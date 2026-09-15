@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# FlyWire skeleton download cache
+.cache/
+
 # production
 /build
 

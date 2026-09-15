@@ -23,9 +23,12 @@ export const BRAIN_REGIONS = [
   { bit: 2, id: "central", label: "Central brain" },
   { bit: 3, id: "mushroom", label: "Mushroom body" },
   { bit: 4, id: "antennal", label: "Antennal lobe" },
+  { bit: 5, id: "vnc", label: "Ventral nerve cord" },
   { bit: 6, id: "giant", label: "Giant Fiber" },
   { bit: 7, id: "descending", label: "Descending" },
 ] as const;
+
+export const VNC_REGION = 5;
 
 export const ALL_REGION_MASK = BRAIN_REGIONS.reduce((mask, region) => mask | (1 << region.bit), 0);
 
@@ -83,6 +86,21 @@ export function insideBrain(p: Vec3) {
   return f.d < 1 && f.hole > 1;
 }
 
+/** Adult VNC occupancy (neck connective + thoracic + abdominal neuromeres). Analogous to a spinal cord. */
+export function vncField(p: Vec3) {
+  const neck = ellipsoid(p, { x: 0, y: -0.72, z: 0.02 }, { x: 0.1, y: 0.3, z: 0.09 });
+  const t1 = ellipsoid(p, { x: 0, y: -1.14, z: 0.02 }, { x: 0.36, y: 0.22, z: 0.18 });
+  const t2 = ellipsoid(p, { x: 0, y: -1.54, z: 0.04 }, { x: 0.5, y: 0.24, z: 0.22 });
+  const t3 = ellipsoid(p, { x: 0, y: -1.9, z: 0 }, { x: 0.34, y: 0.2, z: 0.17 });
+  const abd = ellipsoid(p, { x: 0, y: -2.32, z: -0.02 }, { x: 0.16, y: 0.34, z: 0.11 });
+  const d = Math.min(neck, t1, t2, t3, abd) + noise(p) * 0.55;
+  return { d, neck, t1, t2, t3, abd };
+}
+
+export function insideVnc(p: Vec3) {
+  return vncField(p).d < 1;
+}
+
 export function regionIdAt(p: Vec3): number {
   const f = brainField(p);
   if (f.ol < 1.05 && f.ol <= f.or_) return 0;
@@ -96,6 +114,15 @@ export function circuitRegion(n: CircuitNeuron): number {
   if (n.cell_type === "DNp01") return 6;
   if (n.layer === "sensory") return n.side === "left" ? 0 : 1;
   return 7;
+}
+
+function vncColor(p: Vec3): [number, number, number] {
+  const f = vncField(p);
+  if (f.neck < 1.05) return [0.82, 0.4, 0.95];
+  if (f.t2 < 1.02 && Math.abs(p.x) > 0.2) return [0.25, 0.78, 0.82];
+  if (f.t1 < 1.05 || f.t3 < 1.05) return [0.4, 0.82, 0.48];
+  if (f.abd < 1.05) return [0.78, 0.5, 0.28];
+  return [0.58, 0.34, 0.78];
 }
 
 function regionColor(p: Vec3): [number, number, number] {
@@ -137,6 +164,53 @@ function cross(a: Vec3, b: Vec3): Vec3 {
   return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x };
 }
 
+function catmullRom(p0: Vec3, p1: Vec3, p2: Vec3, p3: Vec3, t: number): Vec3 {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return {
+    x: 0.5 * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+    y: 0.5 * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+    z: 0.5 * (2 * p1.z + (-p0.z + p2.z) * t + (2 * p0.z - 5 * p1.z + 4 * p2.z - p3.z) * t2 + (-p0.z + 3 * p1.z - 3 * p2.z + p3.z) * t3),
+  };
+}
+
+/** Dense FlyWire-like neurite: spline through waypoints, then meander in the local tract. */
+function meanderTract(waypoints: Vec3[], rng: () => number, samplesPerSeg = 16, wobble = 0.032): Vec3[] {
+  if (waypoints.length < 2) return waypoints.slice();
+  const padded = [waypoints[0], ...waypoints, waypoints[waypoints.length - 1]];
+  const phase = rng() * Math.PI * 2;
+  const freq = 1.6 + rng() * 2.4;
+  const amp = wobble * (0.75 + rng() * 0.5);
+  const out: Vec3[] = [];
+  for (let i = 0; i < padded.length - 3; i++) {
+    const p0 = padded[i];
+    const p1 = padded[i + 1];
+    const p2 = padded[i + 2];
+    const p3 = padded[i + 3];
+    const last = i === padded.length - 4;
+    const steps = last ? samplesPerSeg : samplesPerSeg - 1;
+    for (let s = 0; s <= steps; s++) {
+      const t = s / samplesPerSeg;
+      const p = catmullRom(p0, p1, p2, p3, t);
+      const ahead = catmullRom(p0, p1, p2, p3, Math.min(1, t + 0.04));
+      const tangent = normalize(sub(ahead, p));
+      const helper = Math.abs(tangent.y) < 0.92 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
+      const n1 = normalize(cross(tangent, helper));
+      const n2 = normalize(cross(tangent, n1));
+      const along = i + t;
+      const w1 = Math.sin(along * freq + phase) * amp;
+      const w2 = Math.sin(along * freq * 1.41 + phase * 1.9) * amp * 0.58;
+      const w3 = Math.sin(along * 7.4 + phase * 0.6) * amp * 0.22;
+      out.push({
+        x: p.x + n1.x * (w1 + w3) + n2.x * w2,
+        y: p.y + n1.y * (w1 + w3) + n2.y * w2,
+        z: p.z + n1.z * (w1 + w3) + n2.z * w2,
+      });
+    }
+  }
+  return out;
+}
+
 function sampleInside(rng: () => number): Vec3 {
   for (let i = 0; i < 80; i++) {
     const p = { x: (rng() - 0.5) * 4.1, y: (rng() - 0.5) * 2.1, z: (rng() - 0.5) * 1.5 };
@@ -145,11 +219,12 @@ function sampleInside(rng: () => number): Vec3 {
   return { x: 0, y: 0, z: 0 };
 }
 
-function walk(
+function walkIn(
   start: Vec3,
   steps: number,
   step: number,
   rng: () => number,
+  inside: (p: Vec3) => boolean,
   tangentAround?: Vec3
 ) {
   const pts: Vec3[] = [start];
@@ -163,12 +238,12 @@ function walk(
       dir = normalize(add(dir, randDir(rng), 0.55));
     }
     let next = add(p, dir, step);
-    let ok = insideBrain(next);
+    let ok = inside(next);
     if (!ok) {
       for (let k = 0; k < 6; k++) {
         dir = randDir(rng);
         next = add(p, dir, step);
-        if (insideBrain(next)) {
+        if (inside(next)) {
           ok = true;
           break;
         }
@@ -179,6 +254,24 @@ function walk(
     pts.push(p);
   }
   return pts;
+}
+
+function walk(
+  start: Vec3,
+  steps: number,
+  step: number,
+  rng: () => number,
+  tangentAround?: Vec3
+) {
+  return walkIn(start, steps, step, rng, insideBrain, tangentAround);
+}
+
+function sampleInsideVnc(rng: () => number): Vec3 {
+  for (let i = 0; i < 80; i++) {
+    const p = { x: (rng() - 0.5) * 1.15, y: -0.48 - rng() * 2.15, z: (rng() - 0.5) * 0.5 };
+    if (insideVnc(p)) return p;
+  }
+  return { x: 0, y: -1.5, z: 0 };
 }
 
 function pushPolyline(
@@ -245,6 +338,23 @@ export function buildBackgroundBrain(fiberCount = 11000): LineCloud {
     pushPolyline(pos, col, regions, pts, regionColor(left), regionIdAt(left), 0.1);
   }
 
+  const vncFibers = Math.floor(fiberCount * 0.38);
+  for (let i = 0; i < vncFibers; i++) {
+    const p = sampleInsideVnc(rng);
+    const f = vncField(p);
+    const wing = f.t2 < 1.02;
+    const center = wing ? { x: Math.sign(p.x || 1) * 0.42, y: -1.54, z: 0.04 } : undefined;
+    const pts = walkIn(p, 8 + Math.floor(rng() * 10), 0.03, rng, insideVnc, center);
+    pushPolyline(pos, col, regions, pts, vncColor(p), VNC_REGION, rng() * 0.14);
+  }
+
+  for (let i = 0; i < 90; i++) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const neckStart = { x: side * 0.04, y: -0.48, z: (rng() - 0.5) * 0.06 };
+    const pts = walkIn(neckStart, 22, 0.038, rng, insideVnc);
+    pushPolyline(pos, col, regions, pts, [0.84, 0.4, 0.96], VNC_REGION, 0.06);
+  }
+
   backgroundCache = {
     positions: new Float32Array(pos),
     colors: new Float32Array(col),
@@ -281,6 +391,98 @@ function circuitRgb(n: CircuitNeuron): [number, number, number] {
   if (n.cell_type === "DNp01") return [0.95, 0.82, 1];
   if (n.layer === "sensory") return [0.2, 0.8, 0.9];
   return [0.82, 0.38, 0.95];
+}
+
+function tagArbor(
+  vertexNeuron: string[],
+  vertexDistances: number[],
+  pos: number[],
+  before: number,
+  after: number,
+  id: string,
+  origin: Vec3
+) {
+  for (let v = before; v < after; v++) {
+    vertexNeuron.push(id);
+    const dx = pos[v * 3] - origin.x;
+    const dy = pos[v * 3 + 1] - origin.y;
+    const dz = pos[v * 3 + 2] - origin.z;
+    vertexDistances.push(Math.sqrt(dx * dx + dy * dy + dz * dz));
+  }
+}
+
+function sensoryProjectionAxon(n: CircuitNeuron, origin: Vec3, rng: () => number): Vec3[] {
+  const side = n.side === "left" ? -1 : 1;
+  const lplc = n.cell_type === "LPLC2";
+  const waypoints: Vec3[] = [
+    origin,
+    {
+      x: side * (1.14 + rng() * 0.05),
+      y: origin.y * 0.35 - 0.08 - rng() * 0.05,
+      z: 0.16 + origin.z * 0.25 + rng() * 0.05,
+    },
+    {
+      x: side * (0.86 + rng() * 0.06),
+      y: -0.12 - rng() * 0.05 - (lplc ? 0.05 : 0),
+      z: 0.18 + rng() * 0.04,
+    },
+    {
+      x: side * (0.58 + rng() * 0.05),
+      y: -0.04 + rng() * 0.06,
+      z: 0.1 + rng() * 0.03,
+    },
+    {
+      x: side * (0.3 + rng() * 0.04),
+      y: 0.04 + rng() * 0.04,
+      z: 0.05,
+    },
+    {
+      x: side * (0.08 + rng() * 0.03),
+      y: 0.07 + (lplc ? -0.03 : 0.02),
+      z: 0.015,
+    },
+  ];
+  return meanderTract(waypoints, rng, 18, 0.036);
+}
+
+function descendingVncAxon(n: CircuitNeuron, origin: Vec3, rng: () => number): Vec3[] {
+  const side = n.side === "left" ? -1 : 1;
+  const gf = n.cell_type === "DNp01";
+  const mdn = n.cell_type === "MDN";
+  const sway = (0.06 + rng() * 0.05) * (rng() < 0.5 ? -1 : 1);
+  const waypoints: Vec3[] = gf
+    ? [
+        origin,
+        { x: origin.x * 0.7 + side * 0.08, y: -0.12, z: 0.1 },
+        { x: origin.x * 0.25 - side * 0.06, y: -0.38, z: 0.02 },
+        { x: side * 0.05, y: -0.62, z: 0.07 },
+        { x: -side * 0.04, y: -0.88, z: 0.01 },
+        { x: side * 0.03, y: -1.18, z: 0.08 },
+        { x: -side * 0.02, y: -1.48, z: 0.04 },
+        { x: side * 0.05, y: -1.78, z: 0.09 },
+      ]
+    : mdn
+      ? [
+          origin,
+          { x: origin.x * 0.6 + side * 0.1, y: -0.16, z: 0.12 },
+          { x: side * 0.14, y: -0.42, z: 0.02 },
+          { x: -side * 0.04, y: -0.7, z: 0.07 },
+          { x: side * 0.1, y: -1.02, z: 0.0 },
+          { x: side * 0.22, y: -1.36, z: 0.05 },
+          { x: side * 0.08, y: -1.68, z: -0.02 },
+          { x: side * 0.12, y: -1.95, z: 0.02 },
+        ]
+      : [
+          origin,
+          { x: origin.x * 0.62 + side * 0.08, y: -0.12, z: origin.z * 0.5 + 0.08 },
+          { x: origin.x * 0.28 + sway, y: -0.36, z: -0.02 },
+          { x: side * 0.1 - sway, y: -0.64, z: 0.08 },
+          { x: -side * 0.05 + sway * 0.5, y: -0.92, z: 0.0 },
+          { x: side * (0.16 + rng() * 0.1), y: -1.22, z: 0.06 },
+          { x: side * (0.28 + rng() * 0.1), y: -1.5 - rng() * 0.12, z: -0.02 },
+          { x: side * (0.14 + rng() * 0.08), y: -1.78 - rng() * 0.1, z: 0.03 },
+        ];
+  return meanderTract(waypoints, rng, 22, gf ? 0.028 : 0.042);
 }
 
 export function buildCircuitArbors(neurons: CircuitNeuron[]): {
@@ -329,29 +531,44 @@ export function buildCircuitArbors(neurons: CircuitNeuron[]): {
       }
     }
     if (sensory) {
-      const axon = [origin, { x: origin.x * 0.45, y: origin.y * 0.4, z: origin.z * 0.3 }, { x: Math.sign(origin.x) * 0.12, y: 0.04, z: 0 }];
+      const axon = sensoryProjectionAxon(n, origin, rng);
       const before = pos.length / 3;
       pushPolyline(pos, col, regions, axon, rgb, region, 0.05);
-      const after = pos.length / 3;
-      for (let v = before; v < after; v++) {
-        vertexNeuron.push(n.id);
-        const dx = pos[v * 3] - origin.x;
-        const dy = pos[v * 3 + 1] - origin.y;
-        const dz = pos[v * 3 + 2] - origin.z;
-        vertexDistances.push(Math.sqrt(dx * dx + dy * dy + dz * dz));
+      tagArbor(vertexNeuron, vertexDistances, pos, before, pos.length / 3, n.id, origin);
+      const terminal = axon[axon.length - 1];
+      for (let t = 0; t < 5; t++) {
+        const tuft = walk(add(terminal, randDir(rng), 0.012), 8, 0.018, rng);
+        const b = pos.length / 3;
+        pushPolyline(pos, col, regions, tuft, rgb, region, 0.06);
+        tagArbor(vertexNeuron, vertexDistances, pos, b, pos.length / 3, n.id, origin);
       }
     }
-    if (gf) {
-      const axon = [origin, { x: origin.x * 0.4, y: -0.35, z: 0.05 }, { x: 0, y: -0.55, z: 0.08 }];
+    if (!sensory) {
+      const axon = descendingVncAxon(n, origin, rng);
       const before = pos.length / 3;
-      pushPolyline(pos, col, regions, axon, rgb, region, 0);
-      const after = pos.length / 3;
-      for (let v = before; v < after; v++) {
-        vertexNeuron.push(n.id);
-        const dx = pos[v * 3] - origin.x;
-        const dy = pos[v * 3 + 1] - origin.y;
-        const dz = pos[v * 3 + 2] - origin.z;
-        vertexDistances.push(Math.sqrt(dx * dx + dy * dy + dz * dz));
+      pushPolyline(pos, col, regions, axon, rgb, VNC_REGION, 0.04);
+      tagArbor(vertexNeuron, vertexDistances, pos, before, pos.length / 3, n.id, origin);
+      const branchAt = axon[Math.floor(axon.length * (0.45 + rng() * 0.2))];
+      const collateral = meanderTract(
+        [
+          branchAt,
+          { x: branchAt.x + (rng() - 0.5) * 0.18, y: branchAt.y - 0.22, z: branchAt.z + (rng() - 0.5) * 0.1 },
+          { x: branchAt.x + (rng() - 0.5) * 0.28, y: branchAt.y - 0.45, z: branchAt.z * 0.4 },
+        ],
+        rng,
+        12,
+        0.03,
+      );
+      const cb = pos.length / 3;
+      pushPolyline(pos, col, regions, collateral, rgb, VNC_REGION, 0.05);
+      tagArbor(vertexNeuron, vertexDistances, pos, cb, pos.length / 3, n.id, origin);
+      const terminal = axon[axon.length - 1];
+      const tufts = n.cell_type === "DNp01" ? 6 : 5;
+      for (let t = 0; t < tufts; t++) {
+        const tuft = walkIn(add(terminal, randDir(rng), 0.015), 8, 0.02, rng, insideVnc);
+        const b = pos.length / 3;
+        pushPolyline(pos, col, regions, tuft, rgb, VNC_REGION, 0.05);
+        tagArbor(vertexNeuron, vertexDistances, pos, b, pos.length / 3, n.id, origin);
       }
     }
   });
