@@ -94,16 +94,19 @@ Despite its theoretical advantages, the resonant approach introduces specific tr
 The ARCANE framework implements this theory through two primary components:
 
 ### 1. The ResonantGSER Layer
-The fundamental unit of the resonance hierarchy. Unlike standard layers, it is stateful and reactive:
-*   **Stateful Representation**: Maintains a persistent `internal_semantic_representation`.
-*   **Feedback Mechanism**: The `project_feedback()` method generates a reconstruction of the input space.
-*   **Error Sensitivity**: Calculates `prediction_divergence` for harmonization and prospective correction.
+The fundamental unit of the resonance hierarchy:
+*   **Closed-form harmonization**: $N$ EMA steps toward `resonance_alignment`, skipped while that vector is unset.
+*   **Feedback Mechanism**: `project_feedback()` maps hidden→hidden by default; `to_input_space=True` uses `feedback_weights`.
+*   **Prototype state**: `last_h` is a slow EMA of the **batch mean**, not a per-example code.
+*   **Spikes**: subtractive reset with a straight-through estimator.
 
 ### 2. The NeuralResonanceCallback
-This orchestrator manages the complex hierarchical exchange during training:
-1.  **Feedback Phase**: Higher layers generate projections for subordinates.
-2.  **Harmonization Phase**: Subordinates adjust their internal states to align with projections.
-3.  **Synchronized Update**: Final forward pass and backpropagation only occur after equilibrium.
+Runs on **`on_train_batch_begin`** (before the current batch forward pass):
+1.  **Feedback Phase**: Higher layers project from `last_h` (previous batch prototype).
+2.  **Harmonization Phase**: Lower layers write that projection into `resonance_alignment`.
+3.  **Forward pass**: The upcoming batch is attracted toward that prototype.
+
+This is not an inner-loop re-forward of the current batch. For per-example alignment without a callback, use `PredictiveResonantLayer`.
 
 ---
 
@@ -120,6 +123,8 @@ The ARCANE framework has been comprehensively evaluated through comparison studi
 | **Hierarchical Resonance** | `HierarchicalResonanceFoundationModel` | Multi-level hierarchy, temporal coherence |
 
 ### Tiny Shakespeare Benchmark (15,000 chars, 10 epochs)
+
+These numbers are from a small exploratory run with **unequal parameter counts**. They are not a Transformer comparison and should not be cited as evidence of deliberative reasoning.
 
 | Metric | Traditional LSTM | Neuromimetic (Standard) | **Hierarchical Resonance** |
 | :--- | :--- | :--- | :--- |
@@ -145,12 +150,11 @@ The ARCANE framework has been comprehensively evaluated through comparison studi
 | **Test Loss** | 0.0432 | **0.0391** |
 | **Training Time** | ~947s | ~1518s |
 
-### Key Findings:
+### Key Findings (exploratory, small data)
 
-*   **Progressive Improvement**: Each level of neural resonance added measurable improvements to accuracy and stability.
-*   **Superior Generalization**: The Hierarchical Resonance model achieved the lowest train/val gap, indicating reduced overfitting.
-*   **Stability in Depth**: The model maintains stability through iterative alignment cycles, avoiding traditional gradient issues.
-*   **Deliberative Reasoning**: The resonance phase acts as an inherent check and balance system.
+*   Adding resonance levels changed Tiny Shakespeare accuracy by about one point at roughly 2× parameters.
+*   MNIST 98.89% vs 98.76% is within noise for that setup.
+*   Unit tests verify closed-form harmonization, STE spikes, and Keras 3 layer linking — not task superiority.
 
 ---
 

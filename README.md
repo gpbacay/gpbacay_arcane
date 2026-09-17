@@ -8,11 +8,11 @@ A Python library for building neuromimetic AI models inspired by biological neur
 
 ARCANE is a comprehensive Python library that enables you to build, train, and deploy neuromimetic AI models. Unlike traditional deep learning frameworks, ARCANE incorporates biological neural principles such as:
 
-- **Neural Resonance**: Bi-directional state alignment between neural layers, enabling Inference-Time State Adaptation and Inference-Time Learning.
-- **Spiking Neural Dynamics**: Realistic neuron behavior with leak rates and thresholds.
-- **Hebbian Learning**: Plasticity rules based on synaptic activity ("neurons that fire together, wire together").
-- **Homeostatic Plasticity**: Self-regulating neural activity for stable representations.
-- **Hierarchical Processing**: Multi-level neural architectures for complex reasoning.
+- **Neural Resonance**: Bi-directional prototype alignment between ResonantGSER layers, plus local per-example alignment in PredictiveResonantLayer. Optional inference-time BCM plasticity.
+- **Spiking Neural Dynamics**: LIF-style leak, threshold, and subtractive reset with a straight-through estimator so spikes can train.
+- **Hebbian / BCM Learning**: Dual-weight plastic kernels (`BioplasticDenseLayer`, `HebbianHomeostaticNeuroplasticity`).
+- **Homeostatic Plasticity**: Activity-dependent gain and plastic-kernel scaling.
+- **Hierarchical Processing**: Multi-level ResonantGSER stacks with `set_higher_layer` / `set_lower_layer` (Keras 3-safe).
 
 The library provides ready-to-use models, customizable neural layers, and training callbacks that make it easy to experiment with biologically-inspired AI architectures.
 
@@ -25,7 +25,7 @@ The library provides ready-to-use models, customizable neural layers, and traini
 - **Hierarchical Resonance**: Multi-level neural architectures with bi-directional feedback.
 - **Neural Reservoir Computing**: Dynamic temporal processing with configurable parameters.
 - **Relational Concept Graph Reasoning**: Unified mechanism for concept extraction and relational reasoning.
-- **Linear Self-Attention**: Efficient O(n) complexity for long-sequence processing with kernel approximation.
+- **Linear Self-Attention**: Katharopoulos kernel attention, $O(n d^2)$ in sequence length (not $QK^{\top}$).
 
 ### Ready-to-Use Models
 - **HierarchicalResonanceFoundationModel**: Advanced model with multi-level resonance hierarchy and deliberative reasoning.
@@ -149,19 +149,20 @@ Standard neuromimetic model with biological learning rules. Best for:
 
 | Layer | Description |
 |-------|-------------|
-| `GSER` | Gated Spiking Elastic Reservoir with dynamic reservoir sizing |
-| `DenseGSER` | Dense layer with spiking dynamics and conceptual gating |
-| `ResonantGSER` | Hierarchical resonant layer with bi-directional feedback |
-| `PredictiveResonantLayer` | Local predictive resonance RNN; optional stateful alignment across calls |
-| `BioplasticDenseLayer` | Hebbian learning with homeostatic plasticity; optional inference-time plasticity |
-| `HebbianHomeostaticNeuroplasticity` | Simplified Hebbian learning layer |
-| `RelationalConceptModeling` | Multi-head attention for concept extraction |
-| `RelationalGraphAttentionReasoning` | Graph attention for relational reasoning |
-| `RelationalConceptGraphReasoning` | Unified relational reasoning with configurable outputs |
-| `MultiheadLinearSelfAttentionKernalization` | Linear attention with kernel approximation |
-| `LatentTemporalCoherence` | Temporal coherence distillation |
-| `SpatioTemporalSummarization` | Unification of spatio-temporal features |
-| `PositionalEncodingLayer` | Sinusoidal positional encoding |
+| `GSER` | Gated spiking elastic reservoir; recurrent weights scaled to `spectral_radius` |
+| `DenseGSER` | Dense map with leak-controlled spike gating and optional conceptual gate (not a reservoir) |
+| `ResonantGSER` | Hierarchical resonant RNN; closed-form EMA toward a top-down prototype |
+| `PredictiveResonantLayer` | Local predictive resonance; alignment is per-example in RNN state |
+| `BioplasticDenseLayer` | Dual kernel; optional inference-time BCM + homeostasis on `plastic_kernel` |
+| `HebbianHomeostaticNeuroplasticity` | Trainable dense + Hebbian plastic kernel and homeostatic gain |
+| `RelationalConceptModeling` | Multi-head self-attention wrapper |
+| `RelationalGraphAttentionReasoning` | Self-attention plus pooled classifier |
+| `RelationalConceptGraphReasoning` | Stacked MHA with residual/norm; not a graph network |
+| `MultiheadLinearSelfAttentionKernalization` | Katharopoulos linear attention (`Kernalization` is a historical spelling) |
+| `AttentionResidual` | Softmax over depth of prior block outputs (AttnRes) |
+| `LatentTemporalCoherence` | Mean-pool then linear projection |
+| `SpatioTemporalSummarization` | Local GLU + sequence summary (softmax over time when weighted) |
+| `PositionalEncodingLayer` | Sinusoidal positional encoding added to the sequence |
 
 ## CLI Commands
 
@@ -181,7 +182,7 @@ gpbacay-arcane-version
 
 ## Performance and Benchmarks
 
-Comprehensive testing on the Tiny Shakespeare dataset shows ARCANE models outperform traditional approaches:
+Exploratory Tiny Shakespeare run (15k chars, 10 epochs, **unequal parameter counts**). Treat as a smoke comparison, not a Transformer result.
 
 | Model | Val Accuracy | Val Loss | Training Time | Parameters |
 |-------|--------------|----------|---------------|------------|
@@ -189,11 +190,11 @@ Comprehensive testing on the Tiny Shakespeare dataset shows ARCANE models outper
 | ARCANE Neuromimetic | 10.20% | 6.42 | ~58s | ~220K |
 | ARCANE Hierarchical Resonance | 11.25% | 6.15 | ~95s | ~385K |
 
-### Key Advantages
-- 18.4% relative improvement in validation accuracy over traditional LSTM.
-- Lowest loss variance (0.0142) indicating stable training.
-- Smallest train/val gap (0.048) showing reduced overfitting.
-- Biologically-plausible learning with neural resonance.
+### Unit tests
+
+```bash
+python -m pytest tests/test_mechanism_correctness.py tests/test_activations.py tests/test_resonant_gser.py tests/test_homeostatic_plasticity.py -q
+```
 
 ## Project Structure
 
@@ -216,10 +217,13 @@ gpbacay_arcane/
 │   ├── train_hierarchical_resonance.py
 │   ├── train_neuromimetic_sm.py
 │   └── test_hierarchical_resonance_comparison.py
-├── tests/                   # Unit and integration tests
+├── tests/                   # Unit tests (see test_mechanism_correctness.py)
 ├── docs/                    # Research and technical documentation
 │   ├── NEURAL_RESONANCE.md
 │   ├── RESONANT_GSER.md
+│   ├── PREDICTIVE_RESONANT_LAYER.md
+│   ├── HOMEOSTATIC_PLASTICITY.md
+│   ├── INFERENCE_TIME_RESONANCE.md
 │   └── ACTIVATIONS.md
 ├── data/                    # Sample datasets
 │   └── shakespeare_small.txt

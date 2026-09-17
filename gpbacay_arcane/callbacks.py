@@ -26,13 +26,11 @@ class NeuralResonanceCallback(Callback):
         if self.resonant_layers:
             resonant_layers = self.resonant_layers
         else:
-            # Identify ResonantGSER layers in the architecture
-            resonant_layers = []
-            for layer in self.model.layers:
-                if 'ResonantGSER' in str(type(layer)):
-                    resonant_layers.append(layer)
-            # Sort resonant layers to ensure correct hierarchical processing
-            resonant_layers.sort(key=lambda x: x.name)
+            resonant_layers = [
+                layer for layer in self.model.layers
+                if isinstance(layer, tf.keras.layers.RNN)
+                and hasattr(layer, "harmonize_states")
+            ]
         
         if not resonant_layers:
             return
@@ -72,12 +70,40 @@ class NeuralResonanceCallback(Callback):
 
 class DynamicSelfModelingReservoirCallback(Callback):
     """
-    A callback for dynamic self-modeling and adaptation of reservoir-based layers,
-    contributing to Latent Space Reasoning and Abstraction of Surface-Level Conceptual Variability.
-    It dynamically adjusts the reservoir's size (neurogenesis and pruning) based on performance metrics,
-    optimizing the model's capacity for Direct Semantic Optimization and efficient processing
-    within a Unified Multi-Modal Semantic Space.
+    Grows and prunes a GSER reservoir from training metrics.
+
+    `prune_connections` on GSER takes an absolute weight threshold, so
+    `prune_rate` is interpreted as that magnitude cutoff, not a fraction of
+    synapses to remove.
     """
+
+    def __init__(
+        self,
+        reservoir_layer,
+        performance_metric="val_accuracy",
+        target_metric=0.9,
+        growth_rate=2,
+        prune_rate=0.1,
+        performance_threshold=0.001,
+        growth_phase_length=5,
+        pruning_phase_length=5,
+        stagnation_epochs=3,
+        apoptosis_rate=1,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.reservoir_layer = reservoir_layer
+        self.performance_metric = performance_metric
+        self.target_metric = target_metric
+        self.growth_rate = int(growth_rate)
+        self.prune_rate = prune_rate
+        self.performance_threshold = performance_threshold
+        self.growth_phase_length = growth_phase_length
+        self.pruning_phase_length = pruning_phase_length
+        self.stagnation_epochs = int(stagnation_epochs)
+        self.apoptosis_rate = int(apoptosis_rate)
+        self.performance_history = []
+        self.stagnation_counter = 0
 
     def on_epoch_end(self, epoch, logs=None):
         current_metric = logs.get(self.performance_metric, 0)

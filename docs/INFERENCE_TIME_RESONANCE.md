@@ -99,10 +99,12 @@ print(f"Standard: {top_token_standard}, Resonant: {top_token_resonant}")
 
 When `run_resonance_cycle()` or `predict_with_resonance()` is called:
 
-1. **Top-Down Projection**: Higher layers project their internal states down to lower layers using `project_feedback()`.
-2. **Harmonization**: Lower layers receive these projections and update their `resonance_alignment` targets using `harmonize_states()`.
-3. **Convergence Check**: The system measures prediction divergence across all layers.
-4. **Iteration**: Steps 1-3 repeat for the specified number of cycles (or until convergence).
+1. **Top-Down Projection**: Higher layers project `last_h` (an EMA of the **batch mean**) with `project_feedback()`.
+2. **Harmonization**: Lower layers write that vector into `resonance_alignment` via `harmonize_states()`.
+3. **Convergence Check**: Mean-squared divergence from each cell (a scalar, not per-example).
+4. **Iteration**: Steps 1–3 repeat. The next **forward pass** then uses the closed-form EMA toward that prototype.
+
+This does not re-encode the current input between cycles. For per-example alignment, use `PredictiveResonantLayer`.
 
 ### 2. Forward Pass Integration
 
@@ -127,7 +129,7 @@ After resonance cycles complete, the `resonance_alignment` values are set in eac
 
 - **PredictiveResonantLayer with `persist_alignment=True`**: The layer keeps a slow-moving alignment state across separate forward passes. Each call updates an internal alignment memory used as the initial resonance target for the next call, so repeated inference (e.g. on the same or new inputs) exhibits stateful resonance across calls. Weights are unchanged; only the non-trainable alignment state evolves.
 
-- **BioplasticDenseLayer with `enable_inference_plasticity=True`**: During inference, the layer applies a lightweight Hebbian-style update to a non-trainable plastic weight component. The effective weights are `kernel + plastic_kernel`; only `plastic_kernel` is updated at inference time, so gradient-based training remains unchanged. This gives inference-time learning (e.g. confidence or predictions adapting over repeated calls) without a separate training step.
+- **BioplasticDenseLayer with `enable_inference_plasticity=True`**: During inference, BCM uses the running activity trace $\theta$ to update `plastic_kernel` only: $\Delta W \propto x^{\top}[y \odot (y-\theta)]$, then activity scaling toward `target_avg`. Gradient `kernel` is unchanged.
 
 Use these options in sequence models (e.g. MNIST classifier with PredictiveResonantLayer and BioplasticDenseLayer) when you want the model to adapt its internal state or readout during repeated inference.
 

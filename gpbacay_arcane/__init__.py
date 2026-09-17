@@ -31,6 +31,7 @@ from .layers import (
 
 # Convenience re-exports for activations
 from .activations import (
+    straight_through_spike,
     resonant_spike,
     homeostatic_gelu,
     adaptive_softplus,
@@ -41,8 +42,11 @@ from .activations import (
 from .mechanisms import (
     GSER,
     ResonantGSERCell,
+    PredictiveResonantCell,
     MultiheadLinearSelfAttentionKernalization,
     SpatioTemporalSummaryMixingLayer,
+    AttentionResidual,
+    BlockAttentionResidual,
 )
 
 
@@ -94,12 +98,15 @@ __all__ = [
     "RelationalGraphAttentionReasoning",
     "RelationalConceptGraphReasoning",
     "MultiheadLinearSelfAttentionKernalization",
+    "AttentionResidual",
+    "BlockAttentionResidual",
     "LatentTemporalCoherence",
     "PositionalEncodingLayer",
     "ExpandDimensionLayer",
     "SpatioTemporalSummaryMixingLayer",
     "SpatioTemporalSummarization",
     # Activations
+    "straight_through_spike",
     "resonant_spike",
     "homeostatic_gelu",
     "adaptive_softplus",

@@ -4,6 +4,8 @@ import tensorflow as tf
 import numpy as np
 from tensorflow.keras.layers import Layer, Dense, Dropout, LayerNormalization
 
+from .activations import straight_through_spike
+
 class GSER(Layer):
     """
     The Gated Spiking Elastic Reservoir (GSER) Mechanism (RNN Cell) for semantic processing.
@@ -54,9 +56,25 @@ class GSER(Layer):
             )
 
     def initialize_weights(self):
+        leak = float(np.clip(self.initial_leak_rate, 1e-4, 1.0 - 1e-4))
+        leak_logit = np.log(leak / (1.0 - leak))
+        threshold = float(max(self.initial_spike_threshold, 1e-4))
+        threshold_pre = np.log(np.expm1(threshold))
+        spectral_radius = float(self.spectral_radius)
+
+        def spectral_reservoir_initializer(shape, dtype=None):
+            w = np.random.randn(*shape).astype(np.float32) * 0.1
+            try:
+                rho = float(np.max(np.abs(np.linalg.eigvals(w))))
+                if rho > 1e-8:
+                    w *= spectral_radius / rho
+            except np.linalg.LinAlgError:
+                pass
+            return tf.cast(w, dtype or tf.float32)
+
         self.spatiotemporal_reservoir_weights = self.add_weight(
             shape=(self.max_dynamic_reservoir_dim, self.max_dynamic_reservoir_dim),
-            initializer=tf.keras.initializers.RandomNormal(stddev=0.1),
+            initializer=spectral_reservoir_initializer,
             trainable=False,
             name='spatiotemporal_reservoir_weights'
         )
@@ -74,13 +92,13 @@ class GSER(Layer):
         )
         self.leak_rate_param = self.add_weight(
             shape=(self.max_dynamic_reservoir_dim,),
-            initializer=tf.keras.initializers.Constant(np.log(self.initial_leak_rate / (1 - self.initial_leak_rate))),
+            initializer=tf.keras.initializers.Constant(leak_logit),
             trainable=True,
             name='leak_rate_param'
         )
         self.spike_threshold_param = self.add_weight(
             shape=(self.max_dynamic_reservoir_dim,),
-            initializer=tf.keras.initializers.Constant(np.log(np.exp(self.initial_spike_threshold) - 1)),
+            initializer=tf.keras.initializers.Constant(threshold_pre),
             trainable=True,
             name='spike_threshold_param'
         )
@@ -90,15 +108,22 @@ class GSER(Layer):
         self.current_reservoir_size.assign(new_size)
 
     def prune_connections(self, pruning_threshold=0.1):
-        active_size = self.current_reservoir_size
-        active_weights = self.spatiotemporal_reservoir_weights[:active_size, :active_size]
+        active_size = tf.cast(tf.convert_to_tensor(self.current_reservoir_size), tf.int32)
+        active_weights = tf.slice(self.spatiotemporal_reservoir_weights, [0, 0], [active_size, active_size])
         mask = tf.abs(active_weights) < pruning_threshold
         pruned_weights = tf.where(mask, tf.zeros_like(active_weights), active_weights)
-        self.spatiotemporal_reservoir_weights.assign(tf.tensor_scatter_nd_update(
-            self.spatiotemporal_reservoir_weights,
-            tf.where(tf.ones((active_size, active_size), dtype=tf.bool)),
-            tf.reshape(pruned_weights, [-1])
-        ))
+        paddings = tf.stack([
+            tf.stack([tf.constant(0, dtype=tf.int32), tf.cast(self.max_dynamic_reservoir_dim, tf.int32) - active_size]),
+            tf.stack([tf.constant(0, dtype=tf.int32), tf.cast(self.max_dynamic_reservoir_dim, tf.int32) - active_size]),
+        ])
+        padded = tf.pad(pruned_weights, paddings)
+        # Keep inactive block of the original matrix intact.
+        inactive_mask = tf.pad(
+            tf.ones(tf.stack([active_size, active_size]), dtype=tf.float32),
+            paddings,
+        )
+        updated = padded + self.spatiotemporal_reservoir_weights * (1.0 - inactive_mask)
+        self.spatiotemporal_reservoir_weights.assign(updated)
 
     def prune_neurons(self, num_to_prune):
         active_size = self.current_reservoir_size
@@ -128,13 +153,13 @@ class GSER(Layer):
             prev_state_full = states[0] if len(states) > 0 else tf.zeros((tf.shape(inputs)[0], self.max_dynamic_reservoir_dim))
         else:
             prev_state_full = states
-        active_size = self.current_reservoir_size
-        prev_state = prev_state_full[:, :active_size]
-        active_input_weights = self.spatiotemporal_input_weights[:active_size, :]
-        active_reservoir_weights = self.spatiotemporal_reservoir_weights[:active_size, :active_size]
-        active_gate_weights = self.spiking_gate_weights[:3 * active_size, :]
-        leak_rate = tf.sigmoid(self.leak_rate_param[:active_size])
-        spike_threshold = tf.nn.softplus(self.spike_threshold_param[:active_size])
+        active_size = tf.cast(tf.convert_to_tensor(self.current_reservoir_size), tf.int32)
+        prev_state = tf.slice(prev_state_full, [0, 0], [-1, active_size])
+        active_input_weights = tf.slice(self.spatiotemporal_input_weights, [0, 0], [active_size, -1])
+        active_reservoir_weights = tf.slice(self.spatiotemporal_reservoir_weights, [0, 0], [active_size, active_size])
+        active_gate_weights = tf.slice(self.spiking_gate_weights, [0, 0], [3 * active_size, -1])
+        leak_rate = tf.sigmoid(tf.slice(self.leak_rate_param, [0], [active_size]))
+        spike_threshold = tf.nn.softplus(tf.slice(self.spike_threshold_param, [0], [active_size]))
         input_part = tf.matmul(inputs, active_input_weights, transpose_b=True)
         reservoir_part = tf.matmul(prev_state, active_reservoir_weights)
         gate_part = tf.matmul(inputs, active_gate_weights, transpose_b=True)
@@ -143,15 +168,25 @@ class GSER(Layer):
         state = o_gate * state
 
         if self.use_semantic_gate:
-            # Concatenate inputs and current state for the semantic gate
-            combined_features = tf.concat([inputs, state], axis=-1)
+            pad_width = tf.cast(self.max_dynamic_reservoir_dim - active_size, tf.int32)
+            paddings = tf.stack([
+                tf.constant([0, 0], dtype=tf.int32),
+                tf.stack([tf.constant(0, dtype=tf.int32), pad_width]),
+            ])
+            padded_for_gate = tf.pad(state, paddings)
+            combined_features = tf.concat([inputs, padded_for_gate], axis=-1)
             semantic_gate_activations = tf.matmul(combined_features, self.semantic_gate_kernel) + self.semantic_gate_bias
-            semantic_gate = tf.sigmoid(semantic_gate_activations[:, :active_size]) # Apply gate to active part
-            state = state * semantic_gate # Modulate state based on semantic relevance
+            semantic_gate = tf.sigmoid(semantic_gate_activations[:, :tf.cast(active_size, tf.int32)])
+            state = state * semantic_gate
 
-        spikes = tf.cast(tf.greater(state, spike_threshold), dtype=tf.float32)
-        state = tf.where(spikes > 0, state - spike_threshold, state)
-        padded_state = tf.pad(state, [[0, 0], [0, self.max_dynamic_reservoir_dim - active_size]])
+        spikes = straight_through_spike(state, spike_threshold)
+        state = state - spikes * spike_threshold
+        pad_width = tf.cast(self.max_dynamic_reservoir_dim - active_size, tf.int32)
+        paddings = tf.stack([
+            tf.constant([0, 0], dtype=tf.int32),
+            tf.stack([tf.constant(0, dtype=tf.int32), pad_width]),
+        ])
+        padded_state = tf.pad(state, paddings)
         padded_state.set_shape([None, self.max_dynamic_reservoir_dim])
         return padded_state, [padded_state]
 
@@ -223,13 +258,13 @@ class ResonantGSERCell(Layer):
             initializer='zeros', trainable=False
         )
         
-        # Feedback projection weights (trainable) - for top-down expectations
+        # Top-down projection: hidden state -> lower-layer expectation space.
+        # feedback_weights maps to the cell's input dim; projection_kernel
+        # stays in hidden space so sibling layers of equal width can align.
         self.feedback_weights = self.add_weight(
             name='feedback_weights', shape=(self.units, int(input_dim)),
             initializer='glorot_uniform', trainable=True
         )
-        
-        # Projection head for feedback (trainable) - maps h_t to projection space
         self.projection_kernel = self.add_weight(
             name='projection_kernel', shape=(self.units, self.units),
             initializer='glorot_uniform', trainable=True
@@ -237,6 +272,10 @@ class ResonantGSERCell(Layer):
         self.projection_bias = self.add_weight(
             name='projection_bias', shape=(self.units,),
             initializer='zeros', trainable=True
+        )
+        self.alignment_set = self.add_weight(
+            name='alignment_set', shape=(),
+            initializer='zeros', trainable=False
         )
         
         # Track last hidden state for external access
@@ -253,14 +292,17 @@ class ResonantGSERCell(Layer):
         
         self.built = True
     
-    def project_feedback(self, state):
+    def project_feedback(self, state, to_input_space=False):
         """
         Top-Down Projection: P_{i→i-1} = f_proj(S_i; W_i)
-        Projects current state to expectation for lower layer.
+
+        By default projects within hidden space so equal-width layers can
+        align. Set `to_input_space=True` to reconstruct the cell's input
+        using `feedback_weights`.
         """
-        # Apply learned projection transformation
-        projection = tf.matmul(state, self.projection_kernel) + self.projection_bias
-        return projection
+        if to_input_space:
+            return tf.matmul(state, self.feedback_weights)
+        return tf.matmul(state, self.projection_kernel) + self.projection_bias
     
     def compute_divergence(self, current_state, projection):
         """
@@ -272,33 +314,44 @@ class ResonantGSERCell(Layer):
     
     def harmonize_state(self, current_state, divergence, gamma):
         """
-        State Harmonization: Updates state to reduce semantic divergence from top-down projection.
-        Incorporates semantic divergence weighting for Direct Semantic Optimization.
+        State Harmonization: h <- h - α (h - p), with α clipped to (0, 1).
         """
-        # Dynamically adjust harmonization based on semantic divergence weight
-        harmonized = current_state - (gamma + self.semantic_divergence_weight) * divergence
-        return harmonized
-    
+        alpha = tf.clip_by_value(
+            tf.cast(gamma, current_state.dtype) + self.semantic_divergence_weight,
+            0.0,
+            0.99,
+        )
+        return current_state - alpha * divergence
+
     def resonance_loop(self, h_initial, projection_from_above=None):
         """
-        Implements the core Resonance Loop for Latent Space Reasoning.
+        Closed-form equivalent of N harmonization steps:
+
+            h_N = (1-α)^N h + (1-(1-α)^N) p
+
+        Skips alignment when no top-down target has been set, so the first
+        forward pass does not pull representations toward zero.
         """
-        h_current = h_initial
-        gamma = self.resonance_factor
-        
-        if projection_from_above is not None:
-            # Iterative synchronization
-            for _ in range(self.resonance_cycles):
-                delta = self.compute_divergence(h_current, projection_from_above)
-                # Divergence check (avoiding early break for graph compatibility)
-                h_current = self.harmonize_state(h_current, delta, gamma)
-            
-            # Final divergence update after loop
-            final_delta = self.compute_divergence(h_current, projection_from_above)
-            divergence_magnitude = tf.reduce_mean(tf.square(final_delta))
-            self.global_divergence.assign(divergence_magnitude)
-        
-        return h_current
+        if projection_from_above is None:
+            return h_initial
+
+        align = tf.reshape(tf.cast(projection_from_above, h_initial.dtype), [1, self.units])
+        alignment_energy = tf.reduce_sum(tf.square(align)) + self.alignment_set
+
+        def _apply():
+            alpha = tf.clip_by_value(
+                tf.cast(self.resonance_factor, h_initial.dtype) + self.semantic_divergence_weight,
+                0.0,
+                0.99,
+            )
+            n = tf.cast(self.resonance_cycles, h_initial.dtype)
+            decay = tf.pow(1.0 - alpha, n)
+            h_resonated = decay * h_initial + (1.0 - decay) * align
+            final_delta = h_resonated - align
+            self.global_divergence.assign(tf.reduce_mean(tf.square(final_delta)))
+            return h_resonated
+
+        return tf.cond(alignment_energy > 0.0, _apply, lambda: h_initial)
         
     def call(self, inputs, states, **kwargs):
         """
@@ -328,14 +381,13 @@ class ResonantGSERCell(Layer):
         res_mod = tf.sigmoid(self.resonance_gate) * self.resonance_factor
         h_modulated = h_resonated * (1.0 + res_mod) + self.resonance_bias
         
-        # === Step 4: Spiking Mechanism ===
-        spikes = tf.cast(tf.greater(h_modulated, self.spike_threshold), dtype=tf.float32)
-        h_final = tf.where(spikes > 0, h_modulated - self.spike_threshold, h_modulated)
-        
-        # === Step 5: Track State ===
-        # Use tf.cond to safely assign in graph mode if needed, 
-        # but assign is generally ok on non-trainable variables.
-        self.last_h.assign(tf.reduce_mean(h_final, axis=0))
+        # === Step 4: Spiking Mechanism (STE so spike decisions train) ===
+        spikes = straight_through_spike(h_modulated, self.spike_threshold)
+        h_final = h_modulated - spikes * self.spike_threshold
+
+        # === Step 5: Track a slow prototype of the hidden state ===
+        batch_mean = tf.reduce_mean(h_final, axis=0)
+        self.last_h.assign(0.9 * self.last_h + 0.1 * batch_mean)
         
         return h_final, [h_final, c_new]
     
@@ -471,23 +523,16 @@ class PredictiveResonantCell(Layer):
 
     def _resonance_loop(self, h_initial, alignment):
         """
-        Per-example resonance loop: iteratively move h toward alignment.
+        Closed-form local resonance: h_N = (1-η)^N h + (1-(1-η)^N) alignment.
         """
         if alignment is None:
             return h_initial
 
-        h_current = h_initial
-        step = self.resonance_step_size
-
-        for _ in range(self.resonance_cycles):
-            delta = h_current - alignment
-            h_current = h_current - step * delta
-
-        # Track divergence for analysis
-        final_delta = h_current - alignment
-        divergence = tf.reduce_mean(tf.square(final_delta))
-        self.global_divergence.assign(divergence)
-
+        step = tf.clip_by_value(tf.cast(self.resonance_step_size, h_initial.dtype), 0.0, 0.99)
+        n = tf.cast(self.resonance_cycles, h_initial.dtype)
+        decay = tf.pow(1.0 - step, n)
+        h_current = decay * h_initial + (1.0 - decay) * alignment
+        self.global_divergence.assign(tf.reduce_mean(tf.square(h_current - alignment)))
         return h_current
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
@@ -540,8 +585,8 @@ class PredictiveResonantCell(Layer):
         res_mod = tf.sigmoid(self.resonance_gate)
         h_modulated = h_resonant * (1.0 + res_mod) + self.resonance_bias
 
-        spikes = tf.cast(tf.greater(h_modulated, self.spike_threshold), tf.float32)
-        h_final = tf.where(spikes > 0.0, h_modulated - self.spike_threshold, h_modulated)
+        spikes = straight_through_spike(h_modulated, self.spike_threshold)
+        h_final = h_modulated - spikes * self.spike_threshold
 
         # 4. Predictive update of alignment: slow-moving target toward projected future state
         predicted = tf.matmul(h_final, self.prediction_kernel) + self.prediction_bias
@@ -631,12 +676,15 @@ class MultiheadLinearSelfAttentionKernalization(Layer):
         queries = self.split_heads(queries, batch_size)
         keys = self.split_heads(keys, batch_size)
         values = self.split_heads(values, batch_size)
+        # Feature map φ(x) = elu(x)+1 as in Katharopoulos et al. linear attention.
+        # Compute φ(Q)(φ(K)^T V) / φ(Q)(φ(K)^T 1) in O(n d^2), not QK^T in O(n^2).
         queries = tf.nn.elu(queries) + 1.0
         keys = tf.nn.elu(keys) + 1.0
-        key_norm = tf.sqrt(tf.reduce_sum(tf.square(keys), axis=-1, keepdims=True) + self.eps)
-        keys = keys / key_norm
-        scores = tf.einsum("bhqd,bhkd->bhqk", queries, keys)
-        attention_output = tf.einsum("bhqk,bhvd->bhqd", scores, values)
+        kv = tf.einsum("bhsd,bhse->bhde", keys, values)
+        normalizer = tf.reduce_sum(keys, axis=2)
+        numerator = tf.einsum("bhsd,bhde->bhse", queries, kv)
+        denominator = tf.einsum("bhsd,bhd->bhs", queries, normalizer)
+        attention_output = numerator / (tf.expand_dims(denominator, -1) + self.eps)
         attention_output = tf.transpose(attention_output, perm=[0, 2, 1, 3])
         attention_output = tf.reshape(attention_output, (batch_size, seq_len, self.d_model))
         if self.use_weighted_summary:
@@ -679,7 +727,7 @@ class SpatioTemporalSummaryMixingLayer(Layer):
         self.summary_dense2 = Dense(self.d_model)
         self.summary_dropout = Dropout(self.dropout_rate)
         if self.use_weighted_summary:
-            self.summary_weights = Dense(1, activation='softmax')
+            self.summary_weights = Dense(1)
         self.combiner_dense1 = Dense(4 * self.d_model, activation='gelu')
         self.combiner_dense2 = Dense(self.d_model)
         self.combiner_dropout = Dropout(self.dropout_rate)
@@ -697,7 +745,8 @@ class SpatioTemporalSummaryMixingLayer(Layer):
         summary = self.summary_dense2(summary)
         summary = self.summary_dropout(summary, training=training)
         if self.use_weighted_summary:
-            weights = self.summary_weights(summary)
+            scores = self.summary_weights(summary)
+            weights = tf.nn.softmax(scores, axis=1)
             weighted_summary = tf.reduce_sum(summary * weights, axis=1, keepdims=True)
         else:
             weighted_summary = tf.reduce_mean(summary, axis=1, keepdims=True)
@@ -772,17 +821,11 @@ class AttentionResidual(Layer):
             Tensor of shape (batch_size, ..., d_model): selectively aggregated representation.
         """
         V = tf.stack(history, axis=-2)   # (..., L, d_model)
-        # RMSNorm over feature dimension to prevent magnitude dominance
         rms = tf.sqrt(tf.reduce_mean(V ** 2, axis=-1, keepdims=True) + self.eps)
-        K = (V / rms) * self.gamma        # (..., L, d_model)
-        # Compute attention scores: w_l · k_i, summed over d_model → (..., L)
-        scores = tf.einsum('...d,...ld->...l', tf.ones_like(V[..., 0, :]) * self.wl, K)
-        scores = tf.reduce_sum(
-            tf.expand_dims(self.wl, 0) * K, axis=-1
-        )  # (..., L)
-        alpha = tf.nn.softmax(scores, axis=-1)   # (..., L)
-        # Weighted combination over depth
-        out = tf.einsum('...l,...ld->...d', alpha, V)  # (..., d_model)
+        K = (V / rms) * self.gamma
+        scores = tf.einsum('d,...ld->...l', self.wl, K)
+        alpha = tf.nn.softmax(scores, axis=-1)
+        out = tf.einsum('...l,...ld->...d', alpha, V)
         return out
 
     def get_config(self):
@@ -848,17 +891,14 @@ class BlockAttentionResidual(Layer):
             Tensor (batch, d_model): aggregated from all block sources.
         """
         completed_blocks, partial_block = inputs
-        all_sources = completed_blocks + [partial_block]
+        all_sources = list(completed_blocks) + [partial_block]
 
-        V = tf.stack(all_sources, axis=1)         # (B, N+1, d_model)
+        V = tf.stack(all_sources, axis=-2)        # (..., N+1, d_model)
         rms = tf.sqrt(tf.reduce_mean(V ** 2, axis=-1, keepdims=True) + self.eps)
-        K = (V / rms) * self.gamma                # (B, N+1, d_model)
-        # scores: w_l · k_i  →  (B, N+1)
-        scores = tf.reduce_sum(
-            tf.reshape(self.wl, (1, 1, self.d_model)) * K, axis=-1
-        )
-        alpha = tf.nn.softmax(scores, axis=-1)    # (B, N+1)
-        out = tf.einsum('bn,bnd->bd', alpha, V)   # (B, d_model)
+        K = (V / rms) * self.gamma
+        scores = tf.einsum('d,...nd->...n', self.wl, K)
+        alpha = tf.nn.softmax(scores, axis=-1)
+        out = tf.einsum('...n,...nd->...d', alpha, V)
         return out
 
     def get_config(self):

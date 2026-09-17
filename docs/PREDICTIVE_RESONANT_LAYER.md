@@ -20,9 +20,9 @@ Unlike the hierarchical resonance seen in `ResonantGSER`, this layer models the 
 The `PredictiveResonantLayer` operates through a four-stage process during each forward step:
 
 1. Base Dynamics: A standard gated recurrent update (LSTM-based) produces a raw candidate state (analogous to **Feedforward Sensory Input**).
-2. Harmonization: An iterative loop moves the candidate state toward the current "Alignment Vector" (analogous to **Top-Down Expectation Matching**).
-3. Spiking & Modulation: The resonated state is modulated and passed through a biomimetic spiking mechanism (mimicking **Action Potentials**).
-4. Predictive Update: A dedicated "Predictive Head" projects the final state into the future to update the Alignment Vector for the next step (mimicking **synaptic plasticity for future prediction**).
+2. Harmonization: a **closed-form** $N$-step EMA moves the candidate toward the current alignment vector (equivalent to the old iterative loop).
+3. Spiking & Modulation: STE spike + subtractive reset.
+4. Predictive Update: a linear head updates the alignment vector with a slow EMA ($\alpha = 0.1$).
 
 ## Process Flow
 
@@ -119,9 +119,12 @@ layer = PredictiveResonantLayer(
 ## Mathematical Mechanism
 
 ### State Harmonization
-For each resonance cycle $i$:
-$$h_{i+1} = h_i - \eta \cdot (h_i - A)$$
-Where $h$ is the hidden state, $A$ is the alignment vector, and $\eta$ is the `resonance_step_size`.
+
+$N$ steps of $h \leftarrow h - \eta (h - A)$ with $\eta$ clipped to $(0, 0.99)$ equal
+
+$$h_N = (1-\eta)^N h_0 + \bigl(1-(1-\eta)^N\bigr) A$$
+
+The cell evaluates this closed form. Spikes use a straight-through estimator; the hidden state is then $h - s\cdot\theta$.
 
 ### Predictive Update
 The alignment vector $A$ is updated using an exponential moving average toward a predicted future state $P$:

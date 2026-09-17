@@ -19,29 +19,30 @@ Homeostatic plasticity works by continuously monitoring neural activity levels a
 
 ## Mathematical Formulation
 
-### Basic Homeostatic Rule
+### BCM plasticity (BioplasticDenseLayer)
 
-For a neuron with current activity level \(a(t)\) and target activity level \(a_{target}\), the homeostatic adjustment follows:
-
-\[
-\Delta w = \eta \cdot (a_{target} - a(t))
-\]
-
-Where:
-- \(w\): Synaptic weight
-- \(\eta\): Homeostatic learning rate
-- \(a(t)\): Current neural activity
-- \(a_{target}\): Target activity level
-
-### Proportional Scaling Implementation
-
-In ARCANE, homeostatic plasticity uses proportional scaling:
+When `enable_inference_plasticity=True` and `training=False`, the **plastic** kernel (not the gradient kernel) is updated with a BCM rule. The sliding threshold $\theta$ is the running trace of postsynaptic activity:
 
 \[
-w_{new} = w_{current} \cdot (1 + \eta \cdot \frac{a_{target} - a(t)}{a(t)})
+\theta \leftarrow \bigl(1 - 1/\tau\bigr)\,\theta + (1/\tau)\,\bar{y}
+\]
+\[
+\Delta W_{\text{plastic}} \propto x^{\top}\bigl[y \odot (y - \theta)\bigr]
 \]
 
-This formulation ensures smooth convergence to target activity levels.
+Activity homeostasis then scales that plastic kernel toward `target_avg`. The plastic kernel is clipped by global norm (5.0). Gradient descent still updates `kernel`; the two do not overwrite each other.
+
+Plasticity is **off** during `fit()` unless you call the layer with `training=False` and `enable_inference_plasticity=True`.
+
+### Homeostatic gain (HebbianHomeostaticNeuroplasticity)
+
+During `training=True`, a Hebbian update is applied to a non-trainable `plastic_kernel`, and a scalar `gain` moves toward `target_activity`:
+
+\[
+g \leftarrow \mathrm{clip}\bigl(g + \eta \cdot (a_{\text{target}} - \bar{|y|}),\; 0.1,\; 10\bigr)
+\]
+
+At inference (`training=False`) the layer is a dense map `(kernel + plastic_kernel)` times `gain`. Existing tests that scale `kernel` by hand still pass because inference does not touch `kernel`.
 
 ## Implementation in ARCANE Layers
 
@@ -53,20 +54,24 @@ The `BioplasticDenseLayer` incorporates homeostatic plasticity alongside Hebbian
 layer = BioplasticDenseLayer(
     units=64,
     learning_rate=1e-3,
-    target_avg=0.12,          # Target average activity
-    homeostatic_rate=5e-5,    # Homeostatic adjustment rate
+    target_avg=0.12,
+    homeostatic_rate=5e-5,
+    bcm_tau=800.0,
+    enable_inference_plasticity=True,  # required for BCM / homeostasis at inference
     activation='gelu'
 )
 ```
 
 **Parameters:**
 - `target_avg`: Target average activity level (default: 0.12)
-- `homeostatic_rate`: Rate of homeostatic adjustment (default: 5e-5)
-- `learning_rate`: Overall learning rate for weight updates
+- `homeostatic_rate`: Rate of activity scaling on `plastic_kernel`
+- `bcm_tau`: Time constant of the sliding BCM threshold
+- `enable_inference_plasticity`: If False (default), the layer is a dense map during both train and infer
+- `learning_rate`: Step size of the BCM update
 
 ### HebbianHomeostaticNeuroplasticity
 
-The `HebbianHomeostaticNeuroplasticity` layer focuses specifically on Hebbian learning with homeostatic regulation:
+The `HebbianHomeostaticNeuroplasticity` layer keeps a trainable dense kernel plus a plastic kernel and homeostatic gain. Hebbian / gain updates run only when `training=True`.
 
 ```python
 layer = HebbianHomeostaticNeuroplasticity(
@@ -108,12 +113,15 @@ bioplastic = BioplasticDenseLayer(
 
 ### Test Results
 
-Comprehensive testing demonstrates the effectiveness of homeostatic plasticity:
+`tests/test_homeostatic_plasticity.py` still demonstrates **manual** kernel scaling toward a target (the tests assign `layer.kernel` themselves). That is a behavioral illustration, not a test of BCM.
 
-```
-BioplasticDenseLayer: Activity regulation 50.0 → 0.5 (Target: 0.5) ✓
-HebbianHomeostaticNeuroplasticity: Activity regulation 50.0 → 0.5 (Target: 0.5) ✓
-Convergence achieved within 10-20 iterations for both implementations
+`tests/test_mechanism_correctness.py` checks the implemented rules:
+
+- `test_bioplastic_bcm_updates_plastic_kernel`: with `enable_inference_plasticity=True`, `plastic_kernel` changes at inference
+- `test_hebbian_layer_inference_matches_dense`: at inference, output equals `(kernel + 0) @ x + bias`
+
+```bash
+python -m pytest tests/test_homeostatic_plasticity.py tests/test_mechanism_correctness.py -q
 ```
 
 ### Test Implementation

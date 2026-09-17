@@ -23,7 +23,7 @@ export default function BiologicalLayersPage() {
       id: "resonant-gser",
       name: "ResonantGSER",
       description: "Hierarchical resonant layer with bi-directional feedback, spiking dynamics, and reservoir computing.",
-      details: "The ResonantGSER is the core of ARCANE's deliberative reasoning. It implements the Resonant State Alignment Algorithm (RSAA) to synchronize internal states between hierarchical levels, allowing the model to 'think' before committing to an output. It features spectral radius control, leak rates, and spike thresholds.",
+      details: "ResonantGSER is an LSTM-based RNN cell that EMA-harmonizes its hidden state toward a top-down prototype (closed-form N-step map, skipped until alignment is set). Spikes use a straight-through estimator. Alignment is a batch-mean vector of shape (units,), not a per-example code. Spectral radius and elastic sizing belong to GSER, not this layer.",
       link: "/docs/resonant-gser",
       code: `from gpbacay_arcane import ResonantGSER
 
@@ -38,7 +38,7 @@ layer = ResonantGSER(
       id: "predictive-resonant",
       name: "PredictiveResonantLayer",
       description: "Implements Local Predictive Resonance inspired by Predictive Coding, modeling autonomous neural clusters that minimize prediction error.",
-      details: "Inspired by neuroscience, this layer mimics the brain's ability to minimize divergence between internal predictions and sensory inputs. Unlike the hierarchical resonance of ResonantGSER, it models the local homeostatic alignment of individual clusters, maintaining a fully autonomous, per-sample world model.",
+      details: "Unlike ResonantGSER's prototype alignment, this layer stores alignment in the recurrent state (h, c, align) per example. N harmonization steps are a closed-form EMA toward that vector. Optional persist_alignment carries a batch-mean memory across calls.",
       link: "/docs/predictive-resonant-layer",
       code: `from gpbacay_arcane import PredictiveResonantLayer
 
@@ -54,28 +54,44 @@ layer = PredictiveResonantLayer(
     {
       id: "bioplastic-dense",
       name: "BioplasticDenseLayer",
-      description: "Implements Hebbian learning ('neurons that fire together, wire together') and homeostatic plasticity.",
-      details: "This layer mimics biological synaptic adaptation by strengthening connections between co-active neurons. It incorporates homeostatic regulation to maintain stable activity levels, preventing runaway excitation or neural silence through synaptic scaling.",
+      description: "Dual-weight dense map: gradient kernel plus optional inference-time BCM plasticity.",
+      details: "Effective weights are kernel + plastic_kernel. With enable_inference_plasticity=True and training=False, BCM uses the running activity trace θ: ΔW ∝ xᵀ[y ⊙ (y − θ)], then scales the plastic kernel toward target_avg. Gradient descent still updates kernel only.",
       code: `from gpbacay_arcane import BioplasticDenseLayer
 
 layer = BioplasticDenseLayer(
     units=64,
     target_avg=0.12,
     homeostatic_rate=5e-5,
+    bcm_tau=800.0,
     learning_rate=1e-3,
-    enable_inference_plasticity=False
+    enable_inference_plasticity=True
 )`
     },
     {
       id: "gser",
       name: "GSER",
-      description: "Gated Spiking Elastic Reservoir with dynamic structural adaptation (neurogenesis and pruning).",
-      details: "The Gated Spiking Elastic Reservoir (GSER) supports dynamic reservoir sizing. During training, the layer can grow new neurons (neurogenesis) or prune weak connections and inactive neurons (apoptosis) based on performance metrics, allowing the architecture to evolve with the data. Use via ResonantGSERCell or the GSER mechanism from gpbacay_arcane.mechanisms.",
+      description: "Gated spiking elastic reservoir; recurrent weights scaled to spectral_radius.",
+      details: "GSER is an RNN cell with LIF reset, LSTM-style gates, and a semantic gate that pads to max_dynamic_reservoir_dim so elastic sizing does not crash. Grow/prune via DynamicSelfModelingReservoirCallback (requires reservoir_layer in the constructor; prune_rate is an absolute weight cutoff).",
+      code: `from gpbacay_arcane import GSER
+
+cell = GSER(
+    input_dim=32,
+    initial_reservoir_size=64,
+    max_dynamic_reservoir_dim=128,
+    spectral_radius=0.9,
+    leak_rate=0.1,
+    spike_threshold=0.5
+)`
+    },
+    {
+      id: "dense-gser",
+      name: "DenseGSER",
+      description: "Dense map with leak-controlled spike gating (not a reservoir).",
+      details: "Applies GELU, then a sigmoid spike gate whose slope is 1/leak_rate and whose offset is spike_threshold. Optional conceptual (sigmoid) gate. spectral_radius is stored for API compatibility and is not applied to this rectangular map.",
       code: `from gpbacay_arcane import DenseGSER
 
 layer = DenseGSER(
     units=256,
-    spectral_radius=0.95,
     leak_rate=0.1,
     spike_threshold=0.5,
     activation='gelu'
@@ -103,15 +119,17 @@ layer = RelationalConceptModeling(d_model=64, num_heads=8)`
       id: "neuromimetic-activations",
       name: "Neuromimetic Activations",
       description: "Stateful, adaptive activation functions including Resonant Spiking and Homeostatic GELU.",
-      details: "Moving beyond static mappings, these activations maintain a memory of their potential state and self-regulate their gain. They facilitate granular, per-neuron Inference-Time Learning.",
+      details: "Keras wrapper for resonant_spike, homeostatic_gelu, or adaptive_softplus. Membrane / activity traces are feature-wise running averages, not per-sample RNN state. resonance_factor is a call() argument, not an __init__ kwarg. Spikes use a straight-through estimator.",
       link: "/docs/activations",
       code: `from gpbacay_arcane.activations import NeuromimeticActivation
 
-# Use Resonant Spike activation
 activation = NeuromimeticActivation(
     activation_type='resonant_spike',
-    resonance_factor=0.3
-)`
+    threshold=0.5,
+    leak_rate=0.1,
+    name='rsa'
+)
+spikes = activation(inputs, resonance_factor=0.3)`
     }
   ];
 

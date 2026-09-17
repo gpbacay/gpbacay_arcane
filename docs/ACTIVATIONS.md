@@ -30,12 +30,12 @@ The output spike $S(t)$ and the subsequent state reset follow:
 $$S(t) = \begin{cases} 1 & \text{if } V_{res}(t) > \theta \\ 0 & \text{otherwise} \end{cases}$$
 $$V(t) = V_{res}(t) - S(t) \cdot \theta$$
 
-Where $\theta$ is the firing threshold. This ensures that the unit only communicates information when its internal state aligns with or significantly exceeds hierarchical expectations.
+Where $\theta$ is the firing threshold. The **forward** pass is this hard threshold. The **backward** pass uses a straight-through estimator (STE): a sigmoid with slope `sharpness` so spike outputs can train. Without STE, $\partial S / \partial V$ is zero almost everywhere.
 
 ### 2. Homeostatic Activity Scaling
 The `homeostatic_gelu` implements **Synaptic Scaling**, a mechanism observed in the neocortex to maintain firing rates within an optimal information-theoretic range. The gain $G$ of the activation is regulated by:
 
-$$G(t) = 1 + \eta \cdot (A_{target} - \bar{A})$$
+$$G(t) = \mathrm{clip}\bigl(1 + \eta \cdot (A_{target} - \bar{A}),\; 0.1,\; 10\bigr)$$
 
 Where:
 - $\eta$ is the `adaptation_rate`.
@@ -72,10 +72,23 @@ spikes, new_state = resonant_spike(inputs, current_state, threshold=0.5, leak_ra
 ```
 
 ### 2. Homeostatic GELU (h-GELU)
-Self-regulates sensitivity to prevent runaway excitation.
+Self-regulates sensitivity to prevent runaway excitation. Gain is clipped to `[0.1, 10]`.
 **Usage:**
 ```python
 activated = homeostatic_gelu(inputs, moving_average_activity, target_activity=0.12)
+```
+
+### 3. Adaptive Softplus
+Smooth firing-rate map with a tunable threshold and sharpness.
+
+### 4. `NeuromimeticActivation` layer
+Keras wrapper around the functions above. Supports `resonant_spike`, `homeostatic_gelu`, and `adaptive_softplus`. Membrane / activity traces are feature-wise running averages (not per-sample RNN state). Keras kwargs such as `name=` are **not** forwarded into `resonant_spike`.
+
+```python
+from gpbacay_arcane import NeuromimeticActivation
+
+layer = NeuromimeticActivation(activation_type="resonant_spike", threshold=0.5, name="rsa")
+spikes = layer(inputs, resonance_factor=0.2)
 ```
 
 ---
@@ -103,8 +116,10 @@ Tests confirm that internal membrane potential $V$ decays exponentially at the `
 To reproduce the activation function tests, run:
 
 ```bash
-python -m pytest tests/test_activations.py
+python -m pytest tests/test_activations.py tests/test_mechanism_correctness.py -q
 ```
+
+`tests/test_mechanism_correctness.py` also checks that STE spikes have a non-zero gradient and that `NeuromimeticActivation` accepts Keras layer kwargs.
 
 ---
 

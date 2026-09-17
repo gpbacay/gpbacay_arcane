@@ -6,6 +6,8 @@ from .mechanisms import (
     PredictiveResonantCell,
     MultiheadLinearSelfAttentionKernalization,
     SpatioTemporalSummaryMixingLayer,
+    AttentionResidual,
+    BlockAttentionResidual,
 )
 
 class ExpandDimensionLayer(tf.keras.layers.Layer):
@@ -30,11 +32,13 @@ class DenseGSER(tf.keras.layers.Layer):
                  max_dynamic_units=None, activation='gelu', use_conceptual_gate=True, **kwargs):
         super().__init__(**kwargs)
         self.units = units
-        self.spectral_radius = spectral_radius # Retained for potential future GSER-specific logic
-        self.leak_rate = leak_rate             # Retained for potential future GSER-specific logic
-        self.spike_threshold = spike_threshold # Retained for potential future GSER-specific logic
+        self.spectral_radius = spectral_radius
+        self.leak_rate = leak_rate
+        self.spike_threshold = spike_threshold
         self.activation = tf.keras.activations.get(activation)
         self.use_conceptual_gate = use_conceptual_gate
+        self.max_dynamic_units = max_dynamic_units
+        self.input_dim = input_dim
 
     def build(self, input_shape):
         self.kernel = self.add_weight(
@@ -62,16 +66,19 @@ class DenseGSER(tf.keras.layers.Layer):
         self.built = True
 
     def call(self, inputs):
-        # Standard dense transformation
         x = tf.matmul(inputs, self.kernel) + self.bias
         x = self.activation(x)
+        # Leak rate acts as the inverse slope of a soft spike threshold so both
+        # GSER parameters affect a non-recurrent dense map.
+        sharpness = 1.0 / tf.maximum(tf.cast(self.leak_rate, x.dtype), 1e-3)
+        gate = tf.nn.sigmoid(sharpness * (x - tf.cast(self.spike_threshold, x.dtype)))
+        x = x * gate
 
         if self.use_conceptual_gate:
-            # Compute conceptual gate
             gate_activations = tf.matmul(inputs, self.conceptual_gate_kernel) + self.conceptual_gate_bias
-            conceptual_gate = tf.sigmoid(gate_activations) # Sigmoid to produce gating values between 0 and 1
-            x = x * conceptual_gate # Apply conceptual gate
-            
+            conceptual_gate = tf.sigmoid(gate_activations)
+            x = x * conceptual_gate
+
         return x
 
     def get_config(self):
@@ -118,18 +125,19 @@ class ResonantGSER(tf.keras.layers.RNN):
         )
         self.resonance_factor = resonance_factor
         self.resonance_cycles = resonance_cycles
-        # Use names instead of direct object references to avoid recursion errors
         self.higher_layer_name = None
         self.lower_layer_name = None
-        self._higher_layer_ref = None
-        self._lower_layer_ref = None
+        # Bypass Keras tracking so cross-layer links can be set after build.
+        object.__setattr__(self, "_hierarchy", {"higher": None, "lower": None})
 
     def get_config(self):
         config = super().get_config()
         config.update({
             "units": self.units,
             "resonance_factor": self.resonance_factor,
-            "resonance_cycles": self.resonance_cycles
+            "resonance_cycles": self.resonance_cycles,
+            "spike_threshold": getattr(self.cell, "spike_threshold", 0.5),
+            "convergence_epsilon": getattr(self.cell, "convergence_epsilon", 1e-4),
         })
         return config
     
@@ -158,9 +166,9 @@ class ResonantGSER(tf.keras.layers.RNN):
         """
         # Squeeze to match the alignment shape if needed
         if len(projection.shape) > 1:
-            projection = tf.squeeze(projection, axis=0)
-        
+            projection = tf.reduce_mean(projection, axis=0)
         self.cell.resonance_alignment.assign(projection)
+        self.cell.alignment_set.assign(1.0)
     
     def get_divergence(self):
         """Get the current global divergence metric from the cell."""
@@ -187,8 +195,8 @@ class ResonantGSER(tf.keras.layers.RNN):
         
         if lower_layer is None:
             # If model reference not available, try direct reference if stored
-            if hasattr(self, '_lower_layer_ref'):
-                lower_layer = self._lower_layer_ref
+            if self._hierarchy.get("lower") is not None:
+                lower_layer = self._hierarchy["lower"]
             else:
                 return
         
@@ -199,12 +207,12 @@ class ResonantGSER(tf.keras.layers.RNN):
     def set_lower_layer(self, layer):
         """Set the lower layer reference for hierarchical feedback."""
         self.lower_layer_name = layer.name if layer else None
-        self._lower_layer_ref = layer  # Store direct reference as backup
-    
+        self._hierarchy["lower"] = layer
+
     def set_higher_layer(self, layer):
         """Set the higher layer reference for hierarchical feedback."""
         self.higher_layer_name = layer.name if layer else None
-        self._higher_layer_ref = layer  # Store direct reference as backup
+        self._hierarchy["higher"] = layer
 
 
 class PredictiveResonantLayer(tf.keras.layers.RNN):
@@ -508,6 +516,7 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
             trainable=False,
             name='plasticity_trace'
         )
+        super().build(input_shape)
 
     def call(self, inputs, training=False):
         # Effective weights are the sum of the trained kernel and the
@@ -525,40 +534,38 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
             # components to avoid runaway growth).
             # This runs only when not in training mode, so it won't
             # interfere with backprop.
-            pre = inputs
-            post = x
+            pre = tf.reshape(inputs, [-1, tf.shape(inputs)[-1]])
+            post = tf.reshape(x, [-1, tf.shape(x)[-1]])
 
-            # Optional L2 normalization for stability
             if self.normalization_type == "l2":
                 pre = tf.nn.l2_normalize(pre, axis=-1)
                 post = tf.nn.l2_normalize(post, axis=-1)
 
-            # Use safe denominator so this works in graph mode (batch_size may be symbolic).
             batch_size = tf.cast(tf.shape(pre)[0], tf.float32)
             batch_size_safe = tf.maximum(batch_size, 1.0)
-            hebb = tf.einsum("bi,bj->ij", pre, post) / batch_size_safe
 
-            # Simple BCM-like running average of postsynaptic activity
             mean_post = tf.reduce_mean(post, axis=0)
-            new_trace = (1.0 - 1.0 / self.bcm_tau) * self.trace + (1.0 / self.bcm_tau) * mean_post
+            tau = tf.maximum(tf.cast(self.bcm_tau, tf.float32), 1.0)
+            new_trace = (1.0 - 1.0 / tau) * self.trace + (1.0 / tau) * mean_post
             self.trace.assign(new_trace)
 
-            # Hebbian minus anti-Hebbian component
-            dw = self.learning_rate * (hebb - self.anti_hebbian_rate * tf.abs(hebb))
+            bcm = tf.einsum("bi,bj->ij", pre, post * (post - self.trace)) / batch_size_safe
+            dw = self.learning_rate * (bcm - self.anti_hebbian_rate * tf.abs(bcm))
 
-            # Homeostatic scaling to keep weights in a reasonable range
+            activity = tf.reduce_mean(tf.abs(post))
+            homeostatic_scale = self.homeostatic_rate * (self.target_avg - activity)
+
             self.plastic_kernel.assign_add(dw)
-            self.plastic_kernel.assign_sub(
-                self.homeostatic_rate * self.plastic_kernel
-            )
+            self.plastic_kernel.assign_add(homeostatic_scale * self.plastic_kernel)
+            self.plastic_kernel.assign(tf.clip_by_norm(self.plastic_kernel, 5.0))
 
         return x
 
 class HebbianHomeostaticNeuroplasticity(tf.keras.layers.Layer):
     """
-    A layer implementing Hebbian learning with homeostatic plasticity for robust and adaptive
-    semantic feature learning. It promotes the formation of stable and meaningful connections
-    in the latent space by regulating neural activity and synaptic strength.
+    Dense map with a non-trainable plastic component updated by Hebbian
+    learning and synaptic scaling. The gradient-trained kernel is left
+    alone so optimizer updates and local plasticity do not overwrite each other.
     """
     def __init__(self, units, learning_rate=1e-3, target_activity=0.1, **kwargs):
         super().__init__(**kwargs)
@@ -579,9 +586,45 @@ class HebbianHomeostaticNeuroplasticity(tf.keras.layers.Layer):
             trainable=True,
             name='bias'
         )
+        self.plastic_kernel = self.add_weight(
+            shape=(input_shape[-1], self.units),
+            initializer='zeros',
+            trainable=False,
+            name='plastic_kernel'
+        )
+        self.gain = self.add_weight(
+            shape=(),
+            initializer=tf.keras.initializers.Constant(1.0),
+            trainable=False,
+            name='homeostatic_gain'
+        )
+        super().build(input_shape)
 
-    def call(self, inputs):
-        return tf.matmul(inputs, self.kernel) + self.bias
+    def call(self, inputs, training=False):
+        x = tf.matmul(inputs, self.kernel + self.plastic_kernel) + self.bias
+        x = x * self.gain
+
+        if training:
+            pre = tf.reshape(inputs, [-1, tf.shape(inputs)[-1]])
+            post = tf.reshape(x, [-1, tf.shape(x)[-1]])
+            batch = tf.maximum(tf.cast(tf.shape(pre)[0], tf.float32), 1.0)
+            hebb = tf.einsum("bi,bj->ij", pre, post) / batch
+            self.plastic_kernel.assign_add(self.learning_rate * hebb)
+            self.plastic_kernel.assign(tf.clip_by_norm(self.plastic_kernel, 5.0))
+            activity = tf.reduce_mean(tf.abs(post))
+            new_gain = self.gain + self.learning_rate * (self.target_activity - activity)
+            self.gain.assign(tf.clip_by_value(new_gain, 0.1, 10.0))
+
+        return x
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "units": self.units,
+            "learning_rate": self.learning_rate,
+            "target_activity": self.target_activity,
+        })
+        return config
 
 class SpatioTemporalSummarization(tf.keras.layers.Layer):
     """
@@ -603,10 +646,38 @@ class SpatioTemporalSummarization(tf.keras.layers.Layer):
         return config
 
 class PositionalEncodingLayer(tf.keras.layers.Layer):
+    """Sinusoidal positional encoding added to the last dimension of a sequence."""
+
     def __init__(self, max_position, d_model, **kwargs):
         super().__init__(**kwargs)
+        self.max_position = int(max_position)
+        self.d_model = int(d_model)
+
+    def build(self, input_shape):
+        position = np.arange(self.max_position)[:, np.newaxis]
+        div_term = np.exp(
+            np.arange(0, self.d_model, 2) * -(np.log(10000.0) / max(self.d_model, 1))
+        )
+        pe = np.zeros((self.max_position, self.d_model), dtype=np.float32)
+        pe[:, 0::2] = np.sin(position * div_term)
+        cosine_dim = pe[:, 1::2].shape[1]
+        pe[:, 1::2] = np.cos(position * div_term[:cosine_dim])
+        self.pe = self.add_weight(
+            name="positional_encoding",
+            shape=(1, self.max_position, self.d_model),
+            initializer=tf.constant_initializer(pe[np.newaxis, ...]),
+            trainable=False,
+        )
+        super().build(input_shape)
+
     def call(self, inputs):
-        return inputs
+        seq_len = tf.shape(inputs)[1]
+        return inputs + self.pe[:, :seq_len, :]
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({"max_position": self.max_position, "d_model": self.d_model})
+        return config
 
 class LatentTemporalCoherence(tf.keras.layers.Layer):
     """

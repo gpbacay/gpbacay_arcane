@@ -68,28 +68,30 @@ def list_layers():
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  Reservoir Layers:                                                           │
-│   1. GSER                    - Gated Spiking Elastic Reservoir               │
-│   2. DenseGSER               - Dense layer with spiking dynamics             │
-│   3. ResonantGSER            - Hierarchical resonant layer with feedback     │
+│   1. GSER                    - Elastic LIF reservoir (spectral-radius scaled)│
+│   2. DenseGSER               - Dense map with leak/threshold spike gating    │
+│   3. ResonantGSER            - Hierarchical EMA resonance toward a prototype │
+│   4. PredictiveResonantLayer - Per-example local predictive resonance        │
 │                                                                              │
 │  Bioplastic Layers:                                                          │
-│   4. BioplasticDenseLayer    - Hebbian learning + homeostatic plasticity     │
-│   5. HebbianHomeostaticNeuroplasticity - Simplified Hebbian learning         │
+│   5. BioplasticDenseLayer    - Dual kernel; optional inference-time BCM      │
+│   6. HebbianHomeostaticNeuroplasticity - Hebbian plastic kernel + gain       │
 │                                                                              │
 │  Attention & Concept Layers:                                                 │
-│   6. RelationalConceptModeling           - Multi-head attention for concepts │
-│   7. RelationalGraphAttentionReasoning   - Graph attention for reasoning     │
-│   8. RelationalConceptGraphReasoning     - Unified relational reasoning      │
-│   8. MultiheadLinearSelfAttentionKernalization - Linear attention            │
+│   7. RelationalConceptModeling           - Multi-head self-attention         │
+│   8. RelationalGraphAttentionReasoning   - Self-attention + pooled head      │
+│   9. RelationalConceptGraphReasoning     - Stacked MHA (not a graph net)     │
+│  10. MultiheadLinearSelfAttentionKernalization - Katharopoulos linear attn   │
+│  11. AttentionResidual / BlockAttentionResidual - softmax over depth         │
 │                                                                              │
 │  Temporal & Positional Layers:                                               │
-│   9. LatentTemporalCoherence  - Temporal coherence distillation              │
-│  10. PositionalEncodingLayer  - Sinusoidal positional encoding               │
+│  12. LatentTemporalCoherence  - Mean-pool + linear projection                │
+│  13. PositionalEncodingLayer  - Sinusoidal positional encoding               │
 │                                                                              │
 │  Utility Layers:                                                             │
-│  11. ExpandDimensionLayer     - Dimension expansion utility                  │
-│  12. SpatioTemporalSummaryMixingLayer   - Spatio-temporal processing         │
-│  13. SpatioTemporalSummarization        - Sequence summarization             │
+│  14. ExpandDimensionLayer     - Dimension expansion utility                  │
+│  15. SpatioTemporalSummaryMixingLayer   - Local GLU + sequence summary       │
+│  16. SpatioTemporalSummarization        - Wrapper around the mixing layer    │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
     """)
@@ -106,7 +108,8 @@ def list_callbacks():
 │     Orchestrates neural resonance cycles for prospective alignment           │
 │                                                                              │
 │  2. DynamicSelfModelingReservoirCallback                                     │
-│     Manages neurogenesis and synaptic pruning based on performance           │
+│     Grows/prunes a GSER reservoir from a metric. Requires reservoir_layer.   │
+│     prune_rate is an absolute weight-magnitude cutoff, not a fraction.       │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
     """)

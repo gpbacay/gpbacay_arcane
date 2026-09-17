@@ -13,7 +13,7 @@ export default function BenchmarksPage() {
 
       <div className="space-y-8 text-zinc-300 leading-7">
         <p>
-          Comprehensive testing on the Tiny Shakespeare dataset demonstrates the advantages of biological neural mechanisms.
+          Exploratory Tiny Shakespeare run (15k chars, 10 epochs, unequal parameter counts). Treat as a smoke comparison, not a Transformer result.
         </p>
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
@@ -56,9 +56,9 @@ export default function BenchmarksPage() {
           Key Advantages
         </h2>
         <ul className="list-disc pl-6 space-y-2 marker:text-zinc-500">
-          <li><strong>18.4% relative improvement</strong> in validation accuracy over traditional LSTM.</li>
-          <li><strong>Lowest loss variance (0.0142)</strong> indicating superior training stability.</li>
-          <li><strong>Smallest train/val gap (0.048)</strong> indicating reduced overfitting.</li>
+          <li>Hierarchical Resonance used ~385K params vs ~195K for the LSTM baseline.</li>
+          <li>Accuracy moved 9.50% → 11.25% on this small character LM; MNIST gaps in the markdown docs are within noise.</li>
+          <li>Mechanism unit tests (STE spikes, closed-form resonance, BCM plastic kernel, GSER elastic gate) live in <code className="bg-zinc-900 px-1.5 py-0.5 rounded">tests/test_mechanism_correctness.py</code>.</li>
         </ul>
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">

@@ -15,9 +15,9 @@ export default function ActivationsPage() {
       details: (
         <ul className="list-disc pl-5 space-y-2 m-0">
           <li><strong>LIF Modeling</strong>: Implements the Leaky Integrate-and-Fire mechanism for biological realism.</li>
+          <li><strong>Straight-through estimator</strong>: Hard spike in the forward pass; sigmoid gradient in the backward pass so S can train.</li>
           <li><strong>Temporal Integration</strong>: Accumulates stimulus over time, maintaining a membrane potential state.</li>
-          <li><strong>Resonant Modulation</strong>: Amplifies signals that align with top-down hierarchical expectations.</li>
-          <li><strong>Sparse Communication</strong>: Only fires discrete spikes when internal potential exceeds a threshold.</li>
+          <li><strong>Resonant Modulation</strong>: Amplifies signals by (1 + resonance_factor).</li>
         </ul>
       ),
       code: `from gpbacay_arcane.activations import resonant_spike
@@ -37,10 +37,9 @@ spikes, new_state = resonant_spike(
       description: "Self-regulates sensitivity based on historical activity to prevent saturation.",
       details: (
         <ul className="list-disc pl-5 space-y-2 m-0">
-          <li><strong>Activity Tracking</strong>: Maintains a moving average of historical firing rates.</li>
-          <li><strong>Dynamic Gain Control</strong>: Automatically adjusts sensitivity to keep activity in an optimal range.</li>
-          <li><strong>Saturation Prevention</strong>: Prevents runaway excitation and the 'dead neuron' problem.</li>
-          <li><strong>Entropy Maximization</strong>: Ensures the semantic space remains highly informative.</li>
+          <li><strong>Activity Tracking</strong>: Caller (or NeuromimeticActivation) maintains a moving average of activity.</li>
+          <li><strong>Clipped Gain</strong>: G = clip(1 + η (A_target − Ā), 0.1, 10).</li>
+          <li><strong>Saturation Prevention</strong>: Lowers gain when activity is too high; raises it when too low.</li>
         </ul>
       ),
       code: `from gpbacay_arcane.activations import homeostatic_gelu
@@ -79,20 +78,22 @@ activated = adaptive_softplus(
       description: "Keras-compatible layer wrapper for stateful neuromimetic activations.",
       details: (
         <ul className="list-disc pl-5 space-y-2 m-0">
-          <li><strong>State Management</strong>: Automatically handles the persistence of membrane potentials.</li>
-          <li><strong>Seamless Integration</strong>: Can be used as a drop-in replacement in Keras/TensorFlow models.</li>
-          <li><strong>Configurable Dynamics</strong>: Support for both spiking and homeostatic activation types.</li>
-          <li><strong>Hierarchical Support</strong>: Designed to work with ARCANE's resonance cycles.</li>
+          <li><strong>State Management</strong>: Feature-wise running averages of potential / activity (not per-sample RNN state).</li>
+          <li><strong>Seamless Integration</strong>: Drop-in Keras layer; <code>name=</code> and other Layer kwargs are not forwarded into resonant_spike.</li>
+          <li><strong>Configurable Dynamics</strong>: resonant_spike, homeostatic_gelu, or adaptive_softplus.</li>
+          <li><strong>Call-time resonance</strong>: Pass resonance_factor to call(), not __init__.</li>
         </ul>
       ),
       code: `from gpbacay_arcane.activations import NeuromimeticActivation
 
 # Add a stateful spiking activation to your model
-model.add(NeuromimeticActivation(
+layer = NeuromimeticActivation(
     activation_type='resonant_spike',
     threshold=0.5,
-    leak_rate=0.1
-))`
+    leak_rate=0.1,
+    name='rsa'
+)
+spikes = layer(inputs, resonance_factor=0.2)`
     }
   ];
 
@@ -111,8 +112,10 @@ $$V_{integrated}(t) = I(t) + V(t-1) \\cdot (1 - \\lambda)$$
 
 **State Evolution:**
 $$V_{res}(t) = V_{integrated}(t) \\cdot (1 + \\rho)$$
-$$S(t) = \\mathbb{I}(V_{res}(t) > \\theta)$$
+$$S(t) = \\mathrm{STE}\\bigl(\\mathbb{I}(V_{res}(t) > \\theta)\\bigr)$$
 $$V(t) = V_{res}(t) - S(t) \\cdot \\theta$$
+
+The forward pass is the hard indicator. The backward pass uses a sigmoid with slope \`sharpness\` (straight-through estimator).
   `;
 
   const homeostaticMath = `
@@ -120,7 +123,7 @@ $$V(t) = V_{res}(t) - S(t) \\cdot \\theta$$
 Synaptic scaling mechanism to maintain firing rates in optimal ranges.
 
 The gain $G(t)$ is regulated by the deviation from the target activity $A_{target}$:
-$$G(t) = 1 + \\eta \\cdot (A_{target} - \\bar{A})$$
+$$G(t) = \\mathrm{clip}\\bigl(1 + \\eta \\cdot (A_{target} - \\bar{A}),\\; 0.1,\\; 10\\bigr)$$
 
 **Parameters:**
 *   $\\eta$: \`adaptation_rate\` (speed of homeostatic correction).

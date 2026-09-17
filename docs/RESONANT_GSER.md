@@ -31,18 +31,37 @@ ResonantGSER implements a **"Thinking Phase"** where neural representations are 
 
 ## Mathematical Formulation
 
-### Resonance Cycle
+Harmonization is one EMA step toward the top-down projection $P$:
 
-At each resonance cycle $n$, the system performs:
+$$
+S \leftarrow S - \alpha \cdot (S - P), \qquad \alpha = \mathrm{clip}(\gamma + \beta,\, 0,\, 0.99)
+$$
+
+$N$ cycles have the closed form
+
+$$
+S_N = (1-\alpha)^N S_0 + \bigl(1-(1-\alpha)^N\bigr) P
+$$
+
+The cell evaluates this closed form rather than an unrolled Python loop. If no alignment has been set (zero vector and `alignment_set == 0`), the resonance step is skipped so the first forward pass is not attracted to the origin.
+
+`project_feedback(state)` maps within hidden space (`projection_kernel`). `project_feedback(state, to_input_space=True)` uses `feedback_weights` to reconstruct the cell's input dim.
+
+**Scope:** `resonance_alignment` is a single vector of shape `(units,)`, typically the mean of the previous batch's hidden state. This is a prototype / attractor, not a per-example top-down code. Per-example alignment lives in `PredictiveResonantLayer`.
+
+### Resonance Cycle (callback / `run_resonance_cycle`)
+
+At each outer cycle the orchestrator performs:
 
 $$
 \begin{aligned}
 &\text{1. Feedback Projection: } P_{i \rightarrow i-1}^{(n)} = f_{proj}(S_i^{(n-1)}; W_{proj}) \\
 &\text{2. Prediction Divergence: } \Delta_{i-1}^{(n)} = S_{i-1}^{(n-1)} - P_{i \rightarrow i-1}^{(n)} \\
-&\text{3. State Harmonization: } S_{i-1}^{(n)} = S_{i-1}^{(n-1)} - (\gamma + \beta) \cdot \Delta_{i-1}^{(n)} \\
-&\text{4. Convergence Check: } \|\Delta^{(n)}\| < \epsilon
+&\text{3. State Harmonization: } S_{i-1}^{(n)} = S_{i-1}^{(n-1)} - \alpha \cdot \Delta_{i-1}^{(n)}
 \end{aligned}
 $$
+
+`NeuralResonanceCallback` runs this on `on_train_batch_begin`, so it uses the **previous** batch prototype. A true inner-loop RSAA step would re-run the stack on the current batch (custom `train_step`).
 
 Where:
 - $S_i$: Semantic representation at layer $i$
@@ -50,25 +69,19 @@ Where:
 - $\Delta$: Prediction divergence (error signal)
 - $\gamma$: Resonance factor
 - $\beta$: Semantic divergence weight
-- $\epsilon$: Convergence threshold
+- $\alpha$: Clipped step size $\mathrm{clip}(\gamma+\beta, 0, 0.99)$
 
 ### Spiking Mechanism
 
-ResonantGSER incorporates biologically-inspired spiking dynamics:
+ResonantGSER uses a subtractive reset with a straight-through estimator so the spike decision can train:
 
 $$
 \begin{aligned}
 &h_{mod} = h_{res} \cdot (1.0 + \sigma(g) \cdot \gamma) + b_{res} \\
-&s = \mathbb{I}(h_{mod} > \theta) \\
-&h_{final} = \mathbb{I}(s) \cdot (h_{mod} - \theta) + \mathbb{I}(\neg s) \cdot h_{mod}
+&s = \mathrm{STE}\bigl(\mathbb{I}(h_{mod} > \theta)\bigr) \\
+&h_{final} = h_{mod} - s \cdot \theta
 \end{aligned}
 $$
-
-Where:
-- $\sigma$: Sigmoid activation
-- $g$: Resonance gate
-- $\theta$: Spiking threshold
-- $\mathbb{I}$: Indicator function
 
 ## Implementation in ARCANE
 
@@ -90,8 +103,9 @@ cell = ResonantGSERCell(
 **Key Components:**
 - **LSTM Base**: Standard LSTM for temporal processing
 - **Resonance Gate**: Learned modulation of resonance strength
-- **Feedback Projections**: Learned top-down influence weights
-- **State Tracking**: Maintains last hidden state for external access
+- **Projection kernel**: Hidden-space top-down map used by `project_feedback()`
+- **Feedback weights**: Input-space reconstruction via `project_feedback(..., to_input_space=True)`
+- **State Tracking**: `last_h` is a slow EMA of the batch mean, used as a prototype for the next callback cycle
 
 ### ResonantGSER Layer
 
@@ -177,39 +191,33 @@ model.fit(x_train, y_train, callbacks=[callback])
 
 ## Validation and Testing
 
-### Test Results
-
-Comprehensive testing demonstrates ResonantGSER effectiveness:
+Unit tests in `tests/test_resonant_gser.py` and `tests/test_mechanism_correctness.py` cover:
 
 ```
-ResonantGSER Cell Basic Functionality: ✓ State management verified
-Resonance Convergence: ✓ 99.9% divergence reduction (25.0 → 0.001)
-Hierarchical Resonance: ✓ Cross-layer communication confirmed
-Divergence Computation: ✓ Mathematical accuracy validated
-Layer Integration: ✓ Model compatibility verified
-Parameter Sensitivity: ✓ Optimal ranges identified (γ ≈ 0.2-0.3)
-Comprehensive Validation: ✓ End-to-end functionality confirmed
+ResonantGSER Cell Basic Functionality: state management
+Resonance Convergence: divergence decreases over harmonization steps
+Hierarchical Resonance: set_higher_layer / set_lower_layer after build (Keras 3)
+Divergence Computation: Δ = S - P
+Layer Integration: compiles inside a Keras Model
+Zero-alignment skip: first forward pass is not pulled toward the origin
 ```
 
-### Convergence Analysis
+Run:
 
-The mechanism demonstrates robust convergence behavior:
+```bash
+python -m pytest tests/test_resonant_gser.py tests/test_mechanism_correctness.py -q
+```
 
-- **Initial Divergence**: ~25.0 (random initialization)
-- **Final Divergence**: ~0.001 (after 15 cycles)
-- **Convergence Rate**: 99.9% error reduction
-- **Stability**: Maintained alignment post-convergence
+`convergence_epsilon` is stored on the cell and used by `HierarchicalResonanceFoundationModel.run_resonance_cycle()` for outer early-stop. The inner cell step is closed-form and does not early-break.
 
 ### Parameter Sensitivity
 
-Testing reveals optimal parameter ranges:
-
-| Parameter | Optimal Range | Effect |
-|-----------|---------------|---------|
-| `resonance_factor` | 0.15 - 0.30 | Convergence speed vs stability |
-| `resonance_cycles` | 3 - 8 | Computational cost vs accuracy |
-| `spike_threshold` | 0.3 - 0.7 | Activity regularization |
-| `convergence_epsilon` | 1e-6 - 1e-3 | Precision vs efficiency |
+| Parameter | Practical Range | Effect |
+|-----------|-----------------|---------|
+| `resonance_factor` | 0.15 - 0.30 | Larger α moves faster toward $P$; clipped below 0.99 |
+| `resonance_cycles` | 3 - 8 | Appears in the closed-form exponent $N$ |
+| `spike_threshold` | 0.3 - 0.7 | Subtractive reset after STE spike |
+| `convergence_epsilon` | 1e-6 - 1e-3 | Outer-loop stop in `run_resonance_cycle` |
 
 ## Visual Analysis
 
@@ -236,10 +244,11 @@ The test suite generates detailed visualizations showing:
 
 ### Overcoming Feedforward Limitations
 
-1. **System 2 Reasoning**: Enables deliberative processing beyond reactive responses
-2. **Hierarchical Coherence**: Ensures semantic consistency across layers
-3. **Contextual Integration**: Allows higher-level context to refine lower-level perceptions
-4. **Ambiguity Resolution**: Iteratively resolves semantic uncertainties
+1. **Iterative alignment**: Hidden states can move toward a top-down prototype before the next forward pass
+2. **Hierarchical wiring**: `set_higher_layer` / `set_lower_layer` connect projection and harmonization
+3. **Local predictive variant**: `PredictiveResonantLayer` keeps alignment per example in RNN state
+
+The closed-form step is a smoother, not an inner optimizer. Do not treat Tiny Shakespeare or MNIST deltas as evidence of System-2 reasoning.
 
 ### Enhanced Capabilities
 
@@ -273,66 +282,19 @@ The test suite generates detailed visualizations showing:
 
 ### Performance Optimization
 
-1. **GPU Acceleration**: Resonance cycles are GPU-parallelizable
-2. **Memory Management**: Monitor state accumulation in deep hierarchies
-3. **Early Stopping**: Use convergence epsilon for computational efficiency
-4. **Regularization**: Combine with standard regularization techniques
+1. **Closed-form inner step**: The cell no longer unrolls $N$ Python iterations.
+2. **Outer early stop**: `run_resonance_cycle` can halt when summed divergence $<$ `convergence_epsilon`.
+3. **Do not pull to zero**: Resonance is skipped until `harmonize_states` (or a non-zero alignment) has run.
 
-## Advanced Applications
+## What this mechanism is not
 
-### Continual Learning
-ResonantGSER enables stable learning of new concepts without forgetting previous knowledge through controlled resonance-based adaptation.
+ResonantGSER does **not** re-run the network on the current batch inside `NeuralResonanceCallback`. Alignment is a `(units,)` prototype. Claims of System-2 reasoning, multi-modal unification, or large gains in continual learning are hypotheses, not results of the unit tests.
 
-### Multi-Modal Integration
-Hierarchical resonance creates unified semantic spaces across different input modalities (text, vision, audio).
+## Future work
 
-### Complex Reasoning
-The iterative resonance process supports multi-step reasoning, hypothesis testing, and logical inference.
-
-### Generative Tasks
-Resonance-based optimization improves generation quality by ensuring semantic coherence and logical consistency.
-
-## Future Directions
-
-### Enhanced Mechanisms
-
-1. **Dynamic Resonance**: Adaptive cycle counts based on task complexity
-2. **Attention-Guided Resonance**: Task-specific resonance patterns
-3. **Multi-Scale Harmonization**: Simultaneous processing at different temporal scales
-4. **Predictive Resonance**: Forward-looking state optimization
-
-### Integration Opportunities
-
-1. **Transformer Resonance**: Combining attention with resonance dynamics
-2. **Graph Neural Networks**: Resonance in graph-structured data
-3. **Reinforcement Learning**: Resonance-based value function optimization
-4. **Meta-Learning**: Resonance for rapid adaptation
-
-### Research Extensions
-
-1. **Neuromorphic Hardware**: Resonance implementation in spiking neural hardware
-2. **Quantum Resonance**: Quantum-enhanced resonance computations
-3. **Brain-Computer Interfaces**: Resonance-based neural signal processing
-4. **Cognitive Architectures**: Large-scale cognitive system integration
-
-## Performance Benchmarks
-
-### Convergence Metrics
-
-| Dataset | Layers | Cycles | Convergence Time | Final Divergence |
-|---------|--------|--------|------------------|------------------|
-| Language | 4 | 5 | 2.1s | 0.0012 |
-| Vision | 3 | 4 | 1.8s | 0.0008 |
-| Multi-modal | 5 | 6 | 3.2s | 0.0021 |
-
-### Comparative Performance
-
-ResonantGSER shows significant improvements over traditional architectures:
-
-- **Semantic Coherence**: +35% improvement in semantic consistency
-- **Reasoning Accuracy**: +28% better on logical reasoning tasks
-- **Continual Learning**: +42% reduction in catastrophic forgetting
-- **Energy Efficiency**: +25% reduction in training FLOPs
+1. Custom `train_step` that re-forwards the current batch after each projection.
+2. Per-example top-down targets (already closer in `PredictiveResonantLayer`).
+3. Graph-safe `GSER.prune_neurons` (still a Python swap-remove).
 
 ## References
 
@@ -342,15 +304,9 @@ ResonantGSER shows significant improvements over traditional architectures:
 3. **Adaptive Resonance**: Grossberg, S. (2013). Frontiers in Psychology
 
 ### Computational Implementations
-1. **Hierarchical Resonance**: RSAA Paper - Resonance-based Semantic Alignment Architecture
-2. **Neural Resonance**: ARCANE Framework - Hierarchical Neural Resonance
-3. **Direct Semantic Optimization**: Latent Space Reasoning implementations
-
-### Performance Studies
-1. **Convergence Analysis**: Test suite validation results
-2. **Parameter Optimization**: Hyperparameter sensitivity studies
-3. **Comparative Benchmarks**: Performance against baseline architectures
+1. **Hierarchical Resonance**: RSAA notes in `docs/NEURAL_RESONANCE.md`
+2. **Linear kernel attention**: Katharopoulos et al., Transformers are RNNs (2020)
 
 ---
 
-*This documentation covers the ResonantGSER mechanism as implemented in ARCANE v3.0.0. For the latest updates and additional features, refer to the main project repository.*
+*This documentation matches the ResonantGSER implementation in ARCANE after the 2026 mechanism corrections.*
