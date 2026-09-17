@@ -14,8 +14,8 @@ export default function FruitFlyPage() {
           ARCANE Fruitfly Brain
         </h1>
         <p className="text-xl text-zinc-400">
-          Adult <em>Drosophila</em> brain and ventral nerve cord (FAFB v783 + MANC/FANC) running ARCANE resonance on a
-          handwritten digit.
+          Traced neurons from the adult <em>Drosophila</em> whole-brain connectome (FAFB v783), driven by ARCANE
+          resonance while you draw a digit.
         </p>
       </div>
 
@@ -29,13 +29,41 @@ export default function FruitFlyPage() {
           What it does
         </h2>
         <p className="leading-relaxed">
-          The pad is the retina. Strokes drive LC4 and LPLC2 cells in the optic lobes; spikes propagate through the
-          reconstructed FAFB brain and down descending axons into the ventral nerve cord — the body CNS that drives
-          legs, wings, and abdomen.{" "}
-          <Link href="/docs/research" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
-            RSAA
-          </Link>{" "}
-          reads a softmax over digits 0–9 from that state. Nearby shapes share probability. Cells stay quiet until there is ink.
+          The pad is the retina. Strokes drive LC4 and LPLC2 cells in the optic lobes; spikes propagate along the
+          traced arbors through synapses whose weights are the published EM synapse counts, and out along the
+          descending axons toward the neck connective.
+        </p>
+        <div className="border-l-2 border-[#C785F2]/40 bg-zinc-900/40 py-3 pl-4 text-sm leading-relaxed text-zinc-400">
+          <p className="mb-2">
+            <strong className="text-zinc-200">What is real, and what is not.</strong>
+          </p>
+          <ul className="m-0 list-disc space-y-1.5 pl-4">
+            <li>
+              <strong className="text-zinc-300">Real:</strong> the 36 neurons are FlyWire v783 cells with their
+              published root IDs, and what you see are their traced skeletons swept into tubes — not stand-in shapes.
+              The shell is the FLYWIRE neuropil mesh. Synapse counts, signs and neurotransmitter calls come from the
+              public release.
+            </li>
+            <li>
+              <strong className="text-zinc-300">Simulated:</strong> the spiking is ARCANE&apos;s leaky
+              integrate-and-fire model running over that wiring. It is not a recording of a fly.
+            </li>
+            <li>
+              <strong className="text-zinc-300">Ventral nerve cord:</strong> the glass shell is the Male CNS
+              JRCFIB2022M VNC neuropil mesh. The neurites inside it are traced Male CNS v1.0 skeletons (motor,
+              sensory, intrinsic, ascending and descending cells from the Janelia / Google map), clipped to the VNC
+              volume — FAFB itself is brain-only, so this cord is a different EM specimen aligned at the neck.
+            </li>
+            <li>
+              <strong className="text-zinc-300">Not the connectome:</strong> the digit readout. The classifier is a
+              separate template matcher; this circuit is an escape-reflex pathway and does not recognise digits. The
+              bars show what the classifier decided, and the cells respond to it.
+            </li>
+          </ul>
+        </div>
+        <p className="leading-relaxed">
+          Cells stay quiet until there is ink. Firing rate, active-cell count and homeostatic gain in the header are
+          read straight out of the simulator.
         </p>
         <p className="leading-relaxed text-sm text-zinc-500">
           Connectome: Google DeepMind / FlyWire FAFB v783 (
@@ -46,11 +74,17 @@ export default function FruitFlyPage() {
           <a href="https://doi.org/10.1038/s41586-024-07686-5" target="_blank" rel="noreferrer" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
             Schlegel et al., 2024
           </a>
-          ). Body: ventral nerve cord (
-          <a href="https://doi.org/10.1038/s41586-024-07389-x" target="_blank" rel="noreferrer" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
-            Azevedo et al., 2024
+          ). Skeletons from the FlyWire v783 skeleton service; brain neuropil from navis-flybrains FLYWIRE; ventral
+          nerve cord mesh and traced VNC neurons from Male CNS v1.0 (
+          <a
+            href="https://research.google/blog/a-connectomics-milestone-mapping-the-complete-male-fruit-fly-brain/"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium"
+          >
+            Berg et al., Cell 2026
           </a>
-          ; MANC). Dynamics:{" "}
+          ). Dynamics:{" "}
           <Link href="/docs/activations" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
             resonant spiking
           </Link>

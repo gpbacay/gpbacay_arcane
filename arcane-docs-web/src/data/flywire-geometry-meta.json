@@ -2,6 +2,10 @@
   "dataset": "flywire_fafb_public",
   "materialization": 783,
   "format": "triangles",
+  "tubeSides": 5,
+  "pruneTwigsNm": 3000.0,
+  "simplifyToleranceNm": 800.0,
+  "radiusBoost": 3.2,
   "skeletonSource": "https://flyem.mrc-lmb.cam.ac.uk/flyconnectome/flywire_skeletons_783/",
   "meshSource": "https://raw.githubusercontent.com/navis-org/navis-flybrains/main/flybrains/meshes/FLYWIRE.ply",
   "tools": [
@@ -21,7 +25,7 @@
     1.0
   ],
   "bin": "/data/flywire-geometry.bin",
-  "byteLength": 22917720,
+  "byteLength": 22579290,
   "mesh": {
     "count": 151248,
     "posOffset": 0,
@@ -40,11 +44,11 @@
         0.42181,
         -0.49321
       ],
-      "count": 22320,
+      "count": 53730,
       "posOffset": 3781200,
-      "nrmOffset": 4049040,
-      "distOffset": 4316880,
-      "regOffset": 4406160
+      "nrmOffset": 4425960,
+      "distOffset": 5070720,
+      "regOffset": 5285640
     },
     {
       "id": "720575940610236514",
@@ -57,11 +61,11 @@
         0.66931,
         -0.09471
       ],
-      "count": 20124,
-      "posOffset": 4428480,
-      "nrmOffset": 4669968,
-      "distOffset": 4911456,
-      "regOffset": 4991952
+      "count": 33450,
+      "posOffset": 5339370,
+      "nrmOffset": 5740770,
+      "distOffset": 6142170,
+      "regOffset": 6275970
     },
     {
       "id": "720575940612462307",
@@ -74,11 +78,11 @@
         0.26057,
         0.11596
       ],
-      "count": 16920,
-      "posOffset": 5012076,
-      "nrmOffset": 5215116,
-      "distOffset": 5418156,
-      "regOffset": 5485836
+      "count": 10260,
+      "posOffset": 6309420,
+      "nrmOffset": 6432540,
+      "distOffset": 6555660,
+      "regOffset": 6596700
     },
     {
       "id": "720575940612518055",
@@ -91,11 +95,11 @@
         0.1443,
         0.11191
       ],
-      "count": 16092,
-      "posOffset": 5502756,
-      "nrmOffset": 5695860,
-      "distOffset": 5888964,
-      "regOffset": 5953332
+      "count": 7500,
+      "posOffset": 6606960,
+      "nrmOffset": 6696960,
+      "distOffset": 6786960,
+      "regOffset": 6816960
     },
     {
       "id": "720575940613470947",
@@ -108,11 +112,11 @@
         0.41136,
         0.26807
       ],
-      "count": 18684,
-      "posOffset": 5969424,
-      "nrmOffset": 6193632,
-      "distOffset": 6417840,
-      "regOffset": 6492576
+      "count": 9150,
+      "posOffset": 6824460,
+      "nrmOffset": 6934260,
+      "distOffset": 7044060,
+      "regOffset": 7080660
     },
     {
       "id": "720575940614526974",
@@ -125,11 +129,11 @@
         0.30528,
         0.12337
       ],
-      "count": 21564,
-      "posOffset": 6511260,
-      "nrmOffset": 6770028,
-      "distOffset": 7028796,
-      "regOffset": 7115052
+      "count": 9660,
+      "posOffset": 7089810,
+      "nrmOffset": 7205730,
+      "distOffset": 7321650,
+      "regOffset": 7360290
     },
     {
       "id": "720575940614572742",
@@ -142,11 +146,11 @@
         0.01323,
         0.46865
       ],
-      "count": 15264,
-      "posOffset": 7136616,
-      "nrmOffset": 7319784,
-      "distOffset": 7502952,
-      "regOffset": 7564008
+      "count": 6900,
+      "posOffset": 7369950,
+      "nrmOffset": 7452750,
+      "distOffset": 7535550,
+      "regOffset": 7563150
     },
     {
       "id": "720575940614582946",
@@ -159,11 +163,11 @@
         -0.15663,
         -0.07063
       ],
-      "count": 12204,
-      "posOffset": 7579272,
-      "nrmOffset": 7725720,
-      "distOffset": 7872168,
-      "regOffset": 7920984
+      "count": 6090,
+      "posOffset": 7570050,
+      "nrmOffset": 7643130,
+      "distOffset": 7716210,
+      "regOffset": 7740570
     },
     {
       "id": "720575940614738444",
@@ -176,11 +180,11 @@
         0.35522,
         0.25788
       ],
-      "count": 16704,
-      "posOffset": 7933188,
-      "nrmOffset": 8133636,
-      "distOffset": 8334084,
-      "regOffset": 8400900
+      "count": 7800,
+      "posOffset": 7746660,
+      "nrmOffset": 7840260,
+      "distOffset": 7933860,
+      "regOffset": 7965060
     },
     {
       "id": "720575940615575007",
@@ -193,11 +197,11 @@
         0.10171,
         0.13179
       ],
-      "count": 17496,
-      "posOffset": 8417604,
-      "nrmOffset": 8627556,
-      "distOffset": 8837508,
-      "regOffset": 8907492
+      "count": 7590,
+      "posOffset": 7972860,
+      "nrmOffset": 8063940,
+      "distOffset": 8155020,
+      "regOffset": 8185380
     },
     {
       "id": "720575940616026939",
@@ -210,11 +214,11 @@
         0.7712,
         -0.14093
       ],
-      "count": 20556,
-      "posOffset": 8924988,
-      "nrmOffset": 9171660,
-      "distOffset": 9418332,
-      "regOffset": 9500556
+      "count": 30120,
+      "posOffset": 8192970,
+      "nrmOffset": 8554410,
+      "distOffset": 8915850,
+      "regOffset": 9036330
     },
     {
       "id": "720575940618709158",
@@ -227,11 +231,11 @@
         -0.13502,
         -0.11604
       ],
-      "count": 22968,
-      "posOffset": 9521112,
-      "nrmOffset": 9796728,
-      "distOffset": 10072344,
-      "regOffset": 10164216
+      "count": 6300,
+      "posOffset": 9066450,
+      "nrmOffset": 9142050,
+      "distOffset": 9217650,
+      "regOffset": 9242850
     },
     {
       "id": "720575940620314612",
@@ -244,11 +248,11 @@
         -0.12986,
         -0.0799
       ],
-      "count": 13896,
-      "posOffset": 10187184,
-      "nrmOffset": 10353936,
-      "distOffset": 10520688,
-      "regOffset": 10576272
+      "count": 6270,
+      "posOffset": 9249150,
+      "nrmOffset": 9324390,
+      "distOffset": 9399630,
+      "regOffset": 9424710
     },
     {
       "id": "720575940622838154",
@@ -261,11 +265,11 @@
         0.24915,
         0.35782
       ],
-      "count": 22536,
-      "posOffset": 10590168,
-      "nrmOffset": 10860600,
-      "distOffset": 11131032,
-      "regOffset": 11221176
+      "count": 37830,
+      "posOffset": 9430980,
+      "nrmOffset": 9884940,
+      "distOffset": 10338900,
+      "regOffset": 10490220
     },
     {
       "id": "720575940624903064",
@@ -278,11 +282,11 @@
         0.3452,
         0.26932
       ],
-      "count": 16452,
-      "posOffset": 11243712,
-      "nrmOffset": 11441136,
-      "distOffset": 11638560,
-      "regOffset": 11704368
+      "count": 11820,
+      "posOffset": 10528050,
+      "nrmOffset": 10669890,
+      "distOffset": 10811730,
+      "regOffset": 10859010
     },
     {
       "id": "720575940625906702",
@@ -295,11 +299,11 @@
         -0.31874,
         0.01893
       ],
-      "count": 16956,
-      "posOffset": 11720820,
-      "nrmOffset": 11924292,
-      "distOffset": 12127764,
-      "regOffset": 12195588
+      "count": 7890,
+      "posOffset": 10870830,
+      "nrmOffset": 10965510,
+      "distOffset": 11060190,
+      "regOffset": 11091750
     },
     {
       "id": "720575940625932421",
@@ -312,11 +316,11 @@
         -0.13882,
         -0.09528
       ],
-      "count": 14004,
-      "posOffset": 12212544,
-      "nrmOffset": 12380592,
-      "distOffset": 12548640,
-      "regOffset": 12604656
+      "count": 6420,
+      "posOffset": 11099640,
+      "nrmOffset": 11176680,
+      "distOffset": 11253720,
+      "regOffset": 11279400
     },
     {
       "id": "720575940626447848",
@@ -329,11 +333,11 @@
         0.29376,
         0.19496
       ],
-      "count": 14616,
-      "posOffset": 12618660,
-      "nrmOffset": 12794052,
-      "distOffset": 12969444,
-      "regOffset": 13027908
+      "count": 7410,
+      "posOffset": 11285820,
+      "nrmOffset": 11374740,
+      "distOffset": 11463660,
+      "regOffset": 11493300
     },
     {
       "id": "720575940626626895",
@@ -346,11 +350,11 @@
         -0.01509,
         -0.0009
       ],
-      "count": 13464,
-      "posOffset": 13042524,
-      "nrmOffset": 13204092,
-      "distOffset": 13365660,
-      "regOffset": 13419516
+      "count": 6330,
+      "posOffset": 11500710,
+      "nrmOffset": 11576670,
+      "distOffset": 11652630,
+      "regOffset": 11677950
     },
     {
       "id": "720575940627652358",
@@ -363,11 +367,11 @@
         0.28097,
         0.35168
       ],
-      "count": 21708,
-      "posOffset": 13432980,
-      "nrmOffset": 13693476,
-      "distOffset": 13953972,
-      "regOffset": 14040804
+      "count": 48060,
+      "posOffset": 11684280,
+      "nrmOffset": 12261000,
+      "distOffset": 12837720,
+      "regOffset": 13029960
     },
     {
       "id": "720575940627787609",
@@ -380,11 +384,11 @@
         0.40815,
         -0.36209
       ],
-      "count": 22320,
-      "posOffset": 14062512,
-      "nrmOffset": 14330352,
-      "distOffset": 14598192,
-      "regOffset": 14687472
+      "count": 34680,
+      "posOffset": 13078020,
+      "nrmOffset": 13494180,
+      "distOffset": 13910340,
+      "regOffset": 14049060
     },
     {
       "id": "720575940627902979",
@@ -397,11 +401,11 @@
         0.36388,
         0.18528
       ],
-      "count": 15624,
-      "posOffset": 14709792,
-      "nrmOffset": 14897280,
-      "distOffset": 15084768,
-      "regOffset": 15147264
+      "count": 10740,
+      "posOffset": 14083740,
+      "nrmOffset": 14212620,
+      "distOffset": 14341500,
+      "regOffset": 14384460
     },
     {
       "id": "720575940628699560",
@@ -414,11 +418,11 @@
         0.13836,
         0.13322
       ],
-      "count": 16200,
-      "posOffset": 15162888,
-      "nrmOffset": 15357288,
-      "distOffset": 15551688,
-      "regOffset": 15616488
+      "count": 7740,
+      "posOffset": 14395200,
+      "nrmOffset": 14488080,
+      "distOffset": 14580960,
+      "regOffset": 14611920
     },
     {
       "id": "720575940629292785",
@@ -431,11 +435,11 @@
         0.39937,
         0.28642
       ],
-      "count": 12924,
-      "posOffset": 15632688,
-      "nrmOffset": 15787776,
-      "distOffset": 15942864,
-      "regOffset": 15994560
+      "count": 6540,
+      "posOffset": 14619660,
+      "nrmOffset": 14698140,
+      "distOffset": 14776620,
+      "regOffset": 14802780
     },
     {
       "id": "720575940629327659",
@@ -448,11 +452,11 @@
         0.41975,
         -0.29867
       ],
-      "count": 21420,
-      "posOffset": 16007484,
-      "nrmOffset": 16264524,
-      "distOffset": 16521564,
-      "regOffset": 16607244
+      "count": 51930,
+      "posOffset": 14809320,
+      "nrmOffset": 15432480,
+      "distOffset": 16055640,
+      "regOffset": 16263360
     },
     {
       "id": "720575940631032657",
@@ -465,11 +469,11 @@
         -0.13853,
         -0.09919
       ],
-      "count": 15768,
-      "posOffset": 16628664,
-      "nrmOffset": 16817880,
-      "distOffset": 17007096,
-      "regOffset": 17070168
+      "count": 7140,
+      "posOffset": 16315290,
+      "nrmOffset": 16400970,
+      "distOffset": 16486650,
+      "regOffset": 16515210
     },
     {
       "id": "720575940631082808",
@@ -482,11 +486,11 @@
         0.6795,
         -0.09287
       ],
-      "count": 20592,
-      "posOffset": 17085936,
-      "nrmOffset": 17333040,
-      "distOffset": 17580144,
-      "regOffset": 17662512
+      "count": 30750,
+      "posOffset": 16522350,
+      "nrmOffset": 16891350,
+      "distOffset": 17260350,
+      "regOffset": 17383350
     },
     {
       "id": "720575940631095158",
@@ -499,11 +503,11 @@
         0.31092,
         0.22151
       ],
-      "count": 17244,
-      "posOffset": 17683104,
-      "nrmOffset": 17890032,
-      "distOffset": 18096960,
-      "regOffset": 18165936
+      "count": 9480,
+      "posOffset": 17414100,
+      "nrmOffset": 17527860,
+      "distOffset": 17641620,
+      "regOffset": 17679540
     },
     {
       "id": "720575940632080146",
@@ -516,11 +520,11 @@
         0.38502,
         0.24989
       ],
-      "count": 19188,
-      "posOffset": 18183180,
-      "nrmOffset": 18413436,
-      "distOffset": 18643692,
-      "regOffset": 18720444
+      "count": 8790,
+      "posOffset": 17689020,
+      "nrmOffset": 17794500,
+      "distOffset": 17899980,
+      "regOffset": 17935140
     },
     {
       "id": "720575940632499757",
@@ -533,11 +537,11 @@
         -0.51419,
         0.6863
       ],
-      "count": 20412,
-      "posOffset": 18739632,
-      "nrmOffset": 18984576,
-      "distOffset": 19229520,
-      "regOffset": 19311168
+      "count": 32520,
+      "posOffset": 17943930,
+      "nrmOffset": 18334170,
+      "distOffset": 18724410,
+      "regOffset": 18854490
     },
     {
       "id": "720575940633580384",
@@ -550,11 +554,11 @@
         0.18795,
         0.10382
       ],
-      "count": 14364,
-      "posOffset": 19331580,
-      "nrmOffset": 19503948,
-      "distOffset": 19676316,
-      "regOffset": 19733772
+      "count": 6900,
+      "posOffset": 18887010,
+      "nrmOffset": 18969810,
+      "distOffset": 19052610,
+      "regOffset": 19080210
     },
     {
       "id": "720575940634146967",
@@ -567,11 +571,11 @@
         0.33409,
         0.2161
       ],
-      "count": 20736,
-      "posOffset": 19748136,
-      "nrmOffset": 19996968,
-      "distOffset": 20245800,
-      "regOffset": 20328744
+      "count": 11520,
+      "posOffset": 19087110,
+      "nrmOffset": 19225350,
+      "distOffset": 19363590,
+      "regOffset": 19409670
     },
     {
       "id": "720575940635872101",
@@ -584,11 +588,11 @@
         0.2959,
         0.38621
       ],
-      "count": 22860,
-      "posOffset": 20349480,
-      "nrmOffset": 20623800,
-      "distOffset": 20898120,
-      "regOffset": 20989560
+      "count": 34620,
+      "posOffset": 19421190,
+      "nrmOffset": 19836630,
+      "distOffset": 20252070,
+      "regOffset": 20390550
     },
     {
       "id": "720575940639177449",
@@ -601,11 +605,11 @@
         0.32854,
         0.25807
       ],
-      "count": 22932,
-      "posOffset": 21012420,
-      "nrmOffset": 21287604,
-      "distOffset": 21562788,
-      "regOffset": 21654516
+      "count": 10890,
+      "posOffset": 20425170,
+      "nrmOffset": 20555850,
+      "distOffset": 20686530,
+      "regOffset": 20730090
     },
     {
       "id": "720575940640331472",
@@ -618,11 +622,11 @@
         0.6517,
         -0.07991
       ],
-      "count": 20952,
-      "posOffset": 21677448,
-      "nrmOffset": 21928872,
-      "distOffset": 22180296,
-      "regOffset": 22264104
+      "count": 26280,
+      "posOffset": 20740980,
+      "nrmOffset": 21056340,
+      "distOffset": 21371700,
+      "regOffset": 21476820
     },
     {
       "id": "720575940644438551",
@@ -635,11 +639,11 @@
         0.41243,
         -0.50599
       ],
-      "count": 21816,
-      "posOffset": 22285056,
-      "nrmOffset": 22546848,
-      "distOffset": 22808640,
-      "regOffset": 22895904
+      "count": 37110,
+      "posOffset": 21503100,
+      "nrmOffset": 21948420,
+      "distOffset": 22393740,
+      "regOffset": 22542180
     }
   ],
   "citation": [

@@ -1,0 +1,715 @@
+{
+  "dataset": "male-cns_vnc",
+  "format": "triangles",
+  "meshSource": "https://raw.githubusercontent.com/navis-org/navis-flybrains/main/flybrains/meshes/JRCFIB2022M_vnc.ply",
+  "skeletonSource": "https://storage.googleapis.com/flyem-male-cns/v1.0/segmentation/skeletons-malecns/skeletons-swc/",
+  "citation": [
+    "Berg et al., Cell 2026 \u2014 Sexual dimorphism in the complete connectome of the Drosophila male CNS",
+    "navis-flybrains JRCFIB2022M_vnc neuropil mesh"
+  ],
+  "bin": "/data/manc-vnc-geometry.bin",
+  "byteLength": 22979820,
+  "tubeSides": 5,
+  "pruneTwigsNm": 8000.0,
+  "simplifyToleranceNm": 2000.0,
+  "neuronCount": 96,
+  "neurons": [
+    {
+      "id": 10550,
+      "type": "AN02A001",
+      "superclass": "ascending_neuron",
+      "side": "R",
+      "neuromere": "T2"
+    },
+    {
+      "id": 10775,
+      "type": "AN01A089",
+      "superclass": "ascending_neuron",
+      "side": "R",
+      "neuromere": "T1"
+    },
+    {
+      "id": 10842,
+      "type": "CB0429",
+      "superclass": "descending_neuron",
+      "side": "L",
+      "neuromere": "NA"
+    },
+    {
+      "id": 11411,
+      "type": "DNg31",
+      "superclass": "descending_neuron",
+      "side": "R",
+      "neuromere": "MD"
+    },
+    {
+      "id": 11508,
+      "type": "AN02A001",
+      "superclass": "ascending_neuron",
+      "side": "L",
+      "neuromere": "T2"
+    },
+    {
+      "id": 16297,
+      "type": "AN00A006",
+      "superclass": "ascending_neuron",
+      "side": "M",
+      "neuromere": "A1"
+    },
+    {
+      "id": 17198,
+      "type": "DNge035",
+      "superclass": "descending_neuron",
+      "side": "R",
+      "neuromere": "NA"
+    },
+    {
+      "id": 17331,
+      "type": "DNg02_d",
+      "superclass": "descending_neuron",
+      "side": "R",
+      "neuromere": "LB"
+    },
+    {
+      "id": 17492,
+      "type": "AN05B023d",
+      "superclass": "ascending_neuron",
+      "side": "L",
+      "neuromere": "A9"
+    },
+    {
+      "id": 21863,
+      "type": "DNg106",
+      "superclass": "descending_neuron",
+      "side": "L",
+      "neuromere": "MX"
+    },
+    {
+      "id": 62405,
+      "type": "DNg39",
+      "superclass": "descending_neuron",
+      "side": "L",
+      "neuromere": "LB"
+    },
+    {
+      "id": 520195,
+      "type": "AN05B023d",
+      "superclass": "ascending_neuron",
+      "side": "R",
+      "neuromere": "A9"
+    },
+    {
+      "id": 800166,
+      "type": "INXXX149",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "A9"
+    },
+    {
+      "id": 800809,
+      "type": "IN00A001",
+      "superclass": "vnc_intrinsic",
+      "side": "M",
+      "neuromere": "T2"
+    },
+    {
+      "id": 800855,
+      "type": "IN01A045",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "A7"
+    },
+    {
+      "id": 801401,
+      "type": "IN00A004",
+      "superclass": "vnc_intrinsic",
+      "side": "M",
+      "neuromere": "T1"
+    },
+    {
+      "id": 801489,
+      "type": "IN01A043",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "A6"
+    },
+    {
+      "id": 801637,
+      "type": "Acc. ti flexor MN",
+      "superclass": "vnc_motor",
+      "side": "R",
+      "neuromere": "T3"
+    },
+    {
+      "id": 801844,
+      "type": "IN00A005",
+      "superclass": "vnc_intrinsic",
+      "side": "M",
+      "neuromere": "A1"
+    },
+    {
+      "id": 802003,
+      "type": "MNad01",
+      "superclass": "vnc_motor",
+      "side": "L",
+      "neuromere": "A3"
+    },
+    {
+      "id": 802130,
+      "type": "MNad02",
+      "superclass": "vnc_motor",
+      "side": "L",
+      "neuromere": "A2"
+    },
+    {
+      "id": 802452,
+      "type": "IN00A027",
+      "superclass": "vnc_intrinsic",
+      "side": "M",
+      "neuromere": "A6"
+    },
+    {
+      "id": 802580,
+      "type": "IN00A017",
+      "superclass": "vnc_intrinsic",
+      "side": "M",
+      "neuromere": "A3"
+    },
+    {
+      "id": 803055,
+      "type": "IN01A043",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "A6"
+    },
+    {
+      "id": 803060,
+      "type": "IN01A045",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "A7"
+    },
+    {
+      "id": 803212,
+      "type": "IN01A046",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "A4"
+    },
+    {
+      "id": 803429,
+      "type": "IN00A027",
+      "superclass": "vnc_intrinsic",
+      "side": "M",
+      "neuromere": "A5"
+    },
+    {
+      "id": 803566,
+      "type": "IN00A001",
+      "superclass": "vnc_intrinsic",
+      "side": "M",
+      "neuromere": "T3"
+    },
+    {
+      "id": 803608,
+      "type": "IN01A044",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "A3"
+    },
+    {
+      "id": 803732,
+      "type": "MNad03",
+      "superclass": "vnc_motor",
+      "side": "R",
+      "neuromere": "A4"
+    },
+    {
+      "id": 803814,
+      "type": "IN01A044",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "A3"
+    },
+    {
+      "id": 803887,
+      "type": "LgLG5",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 803913,
+      "type": "LgLG1a",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 804303,
+      "type": "ANXXX157",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "A1"
+    },
+    {
+      "id": 804320,
+      "type": "IN01A059",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "A5"
+    },
+    {
+      "id": 804328,
+      "type": "ANXXX214",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "A2"
+    },
+    {
+      "id": 804343,
+      "type": "ADNM2 MN",
+      "superclass": "vnc_motor",
+      "side": "L",
+      "neuromere": "T1"
+    },
+    {
+      "id": 804388,
+      "type": "ANXXX214",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "A2"
+    },
+    {
+      "id": 804864,
+      "type": "LgLG6",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 804886,
+      "type": "IN00A013",
+      "superclass": "vnc_intrinsic",
+      "side": "M",
+      "neuromere": "A2"
+    },
+    {
+      "id": 804969,
+      "type": "AN05B108",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "A4"
+    },
+    {
+      "id": 805151,
+      "type": "AN10B045",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "T2"
+    },
+    {
+      "id": 805185,
+      "type": "IN00A017",
+      "superclass": "vnc_intrinsic",
+      "side": "M",
+      "neuromere": "A4"
+    },
+    {
+      "id": 805471,
+      "type": "GFC1",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "T2"
+    },
+    {
+      "id": 805568,
+      "type": "Acc. ti flexor MN",
+      "superclass": "vnc_motor",
+      "side": "R",
+      "neuromere": "T2"
+    },
+    {
+      "id": 805659,
+      "type": "LgLG6",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 805797,
+      "type": "MNad06",
+      "superclass": "vnc_motor",
+      "side": "L",
+      "neuromere": "A1"
+    },
+    {
+      "id": 805980,
+      "type": "MNad07",
+      "superclass": "vnc_motor",
+      "side": "R",
+      "neuromere": "A5"
+    },
+    {
+      "id": 806111,
+      "type": "AN07B089",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "A1"
+    },
+    {
+      "id": 806127,
+      "type": "LgLG3",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 806620,
+      "type": "MNad06",
+      "superclass": "vnc_motor",
+      "side": "R",
+      "neuromere": "A1"
+    },
+    {
+      "id": 806645,
+      "type": "LgLG1a",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 807010,
+      "type": "MNad02",
+      "superclass": "vnc_motor",
+      "side": "R",
+      "neuromere": "A3"
+    },
+    {
+      "id": 807019,
+      "type": "LgLG3",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 807234,
+      "type": "LgLG7",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 807401,
+      "type": "MNad01",
+      "superclass": "vnc_motor",
+      "side": "R",
+      "neuromere": "A2"
+    },
+    {
+      "id": 807454,
+      "type": "AN05B108",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "A4"
+    },
+    {
+      "id": 807472,
+      "type": "LgLG1b",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 808183,
+      "type": "IN09A005",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "A8"
+    },
+    {
+      "id": 808695,
+      "type": "LgLG1b",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 808752,
+      "type": "IN10B058",
+      "superclass": "ascending_neuron",
+      "side": "R",
+      "neuromere": "T3"
+    },
+    {
+      "id": 808812,
+      "type": "LgLG5",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 808926,
+      "type": "MNad04,MNad48",
+      "superclass": "vnc_motor",
+      "side": "R",
+      "neuromere": "A10"
+    },
+    {
+      "id": 808940,
+      "type": "AN05B068",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "T3"
+    },
+    {
+      "id": 809227,
+      "type": "LgLG4",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 809397,
+      "type": "MNad04,MNad48",
+      "superclass": "vnc_motor",
+      "side": "L",
+      "neuromere": "A9"
+    },
+    {
+      "id": 809483,
+      "type": "LgLG8",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 809604,
+      "type": "Acc. tr flexor MN",
+      "superclass": "vnc_motor",
+      "side": "L",
+      "neuromere": "T3"
+    },
+    {
+      "id": 809833,
+      "type": "LgLG4",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 809862,
+      "type": "MNad09",
+      "superclass": "vnc_motor",
+      "side": "R",
+      "neuromere": "A6"
+    },
+    {
+      "id": 810049,
+      "type": "LgLG8",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 810069,
+      "type": "MNad09",
+      "superclass": "vnc_motor",
+      "side": "L",
+      "neuromere": "A6"
+    },
+    {
+      "id": 810086,
+      "type": "MNad03",
+      "superclass": "vnc_motor",
+      "side": "L",
+      "neuromere": "A4"
+    },
+    {
+      "id": 810957,
+      "type": "SApp01",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 811011,
+      "type": "AN05B068",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "T3"
+    },
+    {
+      "id": 811163,
+      "type": "AN12B060",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "T1"
+    },
+    {
+      "id": 811772,
+      "type": "LgLG7",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 812718,
+      "type": "MNad07",
+      "superclass": "vnc_motor",
+      "side": "L",
+      "neuromere": "A5"
+    },
+    {
+      "id": 813004,
+      "type": "AN10B045",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "T1"
+    },
+    {
+      "id": 813696,
+      "type": "ADNM2 MN",
+      "superclass": "vnc_motor",
+      "side": "R",
+      "neuromere": "T1"
+    },
+    {
+      "id": 814183,
+      "type": "ANXXX202",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "A5"
+    },
+    {
+      "id": 815152,
+      "type": "LgLG2",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 815519,
+      "type": "LgLG2",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 815827,
+      "type": "SApp02,SApp03",
+      "superclass": "vnc_sensory",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 816764,
+      "type": "SNpp42",
+      "superclass": "vnc_sensory",
+      "side": "L",
+      "neuromere": "NA"
+    },
+    {
+      "id": 821375,
+      "type": "Acc. tr flexor MN",
+      "superclass": "vnc_motor",
+      "side": "L",
+      "neuromere": "T2"
+    },
+    {
+      "id": 824394,
+      "type": "body824394",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "NA"
+    },
+    {
+      "id": 852122,
+      "type": "body852122",
+      "superclass": "vnc_intrinsic",
+      "side": "U",
+      "neuromere": "NA"
+    },
+    {
+      "id": 903623,
+      "type": "AN05B036",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "T2"
+    },
+    {
+      "id": 904121,
+      "type": "INXXX077",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "A9"
+    },
+    {
+      "id": 905924,
+      "type": "INXXX279",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "A10"
+    },
+    {
+      "id": 906497,
+      "type": "INXXX279",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "A10"
+    },
+    {
+      "id": 908816,
+      "type": "SNpp42",
+      "superclass": "vnc_sensory",
+      "side": "L",
+      "neuromere": "NA"
+    },
+    {
+      "id": 908951,
+      "type": "AN08B047",
+      "superclass": "ascending_neuron",
+      "side": "L",
+      "neuromere": "T1"
+    },
+    {
+      "id": 919472,
+      "type": "AN07B076",
+      "superclass": "vnc_intrinsic",
+      "side": "L",
+      "neuromere": "T3"
+    },
+    {
+      "id": 936810,
+      "type": "IN09A005",
+      "superclass": "vnc_intrinsic",
+      "side": "R",
+      "neuromere": "A8"
+    }
+  ],
+  "bounds": {
+    "min": [
+      -0.7707192325397672,
+      -3.994010980278997,
+      -0.593722038413939
+    ],
+    "max": [
+      0.7707192325397672,
+      -0.4,
+      0.593722038413939
+    ]
+  },
+  "mesh": {
+    "count": 109914,
+    "posOffset": 0,
+    "nrmOffset": 1318968,
+    "regOffset": 2637936
+  },
+  "arbors": {
+    "count": 546810,
+    "posOffset": 2747850,
+    "nrmOffset": 9309570,
+    "colOffset": 15871290,
+    "regOffset": 22433010
+  }
+}

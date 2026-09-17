@@ -431,8 +431,36 @@ export class FruitflyCircuitSimulator {
   }
 
   /**
+   * Packs live state for the given neurons into a vec3-per-neuron array for the
+   * shader: (calcium, seconds since last spike, homeostatic gain).
+   *
+   * This is the fast path used with the real FlyWire tube meshes. The arbors
+   * carry ~660k vertices, so the action-potential wavefront is evaluated in the
+   * vertex shader from these few dozen values instead of being written per
+   * vertex on the CPU every frame.
+   */
+  public writeNeuronState(target: number[], ids: string[], currentTime: number): void {
+    for (let s = 0; s < ids.length; s++) {
+      const idx = this.neuronIndex.get(ids[s]);
+      const o = s * 3;
+      if (idx === undefined) {
+        target[o] = 0;
+        target[o + 1] = 1e3;
+        target[o + 2] = 1;
+        continue;
+      }
+      target[o] = this.calcium[idx];
+      target[o + 1] = currentTime - this.lastSpikeTime[idx];
+      target[o + 2] = this.homeostaticGain[idx];
+    }
+  }
+
+  /**
    * Updates WebGL vertex buffer with genuine biophysical action potential waves
    * propagating down each neuron's arbor, modulated by ARCANE homeostatic gain and calcium glow.
+   *
+   * CPU path, retained for the procedural fallback arbors. The real-geometry
+   * path uses `writeNeuronState` plus the shader instead.
    */
   public applyColors(
     target: Float32Array,

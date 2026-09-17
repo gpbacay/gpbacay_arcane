@@ -1,4 +1,17 @@
-/** Adult Drosophila brain occupancy and neurites from the whole-brain connectome (Google DeepMind / FAFB v783). */
+/**
+ * Procedural stand-in geometry for the adult Drosophila CNS.
+ *
+ * Nothing in this file is measured data. The shapes are ellipsoid fields and
+ * seeded random walks tuned to look like the right anatomy. Two things still
+ * use it:
+ *
+ * 1. The ventral nerve cord fallback. The live viewer loads the Male CNS
+ *    JRCFIB2022M_vnc mesh; these builders only run if that blob fails.
+ * 2. The fallback arbors, used only when the real geometry blob fails to load.
+ *
+ * The real neuropil shell and the real v783 neuron skeletons live in
+ * `flywire-geometry.ts`.
+ */
 
 export type Vec3 = { x: number; y: number; z: number };
 
@@ -31,6 +44,95 @@ export const BRAIN_REGIONS = [
 export const VNC_REGION = 5;
 
 export const ALL_REGION_MASK = BRAIN_REGIONS.reduce((mask, region) => mask | (1 << region.bit), 0);
+
+export type MeshCloud = {
+  positions: Float32Array;
+  normals: Float32Array;
+  regions: Float32Array;
+  count: number;
+};
+
+export type TubeCloud = {
+  positions: Float32Array;
+  normals: Float32Array;
+  colors: Float32Array;
+  regions: Float32Array;
+  distances: Float32Array;
+  count: number;
+};
+
+type FlyLeg = {
+  neuromere: "T1" | "T2" | "T3";
+  side: 1 | -1;
+  root: Vec3;
+  coxa: Vec3;
+  femur: Vec3;
+  tibia: Vec3;
+  tarsus: Vec3;
+  neuropilR: number;
+  femurR: number;
+  tibiaR: number;
+};
+
+function makeLeg(
+  neuromere: FlyLeg["neuromere"],
+  side: 1 | -1,
+  y: number,
+  reach: number,
+  back: number,
+  drop: number,
+  nR: number
+): FlyLeg {
+  const root = { x: side * 0.17, y, z: 0.016 };
+  const coxa = { x: side * 0.4, y: y - back * 0.08, z: -0.05 };
+  const femur = { x: side * (0.4 + reach * 0.48), y: y - back * 0.4, z: -0.12 - drop * 0.35 };
+  const tibia = { x: side * (0.4 + reach * 0.8), y: y - back * 0.88, z: -0.08 - drop * 0.18 };
+  const tarsus = { x: side * (0.4 + reach), y: y - back * 1.18, z: -0.14 - drop * 0.45 };
+  return {
+    neuromere,
+    side,
+    root,
+    coxa,
+    femur,
+    tibia,
+    tarsus,
+    neuropilR: nR,
+    femurR: nR * 0.34,
+    tibiaR: nR * 0.24,
+  };
+}
+
+/** Six thoracic legs: prothoracic (T1), mesothoracic (T2), metathoracic (T3). */
+const FLY_LEGS: FlyLeg[] = [
+  makeLeg("T1", -1, -1.1, 1.02, -0.05, 0.16, 0.125),
+  makeLeg("T1", 1, -1.1, 1.02, -0.05, 0.16, 0.125),
+  makeLeg("T2", -1, -1.48, 1.18, 0.26, 0.22, 0.145),
+  makeLeg("T2", 1, -1.48, 1.18, 0.26, 0.22, 0.145),
+  makeLeg("T3", -1, -1.86, 1.06, 0.4, 0.18, 0.125),
+  makeLeg("T3", 1, -1.86, 1.06, 0.4, 0.18, 0.125),
+];
+
+function smoothMin(a: number, b: number, k: number) {
+  const h = Math.max(k - Math.abs(a - b), 0) / k;
+  return Math.min(a, b) - h * h * k * 0.25;
+}
+
+function capsuleDist(p: Vec3, a: Vec3, b: Vec3) {
+  const pax = p.x - a.x;
+  const pay = p.y - a.y;
+  const paz = p.z - a.z;
+  const bax = b.x - a.x;
+  const bay = b.y - a.y;
+  const baz = b.z - a.z;
+  const baba = bax * bax + bay * bay + baz * baz || 1;
+  const h = Math.max(0, Math.min(1, (pax * bax + pay * bay + paz * baz) / baba));
+  return Math.hypot(pax - bax * h, pay - bay * h, paz - baz * h);
+}
+
+function capsuleField(p: Vec3, a: Vec3, b: Vec3, r: number) {
+  const n = noise(p) + noise({ x: p.x * 2.4, y: p.y * 2.1, z: p.z * 2.7 }) * 0.65;
+  return capsuleDist(p, a, b) / (r * (1 + n * 0.85));
+}
 
 export type SomaMarker = {
   id: string;
@@ -86,15 +188,47 @@ export function insideBrain(p: Vec3) {
   return f.d < 1 && f.hole > 1;
 }
 
-/** Adult VNC occupancy (neck connective + thoracic + abdominal neuromeres). Analogous to a spinal cord. */
+/**
+ * Adult VNC occupancy: a fused cervical–thoracic–abdominal cord plus six
+ * thoracic leg neuropils. Capsules are blended with a smooth minimum so the
+ * cord reads as one irregular ganglion, not a stack of ellipsoids.
+ *
+ * `includeLegs` adds the peripheral nerve trunks. The glass shell uses the
+ * cord + neuropil lobes only — wrapping the whole leg in a capsule made the
+ * limbs look like smooth sausages, unlike the head's filament arbors.
+ */
+function vncOccupancy(p: Vec3, includeLegs: boolean) {
+  const neck = capsuleField(p, { x: 0, y: -0.46, z: 0.02 }, { x: 0.01, y: -0.98, z: 0.02 }, 0.088);
+  const thorax = capsuleField(p, { x: -0.01, y: -0.88, z: 0.025 }, { x: 0.02, y: -2.12, z: -0.01 }, 0.155);
+  const ridgeL = capsuleField(p, { x: -0.14, y: -1.04, z: 0.01 }, { x: -0.16, y: -1.94, z: -0.01 }, 0.1);
+  const ridgeR = capsuleField(p, { x: 0.14, y: -1.04, z: 0.01 }, { x: 0.16, y: -1.94, z: -0.01 }, 0.1);
+  const abd = capsuleField(p, { x: 0.02, y: -2.05, z: -0.02 }, { x: 0.04, y: -2.64, z: -0.05 }, 0.068);
+  let d = smoothMin(neck, thorax, 0.18);
+  d = smoothMin(d, ridgeL, 0.14);
+  d = smoothMin(d, ridgeR, 0.14);
+  d = smoothMin(d, abd, 0.16);
+  let trunk = 99;
+  if (includeLegs) {
+    for (const L of FLY_LEGS) {
+      const root = capsuleField(p, L.root, L.coxa, 0.055);
+      const femur = capsuleField(p, L.coxa, L.femur, L.femurR * 0.7);
+      const tibia = capsuleField(p, L.femur, L.tibia, L.tibiaR * 0.68);
+      const tarsus = capsuleField(p, L.tibia, L.tarsus, L.tibiaR * 0.48);
+      trunk = Math.min(trunk, root, femur, tibia, tarsus);
+    }
+    d = smoothMin(d, trunk, 0.08);
+  }
+  d += noise(p) * 0.24 + noise({ x: p.x * 2.1, y: p.y * 1.7, z: p.z * 2.4 }) * 0.13;
+  d += noise({ x: p.x * 3.4, y: p.y * 2.8, z: p.z * 3.1 }) * 0.07;
+  return { d, neck, thorax, abd, leg: trunk };
+}
+
 export function vncField(p: Vec3) {
-  const neck = ellipsoid(p, { x: 0, y: -0.72, z: 0.02 }, { x: 0.1, y: 0.3, z: 0.09 });
-  const t1 = ellipsoid(p, { x: 0, y: -1.14, z: 0.02 }, { x: 0.36, y: 0.22, z: 0.18 });
-  const t2 = ellipsoid(p, { x: 0, y: -1.54, z: 0.04 }, { x: 0.5, y: 0.24, z: 0.22 });
-  const t3 = ellipsoid(p, { x: 0, y: -1.9, z: 0 }, { x: 0.34, y: 0.2, z: 0.17 });
-  const abd = ellipsoid(p, { x: 0, y: -2.32, z: -0.02 }, { x: 0.16, y: 0.34, z: 0.11 });
-  const d = Math.min(neck, t1, t2, t3, abd) + noise(p) * 0.55;
-  return { d, neck, t1, t2, t3, abd };
+  return vncOccupancy(p, true);
+}
+
+function vncShellField(p: Vec3) {
+  return vncOccupancy(p, false);
 }
 
 export function insideVnc(p: Vec3) {
@@ -118,10 +252,9 @@ export function circuitRegion(n: CircuitNeuron): number {
 
 function vncColor(p: Vec3): [number, number, number] {
   const f = vncField(p);
-  if (f.neck < 1.05) return [0.82, 0.4, 0.95];
-  if (f.t2 < 1.02 && Math.abs(p.x) > 0.2) return [0.25, 0.78, 0.82];
-  if (f.t1 < 1.05 || f.t3 < 1.05) return [0.4, 0.82, 0.48];
-  if (f.abd < 1.05) return [0.78, 0.5, 0.28];
+  if (f.leg < 1.02 && f.leg <= f.thorax && f.leg <= f.neck) return [0.25, 0.78, 0.82];
+  if (f.neck < 1.05 && f.neck <= f.thorax) return [0.82, 0.4, 0.95];
+  if (f.abd < 1.05 && f.abd <= f.thorax) return [0.78, 0.5, 0.28];
   return [0.58, 0.34, 0.78];
 }
 
@@ -268,7 +401,7 @@ function walk(
 
 function sampleInsideVnc(rng: () => number): Vec3 {
   for (let i = 0; i < 80; i++) {
-    const p = { x: (rng() - 0.5) * 1.15, y: -0.48 - rng() * 2.15, z: (rng() - 0.5) * 0.5 };
+    const p = { x: (rng() - 0.5) * 3.2, y: -0.48 - rng() * 2.25, z: (rng() - 0.5) * 0.9 };
     if (insideVnc(p)) return p;
   }
   return { x: 0, y: -1.5, z: 0 };
@@ -294,6 +427,460 @@ function pushPolyline(
 }
 
 let backgroundCache: LineCloud | null = null;
+let vncCache: LineCloud | null = null;
+let vncMeshCache: MeshCloud | null = null;
+let vncTubeCache: TubeCloud | null = null;
+
+type VncFiber = { pts: Vec3[]; rgb: [number, number, number]; radius: number };
+
+function muteRgb(rgb: [number, number, number], sat = 0.32, bright = 0.78): [number, number, number] {
+  const grey = (rgb[0] + rgb[1] + rgb[2]) / 3;
+  return [
+    (rgb[0] * (1 - sat) + grey * sat) * bright,
+    (rgb[1] * (1 - sat) + grey * sat) * bright,
+    (rgb[2] * (1 - sat) + grey * sat) * bright * 1.08,
+  ];
+}
+
+function jitter3(rng: () => number, s = 0.04): Vec3 {
+  return { x: (rng() - 0.5) * s, y: (rng() - 0.5) * s, z: (rng() - 0.5) * s };
+}
+
+function sampleInsideCord(rng: () => number): Vec3 {
+  for (let i = 0; i < 80; i++) {
+    const p = { x: (rng() - 0.5) * 0.7, y: -0.7 - rng() * 1.85, z: (rng() - 0.5) * 0.32 };
+    if (insideVnc(p) && Math.abs(p.x) < 0.42) return p;
+  }
+  return { x: 0, y: -1.4, z: 0 };
+}
+
+/**
+ * Schematic VNC + leg neurons as irregular arbors, matching the head's
+ * traced-looking filaments rather than filling neuromere ellipsoids.
+ */
+function buildVncFibers(): VncFiber[] {
+  const rng = mulberry32(20260917);
+  const fibers: VncFiber[] = [];
+  const longRgb = muteRgb([0.72, 0.36, 0.9]);
+  const localRgb = muteRgb([0.56, 0.3, 0.8]);
+  const motorRgb = muteRgb([0.38, 0.86, 0.52], 0.18, 0.92);
+  const senseRgb = muteRgb([0.22, 0.82, 0.92], 0.18, 0.92);
+  const neckRgb = muteRgb([0.78, 0.4, 0.92]);
+
+  for (let i = 0; i < 42; i++) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const xOff = side * (0.035 + rng() * 0.07);
+    const zOff = (rng() - 0.5) * 0.055;
+    const y0 = -0.5 - rng() * 0.1;
+    const y1 = -2.42 - rng() * 0.16;
+    const waypoints: Vec3[] = [];
+    const steps = 8 + Math.floor(rng() * 4);
+    for (let k = 0; k <= steps; k++) {
+      const t = k / steps;
+      waypoints.push({
+        x: xOff + Math.sin(t * 4.4 + i) * 0.03 + (rng() - 0.5) * 0.018,
+        y: y0 + (y1 - y0) * t,
+        z: zOff + Math.sin(t * 3.2 + i * 0.6) * 0.028,
+      });
+    }
+    fibers.push({ pts: meanderTract(waypoints, rng, 8, 0.026), rgb: longRgb, radius: 0.0056 });
+  }
+
+  const stations = [-1.1, -1.3, -1.48, -1.68, -1.86, -2.12, -2.32];
+  for (let i = 0; i < 24; i++) {
+    const y = stations[i % stations.length] + (rng() - 0.5) * 0.05;
+    const z = (rng() - 0.5) * 0.07;
+    fibers.push({
+      pts: meanderTract(
+        [
+          { x: -0.18 - rng() * 0.07, y: y + (rng() - 0.5) * 0.03, z },
+          { x: 0, y: y + (rng() - 0.5) * 0.025, z: z + (rng() - 0.5) * 0.03 },
+          { x: 0.18 + rng() * 0.07, y: y + (rng() - 0.5) * 0.03, z },
+        ],
+        rng,
+        12,
+        0.022
+      ),
+      rgb: localRgb,
+      radius: 0.0044,
+    });
+  }
+
+  for (let i = 0; i < 24; i++) {
+    const soma = sampleInsideCord(rng);
+    const branches = 3 + Math.floor(rng() * 2);
+    for (let d = 0; d < branches; d++) {
+      const pts = walkIn(add(soma, randDir(rng), 0.014), 8 + Math.floor(rng() * 6), 0.026, rng, insideVnc);
+      if (pts.length > 2) fibers.push({ pts, rgb: localRgb, radius: 0.004 });
+    }
+  }
+
+  for (let i = 0; i < 28; i++) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const start = { x: side * 0.045, y: -0.47, z: (rng() - 0.5) * 0.05 };
+    const pts = walkIn(start, 18 + Math.floor(rng() * 8), 0.034, rng, insideVnc);
+    if (pts.length > 2) fibers.push({ pts, rgb: neckRgb, radius: 0.0052 });
+  }
+
+  for (const leg of FLY_LEGS) {
+    for (let m = 0; m < 7; m++) {
+      const soma = add(leg.root, randDir(rng), 0.035);
+      for (let d = 0; d < 4; d++) {
+        const pts = walkIn(add(soma, randDir(rng), 0.012), 8, 0.02, rng, insideVnc);
+        if (pts.length > 2) fibers.push({ pts, rgb: motorRgb, radius: 0.0038 });
+      }
+      const axon = meanderTract(
+        [
+          soma,
+          add(leg.coxa, jitter3(rng, 0.04)),
+          add(leg.femur, jitter3(rng, 0.055)),
+          add(leg.tibia, jitter3(rng, 0.05)),
+          add(leg.tarsus, jitter3(rng, 0.04)),
+        ],
+        rng,
+        11,
+        0.034
+      );
+      fibers.push({ pts: axon, rgb: motorRgb, radius: 0.0064 });
+      const femurAt = axon[Math.floor(axon.length * 0.38)];
+      const tibiaAt = axon[Math.floor(axon.length * 0.68)];
+      for (const joint of [femurAt, tibiaAt]) {
+        if (!joint) continue;
+        fibers.push({
+          pts: meanderTract(
+            [joint, add(joint, randDir(rng), 0.08 + rng() * 0.06), add(joint, randDir(rng), 0.14 + rng() * 0.08)],
+            rng,
+            7,
+            0.022
+          ),
+          rgb: motorRgb,
+          radius: 0.0038,
+        });
+      }
+      const end = axon[axon.length - 1];
+      for (let t = 0; t < 3; t++) {
+        const tuft = meanderTract(
+          [end, add(end, randDir(rng), 0.07 + rng() * 0.05), add(end, randDir(rng), 0.14 + rng() * 0.07)],
+          rng,
+          7,
+          0.02
+        );
+        fibers.push({ pts: tuft, rgb: motorRgb, radius: 0.0036 });
+      }
+    }
+    for (let s = 0; s < 6; s++) {
+      const start = add(leg.tarsus, randDir(rng), 0.03);
+      const axon = meanderTract(
+        [
+          start,
+          add(leg.tibia, jitter3(rng, 0.04)),
+          add(leg.femur, jitter3(rng, 0.05)),
+          add(leg.coxa, jitter3(rng, 0.04)),
+          add(leg.root, jitter3(rng, 0.035)),
+        ],
+        rng,
+        11,
+        0.032
+      );
+      fibers.push({ pts: axon, rgb: senseRgb, radius: 0.0054 });
+      const term = axon[axon.length - 1];
+      for (let t = 0; t < 3; t++) {
+        const tuft = walkIn(add(term, randDir(rng), 0.01), 8, 0.018, rng, insideVnc);
+        if (tuft.length > 2) fibers.push({ pts: tuft, rgb: senseRgb, radius: 0.0036 });
+      }
+    }
+  }
+
+  return fibers;
+}
+
+let vncFiberCache: VncFiber[] | null = null;
+function getVncFibers(): VncFiber[] {
+  if (!vncFiberCache) vncFiberCache = buildVncFibers();
+  return vncFiberCache;
+}
+
+const TUBE_SIDES = 5;
+
+function sweepTube(
+  pts: Vec3[],
+  radius: number,
+  rgb: [number, number, number],
+  pos: number[],
+  nrm: number[],
+  col: number[],
+  regs: number[],
+  dist: number[]
+) {
+  const path: Vec3[] = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const prev = path[path.length - 1];
+    if (Math.hypot(pts[i].x - prev.x, pts[i].y - prev.y, pts[i].z - prev.z) > 1e-5) path.push(pts[i]);
+  }
+  if (path.length < 2) return;
+
+  const tangents: Vec3[] = [];
+  for (let i = 0; i < path.length; i++) {
+    const a = path[Math.max(0, i - 1)];
+    const b = path[Math.min(path.length - 1, i + 1)];
+    tangents.push(normalize(sub(b, a)));
+  }
+  const us: Vec3[] = [];
+  const vs: Vec3[] = [];
+  let u =
+    Math.abs(tangents[0].z) < 0.9
+      ? normalize(cross(tangents[0], { x: 0, y: 0, z: 1 }))
+      : normalize(cross(tangents[0], { x: 1, y: 0, z: 0 }));
+  for (let i = 0; i < path.length; i++) {
+    const t = tangents[i];
+    const d = u.x * t.x + u.y * t.y + u.z * t.z;
+    u = { x: u.x - t.x * d, y: u.y - t.y * d, z: u.z - t.z * d };
+    const n = Math.hypot(u.x, u.y, u.z);
+    if (n < 1e-6) {
+      u =
+        Math.abs(t.z) < 0.9
+          ? normalize(cross(t, { x: 0, y: 0, z: 1 }))
+          : normalize(cross(t, { x: 1, y: 0, z: 0 }));
+    } else {
+      u = { x: u.x / n, y: u.y / n, z: u.z / n };
+    }
+    us.push(u);
+    vs.push(cross(t, u));
+  }
+
+  const rings: Vec3[][] = [];
+  const radials: Vec3[][] = [];
+  const dists = [0];
+  for (let i = 1; i < path.length; i++) {
+    dists.push(
+      dists[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y, path[i].z - path[i - 1].z)
+    );
+  }
+  for (let i = 0; i < path.length; i++) {
+    const taper = radius * (0.84 + 0.16 * (1 - i / (path.length - 1)));
+    const ring: Vec3[] = [];
+    const rad: Vec3[] = [];
+    for (let s = 0; s < TUBE_SIDES; s++) {
+      const a = (s / TUBE_SIDES) * Math.PI * 2;
+      const c = Math.cos(a);
+      const si = Math.sin(a);
+      const nx = us[i].x * c + vs[i].x * si;
+      const ny = us[i].y * c + vs[i].y * si;
+      const nz = us[i].z * c + vs[i].z * si;
+      rad.push({ x: nx, y: ny, z: nz });
+      ring.push({ x: path[i].x + nx * taper, y: path[i].y + ny * taper, z: path[i].z + nz * taper });
+    }
+    rings.push(ring);
+    radials.push(rad);
+  }
+
+  for (let i = 0; i < path.length - 1; i++) {
+    for (let s = 0; s < TUBE_SIDES; s++) {
+      const j = (s + 1) % TUBE_SIDES;
+      const verts = [rings[i][s], rings[i + 1][s], rings[i + 1][j], rings[i][s], rings[i + 1][j], rings[i][j]];
+      const norms = [radials[i][s], radials[i + 1][s], radials[i + 1][j], radials[i][s], radials[i + 1][j], radials[i][j]];
+      const ds = [dists[i], dists[i + 1], dists[i + 1], dists[i], dists[i + 1], dists[i]];
+      for (let k = 0; k < 6; k++) {
+        pos.push(verts[k].x, verts[k].y, verts[k].z);
+        nrm.push(norms[k].x, norms[k].y, norms[k].z);
+        col.push(rgb[0], rgb[1], rgb[2]);
+        regs.push(VNC_REGION);
+        dist.push(ds[k]);
+      }
+    }
+  }
+}
+
+const TET_CORNERS: [number, number, number][] = [
+  [0, 0, 0],
+  [1, 0, 0],
+  [1, 1, 0],
+  [0, 1, 0],
+  [0, 0, 1],
+  [1, 0, 1],
+  [1, 1, 1],
+  [0, 1, 1],
+];
+const TETS: [number, number, number, number][] = [
+  [0, 1, 2, 6],
+  [0, 2, 3, 6],
+  [0, 3, 7, 6],
+  [0, 7, 4, 6],
+  [0, 4, 5, 6],
+  [0, 5, 1, 6],
+];
+
+function interpEdge(a: Vec3, da: number, b: Vec3, db: number, iso: number): Vec3 {
+  const t = Math.max(0, Math.min(1, (iso - da) / (db - da || 1e-9)));
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
+}
+
+function interpGrad(a: Vec3, da: number, b: Vec3, db: number, iso: number): Vec3 {
+  const t = Math.max(0, Math.min(1, (iso - da) / (db - da || 1e-9)));
+  return normalize({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t });
+}
+
+/**
+ * Glass neuropil shell for the schematic VNC, including the six leg trunks.
+ * Marching tetrahedra over the occupancy field, so the surface is irregular
+ * like the FLYWIRE brain mesh rather than a stack of ellipsoids.
+ */
+export function buildVncNeuropilMesh(): MeshCloud {
+  if (vncMeshCache) return vncMeshCache;
+  const min = { x: -1.72, y: -2.82, z: -0.62 };
+  const max = { x: 1.72, y: -0.38, z: 0.3 };
+  const nx = 46;
+  const ny = 66;
+  const nz = 26;
+  const dx = (max.x - min.x) / nx;
+  const dy = (max.y - min.y) / ny;
+  const dz = (max.z - min.z) / nz;
+  const sx = nx + 1;
+  const sy = ny + 1;
+  const n = sx * sy * (nz + 1);
+  const values = new Float32Array(n);
+  const at = (ix: number, iy: number, iz: number) => values[ix + iy * sx + iz * sx * sy];
+  for (let iz = 0; iz <= nz; iz++) {
+    for (let iy = 0; iy <= ny; iy++) {
+      for (let ix = 0; ix <= nx; ix++) {
+        values[ix + iy * sx + iz * sx * sy] = vncShellField({
+          x: min.x + ix * dx,
+          y: min.y + iy * dy,
+          z: min.z + iz * dz,
+        }).d;
+      }
+    }
+  }
+  const gradAt = (ix: number, iy: number, iz: number): Vec3 => {
+    const ip = Math.min(nx, ix + 1);
+    const im = Math.max(0, ix - 1);
+    const jp = Math.min(ny, iy + 1);
+    const jm = Math.max(0, iy - 1);
+    const kp = Math.min(nz, iz + 1);
+    const km = Math.max(0, iz - 1);
+    return normalize({
+      x: at(ip, iy, iz) - at(im, iy, iz),
+      y: at(ix, jp, iz) - at(ix, jm, iz),
+      z: at(ix, iy, kp) - at(ix, iy, km),
+    });
+  };
+
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  const regions: number[] = [];
+  const iso = 1;
+  const corners: Vec3[] = new Array(8);
+  const grads: Vec3[] = new Array(8);
+  const vals = new Float32Array(8);
+
+  const pushTri = (p0: Vec3, n0: Vec3, p1: Vec3, n1: Vec3, p2: Vec3, n2: Vec3) => {
+    pos.push(p0.x, p0.y, p0.z, p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+    nrm.push(n0.x, n0.y, n0.z, n1.x, n1.y, n1.z, n2.x, n2.y, n2.z);
+    regions.push(VNC_REGION, VNC_REGION, VNC_REGION);
+  };
+
+  for (let iz = 0; iz < nz; iz++) {
+    for (let iy = 0; iy < ny; iy++) {
+      for (let ix = 0; ix < nx; ix++) {
+        let inside = 0;
+        for (let c = 0; c < 8; c++) {
+          const [cx, cy, cz] = TET_CORNERS[c];
+          const vx = ix + cx;
+          const vy = iy + cy;
+          const vz = iz + cz;
+          vals[c] = at(vx, vy, vz);
+          if (vals[c] < iso) inside++;
+          corners[c] = { x: min.x + vx * dx, y: min.y + vy * dy, z: min.z + vz * dz };
+          grads[c] = gradAt(vx, vy, vz);
+        }
+        if (inside === 0 || inside === 8) continue;
+        for (const tet of TETS) {
+          const tv = [vals[tet[0]], vals[tet[1]], vals[tet[2]], vals[tet[3]]];
+          let mask = 0;
+          for (let i = 0; i < 4; i++) if (tv[i] < iso) mask |= 1 << i;
+          if (mask === 0 || mask === 15) continue;
+          const pc = [corners[tet[0]], corners[tet[1]], corners[tet[2]], corners[tet[3]]];
+          const pg = [grads[tet[0]], grads[tet[1]], grads[tet[2]], grads[tet[3]]];
+          const edge = (i: number, j: number) => ({
+            p: interpEdge(pc[i], tv[i], pc[j], tv[j], iso),
+            n: interpGrad(pg[i], tv[i], pg[j], tv[j], iso),
+          });
+          const insideIdx = [0, 1, 2, 3].filter((i) => (mask & (1 << i)) !== 0);
+          if (insideIdx.length === 1 || insideIdx.length === 3) {
+            const i = insideIdx.length === 1 ? insideIdx[0] : [0, 1, 2, 3].find((j) => (mask & (1 << j)) === 0)!;
+            const o = [0, 1, 2, 3].filter((j) => j !== i);
+            const a = edge(i, o[0]);
+            const b = edge(i, o[1]);
+            const c = edge(i, o[2]);
+            if (insideIdx.length === 1) pushTri(a.p, a.n, b.p, b.n, c.p, c.n);
+            else pushTri(a.p, a.n, c.p, c.n, b.p, b.n);
+          } else {
+            const i0 = insideIdx[0];
+            const i1 = insideIdx[1];
+            const o = [0, 1, 2, 3].filter((j) => j !== i0 && j !== i1);
+            const a = edge(i0, o[0]);
+            const b = edge(i0, o[1]);
+            const c = edge(i1, o[1]);
+            const d = edge(i1, o[0]);
+            pushTri(a.p, a.n, b.p, b.n, c.p, c.n);
+            pushTri(a.p, a.n, c.p, c.n, d.p, d.n);
+          }
+        }
+      }
+    }
+  }
+
+  vncMeshCache = {
+    positions: new Float32Array(pos),
+    normals: new Float32Array(nrm),
+    regions: new Float32Array(regions),
+    count: pos.length / 3,
+  };
+  return vncMeshCache;
+}
+
+/** Tube meshes swept along the schematic VNC / leg arbors. */
+export function buildVncNeuronMesh(): TubeCloud {
+  if (vncTubeCache) return vncTubeCache;
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  const col: number[] = [];
+  const regs: number[] = [];
+  const dist: number[] = [];
+  for (const fiber of getVncFibers()) {
+    sweepTube(fiber.pts, fiber.radius, fiber.rgb, pos, nrm, col, regs, dist);
+  }
+  vncTubeCache = {
+    positions: new Float32Array(pos),
+    normals: new Float32Array(nrm),
+    colors: new Float32Array(col),
+    regions: new Float32Array(regs),
+    distances: new Float32Array(dist),
+    count: pos.length / 3,
+  };
+  return vncTubeCache;
+}
+
+/**
+ * Line-fiber fallback for the VNC (used when the procedural brain cloud is
+ * drawn instead of the real neuropil). Same arbors as the tube mesh.
+ */
+export function buildVncScaffold(_fiberCount = 1100): LineCloud {
+  if (vncCache) return vncCache;
+  const pos: number[] = [];
+  const col: number[] = [];
+  const regions: number[] = [];
+  for (const fiber of getVncFibers()) {
+    pushPolyline(pos, col, regions, fiber.pts, fiber.rgb, VNC_REGION, 0.06);
+  }
+  vncCache = {
+    positions: new Float32Array(pos),
+    colors: new Float32Array(col),
+    regions: new Float32Array(regions),
+    count: pos.length / 3,
+  };
+  return vncCache;
+}
 
 function sampleOpticShell(rng: () => number, side: number): Vec3 {
   const c = { x: side * 1.38, y: 0.02, z: 0.02 };
@@ -338,21 +925,8 @@ export function buildBackgroundBrain(fiberCount = 11000): LineCloud {
     pushPolyline(pos, col, regions, pts, regionColor(left), regionIdAt(left), 0.1);
   }
 
-  const vncFibers = Math.floor(fiberCount * 0.38);
-  for (let i = 0; i < vncFibers; i++) {
-    const p = sampleInsideVnc(rng);
-    const f = vncField(p);
-    const wing = f.t2 < 1.02;
-    const center = wing ? { x: Math.sign(p.x || 1) * 0.42, y: -1.54, z: 0.04 } : undefined;
-    const pts = walkIn(p, 8 + Math.floor(rng() * 10), 0.03, rng, insideVnc, center);
-    pushPolyline(pos, col, regions, pts, vncColor(p), VNC_REGION, rng() * 0.14);
-  }
-
-  for (let i = 0; i < 90; i++) {
-    const side = i % 2 === 0 ? -1 : 1;
-    const neckStart = { x: side * 0.04, y: -0.48, z: (rng() - 0.5) * 0.06 };
-    const pts = walkIn(neckStart, 22, 0.038, rng, insideVnc);
-    pushPolyline(pos, col, regions, pts, [0.84, 0.4, 0.96], VNC_REGION, 0.06);
+  for (const fiber of getVncFibers()) {
+    pushPolyline(pos, col, regions, fiber.pts, fiber.rgb, VNC_REGION, 0.08);
   }
 
   backgroundCache = {

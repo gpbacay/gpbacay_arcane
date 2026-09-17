@@ -5,6 +5,25 @@ Skeletons: https://flyem.mrc-lmb.cam.ac.uk/flyconnectome/flywire_skeletons_783/<
 Mesh: navis-flybrains FLYWIRE.ply (same nanometer space as the skeletons)
 
 No CAVE token required.
+
+Output format (`flywire-geometry.bin` + `flywire-geometry-meta.json`)
+--------------------------------------------------------------------
+Everything is an indexless triangle list with per-vertex normals, little-endian
+float32, laid out back to back and located by the byte offsets in the meta file:
+
+    mesh:   positions[count*3]  normals[count*3]  regions[count]   (u8 regions)
+    neuron: positions[count*3]  normals[count*3]  distances[count]  regions[count]
+
+Each neuron is its skeleton swept into a tube: every simplified segment becomes
+TUBE_SIDES x 2 triangles x 3 vertices, so `count` is always a multiple of
+TUBE_SIDES * 6. `distances` is path distance from the soma, which the renderer
+uses to drive the action-potential wavefront.
+
+Terminal twigs below PRUNE_TWIGS_NM are dropped to hold the blob near 23 MB; the
+threshold, tube sides, simplify tolerance and radius boost are all recorded in
+the meta so a render can be traced back to the settings that produced it.
+
+Regenerating overwrites both files, deterministically from the same inputs.
 """
 from __future__ import annotations
 
@@ -26,6 +45,8 @@ OUT_META = ROOT / "src" / "data" / "flywire-geometry-meta.json"
 SKELETON_BASE = "https://flyem.mrc-lmb.cam.ac.uk/flyconnectome/flywire_skeletons_783/"
 MESH_URL = "https://raw.githubusercontent.com/navis-org/navis-flybrains/main/flybrains/meshes/FLYWIRE.ply"
 TOLERANCE_NM = 800.0
+PRUNE_TWIGS_NM = 3000.0  # level of detail: drop terminal spines shorter than this
+MESH_KEEP = 1.0  # fraction of neuropil triangles kept (1.0 = full shell)
 DISPLAY_SPAN = 3.35
 
 
@@ -79,7 +100,52 @@ def simplify_path(path, points, tolerance):
     return [path[i] for i in sorted(selected)]
 
 
+def prune_twigs(points, links, min_length, rounds=4):
+    """Drop terminal branches shorter than `min_length` nanometres.
+
+    A v783 arbor carries roughly 2100 unbranched runs, most of them tiny
+    terminal spines. Curve simplification cannot touch them -- they are already
+    one segment long -- so a level-of-detail pass has to remove whole twigs
+    instead. Repeating the sweep peels successive layers, because pruning a
+    twig can expose a newly-terminal one behind it.
+
+    This is decimation, not cleanup: the discarded spines are real. The
+    threshold is recorded in the meta as `pruneTwigsNm`.
+    """
+    links = [(int(a), int(b)) for a, b in links]
+    for _ in range(rounds):
+        adjacent = {}
+        for a, b in links:
+            adjacent.setdefault(a, []).append(b)
+            adjacent.setdefault(b, []).append(a)
+        leaves = [n for n, nbrs in adjacent.items() if len(nbrs) == 1]
+        drop = set()
+        for leaf in leaves:
+            path = [leaf, adjacent[leaf][0]]
+            length = float(np.linalg.norm(points[path[0]] - points[path[1]]))
+            # Walk inward until a branch point or another terminal.
+            while len(adjacent.get(path[-1], [])) == 2:
+                nxt = next(n for n in adjacent[path[-1]] if n != path[-2])
+                length += float(np.linalg.norm(points[path[-1]] - points[nxt]))
+                path.append(nxt)
+            if length < min_length:
+                # Keep the junction node itself; only the twig's edges go.
+                for u, v in zip(path[:-1], path[1:]):
+                    drop.add((u, v) if u < v else (v, u))
+        if not drop:
+            break
+        links = [(a, b) for a, b in links if (min(a, b), max(a, b)) not in drop]
+    return np.asarray(links, dtype=np.int32).reshape(-1, 2)
+
+
 def simplify_skeleton(points, links, tolerance):
+    """Split the skeleton into unbranched runs and simplify each one.
+
+    Returns a list of node-index paths rather than loose edges, so the tube
+    builder can sweep one continuous surface per run. Splitting at every branch
+    point means branch topology survives simplification untouched -- the
+    tolerance only straightens gentle curves within a run.
+    """
     adjacent = [[] for _ in range(len(points))]
     for a, b in links:
         a, b = int(a), int(b)
@@ -104,8 +170,9 @@ def simplify_skeleton(points, links, tolerance):
                 seen.add(edge)
                 path.append(nxt)
             simple = simplify_path(path, points, tolerance)
-            result.extend(zip(simple[:-1], simple[1:]))
-    return np.asarray(result, dtype=np.int32).reshape(-1, 2)
+            if len(simple) >= 2:
+                result.append([int(i) for i in simple])
+    return result
 
 
 def parse_ply(data: bytes):
@@ -146,6 +213,171 @@ def mesh_edges(faces):
     return np.asarray(list(edges), dtype=np.int32)
 
 
+TUBE_SIDES = 5
+
+# Neurite thickness, in display units (the whole brain spans DISPLAY_SPAN).
+#
+# The published radii are real: a median FlyWire neurite is ~148 nm across a
+# ~666 um brain, which works out to 0.0007 display units, or about a tenth of a
+# pixel on screen. Drawn honestly they would be invisible, so radii are boosted
+# by a constant factor and clamped. RADIUS_BOOST is a visibility choice, not a
+# measurement -- but keeping it multiplicative preserves the real taper, so a
+# fine LC4 dendrite still renders several times thinner than a Giant Fiber
+# axon. A flat radius is what made every neurite look like the same fat tube.
+RADIUS_BOOST = 3.2
+MIN_RADIUS = 0.0034
+MAX_RADIUS = 0.0140
+
+
+def _frame(axis: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Any two unit vectors perpendicular to `axis` and to each other."""
+    helper = np.array([0.0, 0.0, 1.0]) if abs(axis[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
+    u = np.cross(axis, helper)
+    n = np.linalg.norm(u)
+    if n < 1e-9:
+        helper = np.array([0.0, 1.0, 0.0])
+        u = np.cross(axis, helper)
+        n = np.linalg.norm(u)
+    u = u / max(n, 1e-12)
+    v = np.cross(axis, u)
+    return u, v / max(np.linalg.norm(v), 1e-12)
+
+
+def parallel_transport(points):
+    """Rotation-minimising frames along a polyline.
+
+    Sweeping each segment with an independently chosen frame makes consecutive
+    rings twist relative to each other, which shows up as creases and pinching
+    along the tube. Carrying one frame along the path and re-projecting it at
+    each node keeps the surface continuous.
+
+    Returns unit (u, v) arrays perpendicular to the path at every node.
+    """
+    n = len(points)
+    tangents = np.empty_like(points)
+    tangents[:-1] = points[1:] - points[:-1]
+    tangents[-1] = tangents[-2]
+    lengths = np.linalg.norm(tangents, axis=1, keepdims=True)
+    tangents = tangents / np.maximum(lengths, 1e-12)
+
+    us = np.empty_like(points)
+    vs = np.empty_like(points)
+    u, _ = _frame(tangents[0])
+    for i in range(n):
+        t = tangents[i]
+        # Re-project the carried frame onto the plane normal to this tangent.
+        u = u - t * float(np.dot(u, t))
+        norm = float(np.linalg.norm(u))
+        if norm < 1e-6:
+            u, _ = _frame(t)
+        else:
+            u = u / norm
+        us[i] = u
+        vs[i] = np.cross(t, u)
+    return us, vs
+
+
+def tube_mesh(disp, radii_disp, paths, soma_dist):
+    """Sweep one continuous hexagonal tube along each unbranched run.
+
+    Returns (positions, normals, distances) as flat float32 triangle lists with
+    TUBE_SIDES * 2 * 3 == 36 vertices per segment. Normals are the radial
+    direction, so the renderer can shade the tubes as rounded filaments.
+    """
+    ring = np.linspace(0.0, 2.0 * np.pi, TUBE_SIDES, endpoint=False)
+    cos_t = np.cos(ring)[None, :, None]
+    sin_t = np.sin(ring)[None, :, None]
+
+    pos_parts, nrm_parts, dist_parts = [], [], []
+    for path in paths:
+        pts = disp[path]
+        # Drop repeated nodes; zero-length steps have no usable tangent.
+        keep = np.ones(len(pts), dtype=bool)
+        keep[1:] = np.linalg.norm(np.diff(pts, axis=0), axis=1) > 1e-9
+        idx = np.asarray(path)[keep]
+        pts = disp[idx]
+        if len(pts) < 2:
+            continue
+
+        us, vs = parallel_transport(pts)
+        radial = cos_t * us[:, None, :] + sin_t * vs[:, None, :]  # (k, S, 3)
+        radii = np.clip(radii_disp[idx] * RADIUS_BOOST, MIN_RADIUS, MAX_RADIUS)
+        rings = pts[:, None, :] + radial * radii[:, None, None]
+        dists = soma_dist[idx]
+
+        # Two triangles per (segment, side), wound consistently.
+        a, b = rings[:-1], rings[1:]
+        aj, bj = np.roll(a, -1, axis=1), np.roll(b, -1, axis=1)
+        na, nb = radial[:-1], radial[1:]
+        naj, nbj = np.roll(na, -1, axis=1), np.roll(nb, -1, axis=1)
+        da = np.repeat(dists[:-1, None], TUBE_SIDES, axis=1)
+        db = np.repeat(dists[1:, None], TUBE_SIDES, axis=1)
+
+        pos_parts.append(np.stack([a, b, bj, a, bj, aj], axis=2).reshape(-1, 3))
+        nrm_parts.append(np.stack([na, nb, nbj, na, nbj, naj], axis=2).reshape(-1, 3))
+        dist_parts.append(np.stack([da, db, db, da, db, da], axis=2).reshape(-1))
+
+    if not pos_parts:
+        return (
+            np.zeros(0, dtype=np.float32),
+            np.zeros(0, dtype=np.float32),
+            np.zeros(0, dtype=np.float32),
+        )
+
+    normals = np.concatenate(nrm_parts)
+    normals = normals / np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-12)
+    return (
+        np.concatenate(pos_parts).reshape(-1).astype(np.float32),
+        normals.reshape(-1).astype(np.float32),
+        np.concatenate(dist_parts).astype(np.float32),
+    )
+
+
+def soma_distances(points, links, soma_index):
+    """Path distance from the soma to every skeleton node, along the arbor."""
+    adjacent = [[] for _ in range(len(points))]
+    for a, b in links:
+        a, b = int(a), int(b)
+        d = float(np.linalg.norm(points[a] - points[b]))
+        adjacent[a].append((b, d))
+        adjacent[b].append((a, d))
+    dist = np.full(len(points), np.inf)
+    dist[soma_index] = 0.0
+    # BFS by insertion order is enough here: edge weights only refine an
+    # already-connected tree, and skeletons are trees.
+    queue = [soma_index]
+    while queue:
+        cur = queue.pop()
+        for nxt, w in adjacent[cur]:
+            cand = dist[cur] + w
+            if cand < dist[nxt] - 1e-9:
+                dist[nxt] = cand
+                queue.append(nxt)
+    finite = dist[np.isfinite(dist)]
+    fallback = float(finite.max()) if len(finite) else 0.0
+    return np.where(np.isfinite(dist), dist, fallback)
+
+
+def triangulate(faces):
+    """Fan-triangulate arbitrary polygons into a flat index array."""
+    out = []
+    for face in faces:
+        for i in range(1, len(face) - 1):
+            out.extend((int(face[0]), int(face[i]), int(face[i + 1])))
+    return np.asarray(out, dtype=np.int32).reshape(-1, 3)
+
+
+def vertex_normals(verts, tris):
+    """Area-weighted vertex normals."""
+    normals = np.zeros_like(verts)
+    a, b, c = verts[tris[:, 0]], verts[tris[:, 1]], verts[tris[:, 2]]
+    face_n = np.cross(b - a, c - a)
+    for k in range(3):
+        np.add.at(normals, tris[:, k], face_n)
+    lengths = np.linalg.norm(normals, axis=1, keepdims=True)
+    return normals / np.maximum(lengths, 1e-12)
+
+
 def region_at(p: np.ndarray) -> int:
     x, y, _z = float(p[0]), float(p[1]), float(p[2])
     if y < -1.15:
@@ -183,9 +415,11 @@ def main() -> None:
         if not path.exists():
             path.write_bytes(fetch(SKELETON_BASE + root))
         points, links, radii = decode_skeleton(path.read_bytes())
-        simplified = simplify_skeleton(points, links, TOLERANCE_NM)
-        soma = points[int(np.argmax(radii))]
-        return neuron, points, simplified, soma
+        pruned = prune_twigs(points, links, PRUNE_TWIGS_NM)
+        simplified = simplify_skeleton(points, pruned, TOLERANCE_NM)
+        soma_index = int(np.argmax(radii))
+        dist_nm = soma_distances(points, pruned, soma_index)
+        return neuron, points, simplified, radii, soma_index, dist_nm
 
     print(f"Fetching {len(neurons)} FlyWire v783 skeletons…", flush=True)
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -193,7 +427,7 @@ def main() -> None:
 
     print("Fetching FLYWIRE neuropil mesh…", flush=True)
     mesh_verts, faces = parse_ply(fetch(MESH_URL))
-    edges = mesh_edges(faces)
+    tris = triangulate(faces)
 
     all_pts = np.concatenate([mesh_verts] + [item[1] for item in packed])
     center = (all_pts.min(axis=0) + all_pts.max(axis=0)) * 0.5
@@ -204,38 +438,36 @@ def main() -> None:
     def xform(p):
         return (p - center) * axis * scale
 
+    # --- Neuropil shell -----------------------------------------------------
     mesh_disp = xform(mesh_verts)
+    mesh_nrm = vertex_normals(mesh_disp, tris)
     rng = np.random.default_rng(783)
-    mesh_pos = []
-    mesh_reg = []
-    for a, b in edges:
-        if rng.random() > 0.22:
-            continue
-        pa, pb = mesh_disp[a], mesh_disp[b]
-        if np.linalg.norm(pa - pb) < 0.008:
-            continue
-        mesh_pos.extend([*pa, *pb])
-        mesh_reg.extend([region_at(pa), region_at(pb)])
+    keep = rng.random(len(tris)) <= MESH_KEEP
+    kept = tris[keep]
+    mesh_positions = mesh_disp[kept].reshape(-1, 3).astype(np.float32)
+    mesh_normals = mesh_nrm[kept].reshape(-1, 3).astype(np.float32)
+    mesh_regions = np.asarray(
+        [region_at(p) for p in mesh_positions], dtype=np.uint8
+    )
+    mesh_positions = mesh_positions.reshape(-1)
+    mesh_normals = mesh_normals.reshape(-1)
 
+    # --- Neuron arbors ------------------------------------------------------
     neuron_blocks = []
-    for neuron, points, simplified, soma in packed:
+    for neuron, points, simplified, radii, soma_index, dist_nm in packed:
         disp = xform(points)
-        soma_d = xform(soma)
-        pos = []
-        dist = []
-        reg = []
-        for a, b in simplified:
-            pa, pb = disp[int(a)], disp[int(b)]
-            pos.extend([*pa, *pb])
-            dist.extend(
-                [
-                    float(np.linalg.norm(pa - soma_d)),
-                    float(np.linalg.norm(pb - soma_d)),
-                ]
-            )
-            ra = neuron_region(neuron["cell_type"], neuron["layer"], neuron["side"], pa)
-            rb = neuron_region(neuron["cell_type"], neuron["layer"], neuron["side"], pb)
-            reg.extend([ra, rb])
+        soma_d = disp[soma_index]
+        radii_disp = radii * scale
+        dist_disp = dist_nm * scale
+        pos, nrm, dist = tube_mesh(disp, radii_disp, simplified, dist_disp)
+        verts = pos.reshape(-1, 3)
+        reg = np.asarray(
+            [
+                neuron_region(neuron["cell_type"], neuron["layer"], neuron["side"], p)
+                for p in verts
+            ],
+            dtype=np.uint8,
+        )
         neuron_blocks.append(
             {
                 "id": str(neuron["id"]),
@@ -244,25 +476,33 @@ def main() -> None:
                 "layer": neuron["layer"],
                 "side": neuron["side"],
                 "soma": soma_d.tolist(),
-                "positions": np.asarray(pos, dtype=np.float32),
-                "distances": np.asarray(dist, dtype=np.float32),
-                "regions": np.asarray(reg, dtype=np.uint8),
+                "positions": pos,
+                "normals": nrm,
+                "distances": dist,
+                "regions": reg,
             }
         )
 
-    mesh_positions = np.asarray(mesh_pos, dtype=np.float32)
-    mesh_regions = np.asarray(mesh_reg, dtype=np.uint8)
+    # --- Pack ---------------------------------------------------------------
+    chunks = [
+        mesh_positions.tobytes(),
+        mesh_normals.tobytes(),
+        mesh_regions.tobytes(),
+    ]
+    mesh_count = int(len(mesh_positions) // 3)
+    mesh_pos_off = 0
+    mesh_nrm_off = mesh_positions.nbytes
+    mesh_reg_off = mesh_nrm_off + mesh_normals.nbytes
+    offset = mesh_reg_off + mesh_regions.nbytes
 
-    chunks = [mesh_positions.tobytes(), mesh_regions.tobytes()]
     meta_neurons = []
-    offset = 0
-    mesh_pos_bytes = mesh_positions.nbytes
-    mesh_reg_bytes = mesh_regions.nbytes
-    offset = mesh_pos_bytes + mesh_reg_bytes
     for block in neuron_blocks:
         pos_off = offset
         chunks.append(block["positions"].tobytes())
         offset += block["positions"].nbytes
+        nrm_off = offset
+        chunks.append(block["normals"].tobytes())
+        offset += block["normals"].nbytes
         dist_off = offset
         chunks.append(block["distances"].tobytes())
         offset += block["distances"].nbytes
@@ -279,6 +519,7 @@ def main() -> None:
                 "soma": [round(v, 5) for v in block["soma"]],
                 "count": int(len(block["positions"]) // 3),
                 "posOffset": pos_off,
+                "nrmOffset": nrm_off,
                 "distOffset": dist_off,
                 "regOffset": reg_off,
             }
@@ -288,8 +529,17 @@ def main() -> None:
     meta = {
         "dataset": "flywire_fafb_public",
         "materialization": 783,
+        "format": "triangles",
+        "tubeSides": TUBE_SIDES,
+        "pruneTwigsNm": PRUNE_TWIGS_NM,
+        "simplifyToleranceNm": TOLERANCE_NM,
+        "radiusBoost": RADIUS_BOOST,
         "skeletonSource": SKELETON_BASE,
         "meshSource": MESH_URL,
+        "tools": [
+            "fafbseg-py skeleton service (https://github.com/navis-org/fafbseg-py)",
+            "navis-flybrains FLYWIRE neuropil",
+        ],
         "units": "display-space from FlyWire nanometers",
         "centerNm": center.tolist(),
         "scale": scale,
@@ -297,9 +547,10 @@ def main() -> None:
         "bin": "/data/flywire-geometry.bin",
         "byteLength": offset,
         "mesh": {
-            "count": int(len(mesh_positions) // 3),
-            "posOffset": 0,
-            "regOffset": mesh_pos_bytes,
+            "count": mesh_count,
+            "posOffset": mesh_pos_off,
+            "nrmOffset": mesh_nrm_off,
+            "regOffset": mesh_reg_off,
         },
         "neurons": meta_neurons,
         "citation": [
@@ -310,7 +561,8 @@ def main() -> None:
     OUT_META.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     print(
         f"Wrote {OUT_BIN} ({OUT_BIN.stat().st_size:,} bytes), "
-        f"{len(mesh_positions)//3:,} mesh verts, {len(neuron_blocks)} neurons",
+        f"{mesh_count // 3:,} mesh triangles, {len(neuron_blocks)} neurons, "
+        f"{sum(n['count'] for n in meta_neurons) // 3:,} arbor triangles",
         flush=True,
     )
 
