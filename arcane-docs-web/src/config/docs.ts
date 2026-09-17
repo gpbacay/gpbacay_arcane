@@ -66,6 +66,11 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
       title: "Models",
       items: [
         { 
+          title: "Chat with ARCANE", 
+          href: "/docs/chat",
+          keywords: ["chat", "slm", "language model", "generate", "talk", "100m", "tiny", "inference"]
+        },
+        { 
           title: "Foundation Model", 
           href: "/docs/foundation-model",
           keywords: ["hierarchical", "ollama", "llama", "large language model", "reasoning", "advanced"]

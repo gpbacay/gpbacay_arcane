@@ -28,6 +28,7 @@ The library provides ready-to-use models, customizable neural layers, and traini
 - **Linear Self-Attention**: Katharopoulos kernel attention, $O(n d^2)$ in sequence length (not $QK^{\top}$).
 
 ### Ready-to-Use Models
+- **ArcaneSmallLanguageModel**: Causal decoder LM (~100M with the `100m` preset).
 - **HierarchicalResonanceFoundationModel**: Advanced model with multi-level resonance hierarchy and deliberative reasoning.
 - **NeuromimeticSemanticModel**: Standard neuromimetic model with biological learning rules for general tasks.
 - **Custom Architecture Support**: Build your own models using individual layers.
@@ -113,6 +114,21 @@ generated = model.generate_text(
 )
 ```
 
+### 100M Small Language Model
+
+```python
+from gpbacay_arcane import ArcaneSmallLanguageModel, BytePairTokenizer
+
+model = ArcaneSmallLanguageModel.from_preset("100m")
+model.build_model()
+model.compile_model(learning_rate=3e-4)
+print(model.count_params())  # ~100M trainable + bioplastic kernels
+
+# Smoke-train: python examples/train_arcane_slm.py --preset tiny --max-steps 2
+# Full 100M architecture: python examples/train_arcane_slm.py --preset 100m --build-only
+# Chat (untrained until you pass --weights): python examples/chat_arcane_slm.py --preset tiny
+```
+
 ## Documentation Portal
 
 ARCANE comes with a dedicated documentation web application built with Next.js, providing in-depth explanations of the underlying mechanisms and research papers.
@@ -129,7 +145,13 @@ The portal will be available at `http://localhost:3000`.
 
 ## Available Models
 
-ARCANE provides two main model classes for different use cases:
+ARCANE provides three main model classes for different use cases:
+
+### ArcaneSmallLanguageModel
+Causal decoder language model (~100M with `from_preset("100m")`). Uses causal linear attention, DenseGSER, bioplastic projection, token-parallel resonance, and AttentionResidual. Best for:
+- Next-token language modeling
+- Scaling ARCANE layers to SLM size
+- Autoregressive generation
 
 ### HierarchicalResonanceFoundationModel
 Advanced model with multi-level neural resonance, temporal coherence, and attention fusion. Best for:
@@ -159,6 +181,9 @@ Standard neuromimetic model with biological learning rules. Best for:
 | `RelationalGraphAttentionReasoning` | Self-attention plus pooled classifier |
 | `RelationalConceptGraphReasoning` | Stacked MHA with residual/norm; not a graph network |
 | `MultiheadLinearSelfAttentionKernalization` | Katharopoulos linear attention (`Kernalization` is a historical spelling) |
+| `CausalLinearSelfAttention` | Causal prefix (cumsum) variant of Katharopoulos attention |
+| `ResonantSequenceMixer` | Token-parallel closed-form resonance with a causal running-mean prototype |
+| `ArcaneDecoderBlock` | SLM block: causal attention + DenseGSER + bioplastic + resonance |
 | `AttentionResidual` | Softmax over depth of prior block outputs (AttnRes) |
 | `LatentTemporalCoherence` | Mean-pool then linear projection |
 | `SpatioTemporalSummarization` | Local GLU + sequence summary (softmax over time when weighted) |
@@ -193,7 +218,7 @@ Exploratory Tiny Shakespeare run (15k chars, 10 epochs, **unequal parameter coun
 ### Unit tests
 
 ```bash
-python -m pytest tests/test_mechanism_correctness.py tests/test_activations.py tests/test_resonant_gser.py tests/test_homeostatic_plasticity.py -q
+python -m pytest tests/test_mechanism_correctness.py tests/test_activations.py tests/test_resonant_gser.py tests/test_homeostatic_plasticity.py tests/test_arcane_slm.py -q
 ```
 
 ## Project Structure
@@ -206,6 +231,8 @@ gpbacay_arcane/
 │   ├── callbacks.py         # Training callbacks
 │   ├── cli_commands.py      # CLI interface
 │   ├── foundational_models.py # Foundation model architectures
+│   ├── language_model.py    # Causal ~100M ARCANE small language model
+│   ├── tokenization.py      # Byte-level BPE tokenizer
 │   ├── layers.py            # High-level neural layers
 │   ├── mechanisms.py        # Core neural mechanisms
 │   ├── models.py            # Standard models
@@ -214,6 +241,7 @@ gpbacay_arcane/
 ├── examples/                # Usage examples
 │   ├── arcane_foundational_model.py
 │   ├── create_foundation_model.py
+│   ├── train_arcane_slm.py
 │   ├── train_hierarchical_resonance.py
 │   ├── train_neuromimetic_sm.py
 │   └── test_hierarchical_resonance_comparison.py

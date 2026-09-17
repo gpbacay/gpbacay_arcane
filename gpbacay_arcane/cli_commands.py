@@ -38,13 +38,17 @@ def list_models():
 │                           Available Models                                    │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  1. HierarchicalResonanceFoundationModel  ⭐ NEW                              │
+│  1. ArcaneSmallLanguageModel  ⭐ NEW                                           │
+│     Causal decoder LM (~100M with the 100m preset). Linear attention,        │
+│     DenseGSER, bioplastic FFN, token-parallel resonance, AttentionResidual.  │
+│                                                                              │
+│  2. HierarchicalResonanceFoundationModel                                      │
 │     Deep neuromimetic architecture with bi-directional resonance.            │
 │     Features: Multi-level ResonantGSER hierarchy, cross-level skip           │
 │     connections, temporal coherence, attention fusion, BCM plasticity.       │
 │     Use with NeuralResonanceCallback for "System 2" reasoning.               │
 │                                                                              │
-│  2. NeuromimeticSemanticModel                                                │
+│  3. NeuromimeticSemanticModel                                                │
 │     Standard semantic model with neural resonance and Hebbian learning.      │
 │                                                                              │
 │  Legacy Aliases (for backward compatibility):                                │
@@ -82,16 +86,19 @@ def list_layers():
 │   8. RelationalGraphAttentionReasoning   - Self-attention + pooled head      │
 │   9. RelationalConceptGraphReasoning     - Stacked MHA (not a graph net)     │
 │  10. MultiheadLinearSelfAttentionKernalization - Katharopoulos linear attn   │
-│  11. AttentionResidual / BlockAttentionResidual - softmax over depth         │
+│  11. CausalLinearSelfAttention - Causal prefix (cumsum) linear attention     │
+│  12. ResonantSequenceMixer     - Causal closed-form resonance, no RNN unroll │
+│  13. ArcaneDecoderBlock        - SLM block (attn + GSER + bioplastic)        │
+│  14. AttentionResidual / BlockAttentionResidual - softmax over depth         │
 │                                                                              │
 │  Temporal & Positional Layers:                                               │
-│  12. LatentTemporalCoherence  - Mean-pool + linear projection                │
-│  13. PositionalEncodingLayer  - Sinusoidal positional encoding               │
+│  15. LatentTemporalCoherence  - Mean-pool + linear projection                │
+│  16. PositionalEncodingLayer  - Sinusoidal positional encoding               │
 │                                                                              │
 │  Utility Layers:                                                             │
-│  14. ExpandDimensionLayer     - Dimension expansion utility                  │
-│  15. SpatioTemporalSummaryMixingLayer   - Local GLU + sequence summary       │
-│  16. SpatioTemporalSummarization        - Wrapper around the mixing layer    │
+│  17. ExpandDimensionLayer     - Dimension expansion utility                  │
+│  18. SpatioTemporalSummaryMixingLayer   - Local GLU + sequence summary       │
+│  19. SpatioTemporalSummarization        - Wrapper around the mixing layer    │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
     """)

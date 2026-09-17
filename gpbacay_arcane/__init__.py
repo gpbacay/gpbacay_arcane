@@ -27,6 +27,7 @@ from .layers import (
     PositionalEncodingLayer,
     ExpandDimensionLayer,
     SpatioTemporalSummarization,
+    ArcaneDecoderBlock,
 )
 
 # Convenience re-exports for activations
@@ -44,6 +45,8 @@ from .mechanisms import (
     ResonantGSERCell,
     PredictiveResonantCell,
     MultiheadLinearSelfAttentionKernalization,
+    CausalLinearSelfAttention,
+    ResonantSequenceMixer,
     SpatioTemporalSummaryMixingLayer,
     AttentionResidual,
     BlockAttentionResidual,
@@ -60,6 +63,13 @@ from .models import (
 from .foundational_models import (
     HierarchicalResonanceFoundationModel,
 )
+
+from .language_model import (
+    ArcaneSLMConfig,
+    ArcaneSmallLanguageModel,
+)
+
+from .tokenization import BytePairTokenizer
 
 
 # Convenience re-exports for callbacks
@@ -105,6 +115,9 @@ __all__ = [
     "ExpandDimensionLayer",
     "SpatioTemporalSummaryMixingLayer",
     "SpatioTemporalSummarization",
+    "CausalLinearSelfAttention",
+    "ResonantSequenceMixer",
+    "ArcaneDecoderBlock",
     # Activations
     "straight_through_spike",
     "resonant_spike",
@@ -114,6 +127,9 @@ __all__ = [
     # Models
     "NeuromimeticSemanticModel",
     "HierarchicalResonanceFoundationModel",
+    "ArcaneSmallLanguageModel",
+    "ArcaneSLMConfig",
+    "BytePairTokenizer",
     "load_neuromimetic_model",
     # Callbacks
     "NeuralResonanceCallback",

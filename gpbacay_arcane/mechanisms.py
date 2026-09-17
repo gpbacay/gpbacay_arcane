@@ -706,6 +706,204 @@ class MultiheadLinearSelfAttentionKernalization(Layer):
         return config
 
 
+class CausalLinearSelfAttention(Layer):
+    """Katharopoulos linear attention with a causal prefix (cumsum) instead of a full-sequence KV.
+
+    Same feature map as ``MultiheadLinearSelfAttentionKernalization`` (φ(x) = elu(x)+1),
+    but position t only aggregates keys/values from indices 0..t. Complexity is still
+    O(n d^2); memory for the prefix outer product is O(n d_head^2).
+    """
+
+    def __init__(
+        self,
+        d_model,
+        num_heads,
+        dropout_rate=0.1,
+        use_semantic_reweighting=True,
+        eps=1e-6,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.dropout_rate = dropout_rate
+        self.use_semantic_reweighting = use_semantic_reweighting
+        self.eps = eps
+        if d_model % num_heads != 0:
+            raise ValueError("d_model must be divisible by num_heads")
+        self.depth = d_model // num_heads
+        self.layer_norm = tf.keras.layers.LayerNormalization(epsilon=eps)
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
+
+    def build(self, input_shape):
+        d_model = self.d_model
+        self.query_weight = self.add_weight(
+            name="query_weight", shape=(d_model, d_model), initializer="glorot_uniform", trainable=True
+        )
+        self.query_bias = self.add_weight(
+            name="query_bias", shape=(d_model,), initializer="zeros", trainable=True
+        )
+        self.key_weight = self.add_weight(
+            name="key_weight", shape=(d_model, d_model), initializer="glorot_uniform", trainable=True
+        )
+        self.key_bias = self.add_weight(
+            name="key_bias", shape=(d_model,), initializer="zeros", trainable=True
+        )
+        self.value_weight = self.add_weight(
+            name="value_weight", shape=(d_model, d_model), initializer="glorot_uniform", trainable=True
+        )
+        self.value_bias = self.add_weight(
+            name="value_bias", shape=(d_model,), initializer="zeros", trainable=True
+        )
+        self.output_weight = self.add_weight(
+            name="output_weight", shape=(d_model, d_model), initializer="glorot_uniform", trainable=True
+        )
+        self.output_bias = self.add_weight(
+            name="output_bias", shape=(d_model,), initializer="zeros", trainable=True
+        )
+        if self.use_semantic_reweighting:
+            self.semantic_reweight_kernel = self.add_weight(
+                name="semantic_reweight_kernel",
+                shape=(d_model, 1),
+                initializer="glorot_uniform",
+                trainable=True,
+            )
+            self.semantic_reweight_bias = self.add_weight(
+                name="semantic_reweight_bias", shape=(1,), initializer="zeros", trainable=True
+            )
+        self.layer_norm.build(input_shape)
+        super().build(input_shape)
+
+    def _split_heads(self, x, batch_size):
+        x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
+        return tf.transpose(x, perm=[0, 2, 1, 3])
+
+    def call(self, inputs, training=False):
+        batch_size = tf.shape(inputs)[0]
+        seq_len = tf.shape(inputs)[1]
+        queries = tf.matmul(inputs, self.query_weight) + self.query_bias
+        keys = tf.matmul(inputs, self.key_weight) + self.key_bias
+        values = tf.matmul(inputs, self.value_weight) + self.value_bias
+        queries = self._split_heads(queries, batch_size)
+        keys = self._split_heads(keys, batch_size)
+        values = self._split_heads(values, batch_size)
+        queries = tf.nn.elu(queries) + 1.0
+        keys = tf.nn.elu(keys) + 1.0
+        # Causal prefix: KV_t = Σ_{i≤t} φ(k_i)^T v_i, z_t = Σ_{i≤t} φ(k_i)
+        kv = tf.expand_dims(keys, -1) * tf.expand_dims(values, -2)
+        kv_cs = tf.cumsum(kv, axis=2)
+        z_cs = tf.cumsum(keys, axis=2)
+        numerator = tf.einsum("bhsd,bhsde->bhse", queries, kv_cs)
+        denominator = tf.einsum("bhsd,bhsd->bhs", queries, z_cs)
+        attention_output = numerator / (tf.expand_dims(denominator, -1) + self.eps)
+        attention_output = tf.transpose(attention_output, perm=[0, 2, 1, 3])
+        attention_output = tf.reshape(attention_output, (batch_size, seq_len, self.d_model))
+        output = tf.matmul(attention_output, self.output_weight) + self.output_bias
+        if self.use_semantic_reweighting:
+            reweight_factors = tf.sigmoid(
+                tf.matmul(output, self.semantic_reweight_kernel) + self.semantic_reweight_bias
+            )
+            output = output * reweight_factors
+        output = self.dropout(output, training=training)
+        return self.layer_norm(inputs + output)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update(
+            {
+                "d_model": self.d_model,
+                "num_heads": self.num_heads,
+                "dropout_rate": self.dropout_rate,
+                "use_semantic_reweighting": self.use_semantic_reweighting,
+                "eps": self.eps,
+            }
+        )
+        return config
+
+
+class ResonantSequenceMixer(Layer):
+    """Token-parallel closed-form resonance from ResonantGSERCell, made causal.
+
+    Harmonizes each token toward the causal running mean of the sequence
+    (a prefix prototype), then applies STE subtractive reset. No RNN unroll,
+    so it can sit inside a 100M-scale decoder block.
+    """
+
+    def __init__(
+        self,
+        d_model,
+        resonance_factor=0.15,
+        resonance_cycles=3,
+        spike_threshold=0.4,
+        semantic_divergence_weight=0.1,
+        eps=1e-6,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.d_model = d_model
+        self.resonance_factor = resonance_factor
+        self.resonance_cycles = resonance_cycles
+        self.spike_threshold = spike_threshold
+        self.semantic_divergence_weight = semantic_divergence_weight
+        self.eps = eps
+        self.layer_norm = tf.keras.layers.LayerNormalization(epsilon=eps)
+
+    def build(self, input_shape):
+        self.projection_kernel = self.add_weight(
+            name="projection_kernel",
+            shape=(self.d_model, self.d_model),
+            initializer="glorot_uniform",
+            trainable=True,
+        )
+        self.resonance_gate = self.add_weight(
+            name="resonance_gate",
+            shape=(self.d_model,),
+            initializer=tf.keras.initializers.Constant(1.0),
+            trainable=True,
+        )
+        self.resonance_bias = self.add_weight(
+            name="resonance_bias",
+            shape=(self.d_model,),
+            initializer="zeros",
+            trainable=True,
+        )
+        self.layer_norm.build(input_shape)
+        super().build(input_shape)
+
+    def call(self, inputs, training=False):
+        seq_len = tf.shape(inputs)[1]
+        dtype = inputs.dtype
+        steps = tf.cast(tf.range(1, seq_len + 1), dtype)[None, :, None]
+        prefix_mean = tf.cumsum(inputs, axis=1) / steps
+        prototype = tf.matmul(prefix_mean, self.projection_kernel)
+        alpha = tf.clip_by_value(
+            tf.cast(self.resonance_factor, dtype) + tf.cast(self.semantic_divergence_weight, dtype),
+            0.0,
+            0.99,
+        )
+        decay = tf.pow(1.0 - alpha, tf.cast(self.resonance_cycles, dtype))
+        h_resonated = decay * inputs + (1.0 - decay) * prototype
+        res_mod = tf.sigmoid(self.resonance_gate) * tf.cast(self.resonance_factor, dtype)
+        h_modulated = h_resonated * (1.0 + res_mod) + self.resonance_bias
+        spikes = straight_through_spike(h_modulated, self.spike_threshold)
+        h_final = h_modulated - spikes * tf.cast(self.spike_threshold, dtype)
+        return self.layer_norm(inputs + h_final)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update(
+            {
+                "d_model": self.d_model,
+                "resonance_factor": self.resonance_factor,
+                "resonance_cycles": self.resonance_cycles,
+                "spike_threshold": self.spike_threshold,
+                "semantic_divergence_weight": self.semantic_divergence_weight,
+                "eps": self.eps,
+            }
+        )
+        return config
+
+
 class SpatioTemporalSummaryMixingLayer(Layer):
     """
     A mechanism that enhances spatio-temporal data by mixing local and global context to generate

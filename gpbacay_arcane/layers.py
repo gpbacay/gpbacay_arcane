@@ -5,6 +5,8 @@ from .mechanisms import (
     ResonantGSERCell,
     PredictiveResonantCell,
     MultiheadLinearSelfAttentionKernalization,
+    CausalLinearSelfAttention,
+    ResonantSequenceMixer,
     SpatioTemporalSummaryMixingLayer,
     AttentionResidual,
     BlockAttentionResidual,
@@ -697,3 +699,91 @@ class LatentTemporalCoherence(tf.keras.layers.Layer):
         # Project into the semantic coherence space
         semantic_coherence_vector = tf.matmul(pooled_temporal_features, self.coherence_kernel)
         return semantic_coherence_vector
+
+
+class ArcaneDecoderBlock(tf.keras.layers.Layer):
+    """One causal LM block: linear attention, DenseGSER expand, bioplastic project, resonance.
+
+    Residual mixing of prior block outputs is handled by the parent model via
+    ``AttentionResidual`` so this block stays a single-tensor in/out layer.
+    """
+
+    def __init__(
+        self,
+        d_model,
+        num_heads,
+        ffn_mult=2,
+        dropout_rate=0.1,
+        resonance_factor=0.15,
+        resonance_cycles=3,
+        spike_threshold=0.4,
+        leak_rate=0.1,
+        enable_inference_plasticity=False,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.ffn_mult = ffn_mult
+        self.dropout_rate = dropout_rate
+        self.resonance_factor = resonance_factor
+        self.resonance_cycles = resonance_cycles
+        self.spike_threshold = spike_threshold
+        self.leak_rate = leak_rate
+        self.enable_inference_plasticity = enable_inference_plasticity
+        d_ff = d_model * ffn_mult
+        self.attn = CausalLinearSelfAttention(
+            d_model=d_model,
+            num_heads=num_heads,
+            dropout_rate=dropout_rate,
+            name="causal_linear_attn",
+        )
+        self.gser = DenseGSER(
+            units=d_ff,
+            leak_rate=leak_rate,
+            spike_threshold=spike_threshold,
+            activation="gelu",
+            use_conceptual_gate=True,
+            name="dense_gser_expand",
+        )
+        self.bioplastic = BioplasticDenseLayer(
+            units=d_model,
+            activation="gelu",
+            dropout_rate=dropout_rate,
+            enable_inference_plasticity=enable_inference_plasticity,
+            name="bioplastic_project",
+        )
+        self.resonance = ResonantSequenceMixer(
+            d_model=d_model,
+            resonance_factor=resonance_factor,
+            resonance_cycles=resonance_cycles,
+            spike_threshold=spike_threshold,
+            name="resonant_mixer",
+        )
+        self.ffn_dropout = tf.keras.layers.Dropout(dropout_rate)
+        self.ffn_norm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+
+    def call(self, inputs, training=False):
+        x = self.attn(inputs, training=training)
+        h = self.gser(x)
+        h = self.bioplastic(h, training=training)
+        h = self.ffn_dropout(h, training=training)
+        x = self.ffn_norm(x + h)
+        return self.resonance(x, training=training)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update(
+            {
+                "d_model": self.d_model,
+                "num_heads": self.num_heads,
+                "ffn_mult": self.ffn_mult,
+                "dropout_rate": self.dropout_rate,
+                "resonance_factor": self.resonance_factor,
+                "resonance_cycles": self.resonance_cycles,
+                "spike_threshold": self.spike_threshold,
+                "leak_rate": self.leak_rate,
+                "enable_inference_plasticity": self.enable_inference_plasticity,
+            }
+        )
+        return config

@@ -15,7 +15,7 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { docsConfig } from "@/config/docs";
-import { Search, FileText, Zap, Brain, Layers, Cpu, BarChart3, Terminal, Menu, Bug } from "lucide-react";
+import { Search, FileText, Zap, Brain, Layers, Cpu, BarChart3, Terminal, Menu, Bug, MessageSquare } from "lucide-react";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 
 export function SiteHeader() {
@@ -92,6 +92,12 @@ export function SiteHeader() {
               Docs
             </Link>
             <Link
+              href="/docs/chat"
+              className="text-zinc-400 transition-colors hover:text-zinc-100"
+            >
+              Chat
+            </Link>
+            <Link
               href="/docs/blog"
               className="text-zinc-400 transition-colors hover:text-zinc-100"
             >
@@ -140,6 +146,13 @@ export function SiteHeader() {
                 Documentation
               </Link>
               <Link
+                href="/docs/chat"
+                className="flex items-center text-lg font-bold text-zinc-400 hover:text-zinc-100 transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Chat
+              </Link>
+              <Link
                 href="/docs/blog"
                 className="flex items-center text-lg font-bold text-zinc-400 hover:text-zinc-100 transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
@@ -172,6 +185,7 @@ export function SiteHeader() {
             <CommandGroup key={group.title} heading={group.title}>
               {group.items.map((item) => {
                 const Icon = 
+                  item.title.includes("Chat") ? MessageSquare :
                   item.title.includes("Introduction") ? FileText :
                   item.title.includes("Installation") || item.title.includes("Quick Start") ? Zap :
                   item.title.includes("Neural Resonance") ? Brain :
