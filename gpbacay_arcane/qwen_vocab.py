@@ -30,7 +30,19 @@ QWEN_MODEL_ID = "Qwen/Qwen2.5-0.5B"
 
 
 def load_qwen_tokenizer(model_id: str = QWEN_MODEL_ID):
-    """Load the HF tokenizer. Kept isolated so the rest of the package stays torch-free."""
+    """Load the HF tokenizer without importing torch.
+
+    ``from transformers import AutoTokenizer`` otherwise pulls
+    ``GenerationMixin`` whenever torch is installed. A NumPy-1.x torch
+    wheel then errors under NumPy 2 (``_ARRAY_API not found``). Tokenization
+    does not need torch, so disable it unless a caller already imported
+    torch (the teacher dump).
+    """
+    import os
+    import sys
+
+    if "transformers" not in sys.modules and "torch" not in sys.modules:
+        os.environ.setdefault("USE_TORCH", "0")
     try:
         from transformers import AutoTokenizer
     except ImportError as exc:  # pragma: no cover - environment dependent

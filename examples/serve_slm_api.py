@@ -41,6 +41,9 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "1")
+# Distilled chat encodes with Qwen's tokenizer via `transformers`. Keep torch
+# disabled so AutoTokenizer does not load a NumPy-1.x torch wheel.
+os.environ.setdefault("USE_TORCH", "0")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -159,6 +162,7 @@ def _load_tokenizer(vocab_size: int):
         from gpbacay_arcane.qwen_vocab import QwenVocabAdapter
 
         adapter = QwenVocabAdapter.load(VOCAB_ADAPTER_PATH)
+        adapter.tokenizer  # fail fast at startup, not on the first chat request
         print(f"[slm] Loaded Qwen vocab adapter {VOCAB_ADAPTER_PATH}")
         return adapter, adapter.generation_ids(), "qwen-adapter"
     if TOKENIZER_PATH:
