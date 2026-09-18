@@ -11,6 +11,15 @@ A Python library for neuromimetic neural network mechanisms featuring:
 - Reservoir Computing
 """
 
+import warnings
+
+# Keras 3 probes `np.object`, which NumPy 2.4 emits as a FutureWarning on import.
+warnings.filterwarnings(
+    "ignore",
+    message=r"In the future `np\.object` will be defined",
+    category=FutureWarning,
+)
+
 from .cli_commands import about
 
 # Convenience re-exports for layers
@@ -92,15 +101,9 @@ from .callbacks import (
     DynamicSelfModelingReservoirCallback,
 )
 
-# Ollama integration (optional)
-try:
-    from .ollama_integration import (
-        OllamaARCANEHybrid,
-        create_custom_lm_with_ollama
-    )
-except ImportError:
-    # Ollama integration not available (missing dependencies)
-    pass
+# Ollama integration is optional and pulls torch / sentence-transformers.
+# Import it lazily so TensorFlow-only entry points (the SLM chat API) do not
+# load a NumPy-1.x torch wheel and print `_ARRAY_API not found`.
 
 # Legacy model aliases (deprecated but maintained for compatibility)
 DSTSMGSER = NeuromimeticSemanticModel
@@ -110,6 +113,24 @@ CoherentThoughtModel = NeuromimeticSemanticModel
 __version__ = "3.0.0"
 __author__ = "Gianne P. Bacay"
 __description__ = "Neuromimetic Semantic Foundation Model with Biologically-Inspired Neural Mechanisms"
+
+_OPTIONAL_EXPORTS = {
+    "OllamaARCANEHybrid": (".ollama_integration", "OllamaARCANEHybrid"),
+    "create_custom_lm_with_ollama": (".ollama_integration", "create_custom_lm_with_ollama"),
+}
+
+
+def __getattr__(name):
+    target = _OPTIONAL_EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attr = target
+    from importlib import import_module
+
+    module = import_module(module_name, __name__)
+    value = getattr(module, attr)
+    globals()[name] = value
+    return value
 __all__ = [
     # Layers
     "GSER",

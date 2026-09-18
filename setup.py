@@ -23,9 +23,10 @@ setup(
     packages=find_packages(exclude=['tests', 'tests.*', 'examples', 'examples.*']),
     python_requires='>=3.8',
     install_requires=[
-        'numpy>=1.21.0',
+        'numpy>=1.21.0,<3.0.0',
         'tensorflow>=2.12.0',
         'keras>=2.12.0',
+        'numexpr>=2.10.2',
         'matplotlib>=3.5.0',
     ],
     extras_require={

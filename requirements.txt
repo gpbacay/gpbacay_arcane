@@ -3,8 +3,11 @@
 
 # Machine Learning & Neural Networks
 tensorflow>=2.12.0,<3.0.0
-numpy>=1.21.0
+numpy>=1.21.0,<3.0.0
 keras>=2.12.0
+# pandas (pulled in by Keras) imports numexpr; wheels older than 2.10 crash on NumPy 2
+# with AttributeError: _ARRAY_API not found
+numexpr>=2.10.2
 
 # Data Processing & Visualization
 matplotlib>=3.5.0

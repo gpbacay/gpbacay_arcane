@@ -2,7 +2,8 @@
 # Do not merge this into requirements.txt; fafbseg/TensorFlow would bloat the MNIST API.
 fastapi>=0.100.0
 uvicorn>=0.22.0
-numpy>=1.21.0
+numpy>=1.21.0,<3.0.0
+numexpr>=2.10.2
 
 # Optional live queries (set FLYWIRE_SECRET / CAVE_TOKEN on Render, then):
 # pip install fafbseg

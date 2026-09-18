@@ -34,7 +34,10 @@ try:
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
-    print("Warning: sentence-transformers not installed. Install with: pip install sentence-transformers")
+except Exception:
+    # Installed, but the torch wheel may be incompatible with NumPy 2.x
+    # (`_ARRAY_API not found`). Keep the rest of ARCANE importable.
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
 
 
 class OllamaARCANEHybrid:

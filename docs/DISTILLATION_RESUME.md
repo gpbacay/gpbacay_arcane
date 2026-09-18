@@ -1,6 +1,6 @@
 # Resuming the Qwen2.5-0.5B → ARCANE distillation
 
-Status as of **2026-09-19 04:43**. Written for whoever picks this up next.
+Status as of **2026-09-19 05:30**. Written for whoever picks this up next.
 Architecture rationale lives in [DISTILLATION.md](DISTILLATION.md). This file
 is *where things are and how to continue*.
 
@@ -8,20 +8,22 @@ is *where things are and how to continue*.
 
 ## TL;DR
 
-The teacher dump is done. Student training is **in progress** on this CPU box
-(`distill-small`, 8.8M params, `chunk_size=256`). Do **not** redo the dump.
-Do **not** start a second training job — one `python examples/distill_arcane_slm.py`
-is already running (PID around 13020).
-
-First held-out eval is in (step 250). Training continues toward the 120-minute budget.
+The teacher dump is done. Student training was **aborted by the user** at
+step 575 (~82 min in), on this CPU box (`distill-small`, 8.8M params,
+`chunk_size=256`). Do **not** redo the dump. The last checkpoint is the
+step-500 eval.
 
 ```
   [eval] step 250  loss 2.4811  ce 3.6463  ppl 38.33  kd(teacher) 0.4261
+  [eval] step 500  loss 2.4262  ce 3.3786  ppl 29.33  kd(teacher) 0.4478
+step    575/4000  loss 1.1771  ce 1.6641 (ppl     5.28)  kd 0.2131  0.12 steps/s
 ```
 
-Held-out ppl **38** vs train ppl **23** — some overfitting, as expected on 92k tokens.
+Held-out ppl improved 38 → **29** from step 250 to 500. Train ppl kept
+falling (5.3 at abort) so the train/eval gap was widening — expected on
+92k tokens. History JSON was **not** written (unclean abort).
 
-As of step 150 the student was already learning:
+Last logged steps before the abort:
 
 ```
 step     25/4000  loss 5.2359  ce 8.6241 (ppl  5564.08)  kd 0.7443  0.08 steps/s
@@ -48,10 +50,10 @@ epochs over the 256 training windows. First checkpoint is written at
 | Vocab adapter | `Models/qwen_vocab_adapter.json` | 8,000 ids, **99.95%** coverage |
 | Teacher shards | `data/qwen_shards/*.tfrecord` | **3 shards, 360 windows, 92,160 tokens** |
 | Dump metadata | `data/qwen_shards/meta.json` | seq_len 256, top_k 32, vocab 8000 |
-| Student checkpoint | `Models/arcane_slm_distilled.weights.h5` | written at step 250 (re-saved every eval) |
+| Student checkpoint | `Models/arcane_slm_distilled.weights.h5` | **step 500** (~42 MB); no resume-from-weights yet |
 | Student config | `Models/arcane_slm_distilled.config.json` | on disk (`distill-small`, vocab 8000, seq 256) |
-| Training log | `logs/distill.log` | UTF-16 (PowerShell `Tee-Object`); live copy also in the training terminal |
-| History | `Models/arcane_slm_distill_history.json` | written at process exit |
+| Training log | `logs/distill.log` | UTF-16 (PowerShell `Tee-Object`); last train line is step 575 |
+| History | `Models/arcane_slm_distill_history.json` | **missing** — abort skipped the exit save |
 
 **The teacher dump is the expensive part and it is already paid for** (~42 min
 of CPU). Do not redo it unless you want more tokens.
@@ -84,10 +86,13 @@ Hardware is still Intel UHD / TF 2.20 CPU-only / torch 2.0.1+cpu. No CUDA.
 
 ---
 
-## If the current job is still running
+## If you want to continue training
 
-Leave it. Checkpoints write at every eval (250, 500, …) and when the 120 min
-budget fires. Tail:
+The previous job is dead. Restart from scratch with the same command (the
+trainer does not load `--checkpoint` as a warm start). The dump is still valid.
+The step-500 weights remain usable for chat until a new run overwrites them.
+
+Tail of a new run:
 
 ```powershell
 Get-Content logs\distill.log -Wait -Tail 20    # may be UTF-16
@@ -121,14 +126,7 @@ cmd /c "set TF_CPP_MIN_LOG_LEVEL=3&& python -W ignore -u examples/distill_arcane
 
 ---
 
-## If the job died before a checkpoint
-
-Restart with the same command. There is nothing to resume from until
-`Models/arcane_slm_distilled.weights.h5` exists. The dump is still valid.
-
----
-
-## To chat with it once a checkpoint exists
+## To chat with the step-500 checkpoint
 
 The API auto-discovers `Models/arcane_slm_distilled.*`:
 
