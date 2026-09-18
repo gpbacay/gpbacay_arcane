@@ -14,7 +14,7 @@ import numpy as np
 import tensorflow as tf
 
 from .layers import ArcaneDecoderBlock, PositionalEncodingLayer
-from .mechanisms import AttentionResidual
+from .mechanisms import AttentionResidual, RMSNorm
 
 
 SLM_PRESETS: Dict[str, Dict] = {
@@ -36,6 +36,54 @@ SLM_PRESETS: Dict[str, Dict] = {
         "seq_len": 256,
         "dropout_rate": 0.1,
     },
+    # Same architecture as "distill", scaled to what a CPU-only box can actually
+    # train. ~8.8M parameters at vocab 8000.
+    "distill-small": {
+        "vocab_size": 8000,
+        "d_model": 256,
+        "num_layers": 6,
+        "num_heads": 8,
+        "ffn_mult": 4,
+        "seq_len": 256,
+        "dropout_rate": 0.05,
+        "softmax_every": 3,
+        "use_rope": True,
+        "use_decay": True,
+        "reweight_centered": True,
+        "gate_normalize": True,
+        "ffn_out_activation": None,
+        "norm_type": "rms",
+        # seq_len-sized chunks: one tf.scan iteration. Identical to chunk_size=64
+        # (test_chunk_size_does_not_change_output) and much cheaper on CPU.
+        "chunk_size": 256,
+    },
+    # Tuned as a distillation target for a softmax teacher (Qwen2.5-0.5B).
+    # Differences from "100m", each for a specific reason:
+    #   softmax_every=4  -> 3 of 12 layers do exact key lookup, which pure
+    #                       linear attention cannot express
+    #   use_rope         -> same positional geometry as the teacher; also
+    #                       replaces the fixed-length sinusoidal buffer
+    #   use_decay        -> KV state stops weighting the whole prefix uniformly
+    #   ffn_mult=4       -> FFN width is where factual knowledge lands
+    #   ffn_out_act=None -> unbiased writes into the residual stream
+    #   gate_normalize   -> spike threshold becomes scale-relative and learnable
+    #   norm_type=rms    -> matches the teacher, one less distribution mismatch
+    "distill": {
+        "vocab_size": 32000,
+        "d_model": 768,
+        "num_layers": 12,
+        "num_heads": 12,
+        "ffn_mult": 4,
+        "seq_len": 512,
+        "dropout_rate": 0.1,
+        "softmax_every": 4,
+        "use_rope": True,
+        "use_decay": True,
+        "reweight_centered": True,
+        "gate_normalize": True,
+        "ffn_out_activation": None,
+        "norm_type": "rms",
+    },
 }
 
 
@@ -56,6 +104,24 @@ class ArcaneSLMConfig:
     leak_rate: float = 0.1
     enable_inference_plasticity: bool = False
     pad_id: int = 0
+    # Every ``softmax_every``-th layer uses full softmax attention (0 = all linear).
+    softmax_every: int = 0
+    use_rope: bool = False
+    use_decay: bool = False
+    chunk_size: int = 64
+    reweight_centered: bool = False
+    gate_normalize: bool = False
+    ffn_out_activation: Optional[str] = "gelu"
+    norm_type: str = "layer"
+
+    def attention_types(self) -> List[str]:
+        """Per-layer attention kind, deepest-biased so softmax lands late."""
+        if not self.softmax_every:
+            return ["linear"] * self.num_layers
+        return [
+            "softmax" if (i + 1) % self.softmax_every == 0 else "linear"
+            for i in range(self.num_layers)
+        ]
 
     @classmethod
     def from_preset(cls, name: str, **overrides) -> "ArcaneSLMConfig":
@@ -73,16 +139,21 @@ class ArcaneSLMConfig:
         """Closed-form count matching the subclassed architecture (tied LM head)."""
         d = self.d_model
         d_ff = d * self.ffn_mult
+        norm = d if self.norm_type == "rms" else 2 * d
         embed = self.vocab_size * d
-        attn = 4 * d * d + 4 * d + d + 1 + 2 * d  # QKVO + semantic reweight + LN
-        gser = 2 * d * d_ff + 2 * d_ff
+        # QKVO + LN; linear attention adds the semantic reweight head and,
+        # optionally, one decay logit per head.
+        attn_softmax = 4 * d * d + 4 * d + 2 * d
+        attn_linear = attn_softmax + d + 1 + (self.num_heads if self.use_decay else 0)
+        gser = 2 * d * d_ff + 2 * d_ff + (d_ff if self.gate_normalize else 0)
         bioplastic = d_ff * d + d
         resonance = d * d + 2 * d + 2 * d
-        ffn_norm = 2 * d
         attnres = 2 * d
-        per_layer = attn + gser + bioplastic + resonance + ffn_norm + attnres
-        final_norm = 2 * d
-        return embed + self.num_layers * per_layer + final_norm
+        shared = gser + bioplastic + resonance + norm + attnres
+        total = embed + norm
+        for kind in self.attention_types():
+            total += shared + (attn_softmax if kind == "softmax" else attn_linear)
+        return total
 
 
 class ArcaneSmallLanguageModel(tf.keras.Model):
@@ -99,10 +170,16 @@ class ArcaneSmallLanguageModel(tf.keras.Model):
             cfg.d_model,
             name="token_embedding",
         )
-        self.positional_encoding = PositionalEncodingLayer(
-            max_position=cfg.seq_len,
-            d_model=cfg.d_model,
-            name="positional_encoding",
+        # RoPE is applied inside attention, so the additive sinusoidal table is
+        # skipped entirely when it is on -- adding both would double-count position.
+        self.positional_encoding = (
+            None
+            if cfg.use_rope
+            else PositionalEncodingLayer(
+                max_position=cfg.seq_len,
+                d_model=cfg.d_model,
+                name="positional_encoding",
+            )
         )
         self.embed_dropout = tf.keras.layers.Dropout(cfg.dropout_rate)
         self.depth_residuals = [
@@ -120,11 +197,24 @@ class ArcaneSmallLanguageModel(tf.keras.Model):
                 spike_threshold=cfg.spike_threshold,
                 leak_rate=cfg.leak_rate,
                 enable_inference_plasticity=cfg.enable_inference_plasticity,
+                attention_type=kind,
+                use_rope=cfg.use_rope,
+                max_position=max(cfg.seq_len, 2048),
+                chunk_size=cfg.chunk_size,
+                use_decay=cfg.use_decay,
+                reweight_centered=cfg.reweight_centered,
+                gate_normalize=cfg.gate_normalize,
+                ffn_out_activation=cfg.ffn_out_activation,
+                norm_type=cfg.norm_type,
                 name=f"decoder_block_{i}",
             )
-            for i in range(cfg.num_layers)
+            for i, kind in enumerate(cfg.attention_types())
         ]
-        self.final_norm = tf.keras.layers.LayerNormalization(epsilon=1e-6, name="final_norm")
+        self.final_norm = (
+            RMSNorm(eps=1e-6, name="final_norm")
+            if cfg.norm_type == "rms"
+            else tf.keras.layers.LayerNormalization(epsilon=1e-6, name="final_norm")
+        )
 
     @classmethod
     def from_preset(cls, name: str = "100m", **overrides) -> "ArcaneSmallLanguageModel":
@@ -133,7 +223,8 @@ class ArcaneSmallLanguageModel(tf.keras.Model):
     def call(self, token_ids, training=False):
         cfg = self.slm_config
         x = self.token_embedding(token_ids)
-        x = self.positional_encoding(x)
+        if self.positional_encoding is not None:
+            x = self.positional_encoding(x)
         x = self.embed_dropout(x, training=training)
         history = [x]
         for residual, block in zip(self.depth_residuals, self.blocks):

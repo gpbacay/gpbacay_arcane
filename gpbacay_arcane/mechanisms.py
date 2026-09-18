@@ -706,12 +706,68 @@ class MultiheadLinearSelfAttentionKernalization(Layer):
         return config
 
 
-class CausalLinearSelfAttention(Layer):
-    """Katharopoulos linear attention with a causal prefix (cumsum) instead of a full-sequence KV.
+def build_rope_cache(max_position, head_dim, base=10000.0):
+    """Precompute (cos, sin) rotary tables of shape ``(max_position, head_dim // 2)``."""
+    half = head_dim // 2
+    inv_freq = 1.0 / (base ** (np.arange(0, half, dtype=np.float64) / float(half)))
+    angles = np.outer(np.arange(max_position, dtype=np.float64), inv_freq)
+    return np.cos(angles).astype(np.float32), np.sin(angles).astype(np.float32)
 
-    Same feature map as ``MultiheadLinearSelfAttentionKernalization`` (φ(x) = elu(x)+1),
-    but position t only aggregates keys/values from indices 0..t. Complexity is still
-    O(n d^2); memory for the prefix outer product is O(n d_head^2).
+
+def apply_rope(x, cos, sin):
+    """Rotate ``(batch, heads, seq, head_dim)`` using the split-half convention.
+
+    ``(x1, x2) -> (x1 cos - x2 sin, x2 cos + x1 sin)``, matching the reference
+    Llama/Qwen RoPE so a distilled student sees the same positional geometry as
+    the teacher.
+    """
+    seq_len = tf.shape(x)[2]
+    # Materialise as tensors first: the caches are stored as numpy, and inside a
+    # tf.function ``seq_len`` is a Tensor, which numpy cannot slice with.
+    cos_t = tf.convert_to_tensor(cos, dtype=x.dtype)
+    sin_t = tf.convert_to_tensor(sin, dtype=x.dtype)
+    c = cos_t[:seq_len][None, None, :, :]
+    s = sin_t[:seq_len][None, None, :, :]
+    x1, x2 = tf.split(x, 2, axis=-1)
+    return tf.concat([x1 * c - x2 * s, x2 * c + x1 * s], axis=-1)
+
+
+class RMSNorm(Layer):
+    """Root-mean-square layer norm (no mean subtraction, no bias), as used by Qwen."""
+
+    def __init__(self, eps=1e-6, **kwargs):
+        super().__init__(**kwargs)
+        self.eps = eps
+
+    def build(self, input_shape):
+        self.gamma = self.add_weight(
+            name="gamma", shape=(input_shape[-1],), initializer="ones", trainable=True
+        )
+        super().build(input_shape)
+
+    def call(self, inputs):
+        variance = tf.reduce_mean(tf.square(inputs), axis=-1, keepdims=True)
+        return inputs * tf.math.rsqrt(variance + self.eps) * self.gamma
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({"eps": self.eps})
+        return config
+
+
+class CausalLinearSelfAttention(Layer):
+    """Chunkwise causal linear attention with optional per-head decay and RoPE.
+
+    Feature map phi(x) = elu(x) + 1 (Katharopoulos et al.). Mathematically this is
+    the same causal prefix sum over the outer products phi(k_i) v_i as a naive
+    ``cumsum``, but the (d_head, d_head) state is materialised once per *chunk*
+    rather than once per *token*. That takes activation memory from
+    O(n . d_head^2) down to O(d_head^2 + n . chunk) -- for the 100M preset at
+    seq_len 256 the old form held 2.4 GB of prefix tensors at batch 2, which is
+    what made distillation-scale batches impossible.
+
+    ``use_decay`` adds a learned per-head forget factor gamma in (0, 1) so the KV
+    state stops weighting the entire prefix uniformly.
     """
 
     def __init__(
@@ -721,6 +777,12 @@ class CausalLinearSelfAttention(Layer):
         dropout_rate=0.1,
         use_semantic_reweighting=True,
         eps=1e-6,
+        chunk_size=64,
+        use_decay=False,
+        use_rope=False,
+        rope_base=10000.0,
+        max_position=2048,
+        reweight_centered=False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -729,9 +791,17 @@ class CausalLinearSelfAttention(Layer):
         self.dropout_rate = dropout_rate
         self.use_semantic_reweighting = use_semantic_reweighting
         self.eps = eps
+        self.chunk_size = int(chunk_size)
+        self.use_decay = use_decay
+        self.use_rope = use_rope
+        self.rope_base = rope_base
+        self.max_position = int(max_position)
+        self.reweight_centered = reweight_centered
         if d_model % num_heads != 0:
             raise ValueError("d_model must be divisible by num_heads")
         self.depth = d_model // num_heads
+        if self.use_rope and self.depth % 2 != 0:
+            raise ValueError("RoPE requires an even head dimension")
         self.layer_norm = tf.keras.layers.LayerNormalization(epsilon=eps)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
 
@@ -771,12 +841,115 @@ class CausalLinearSelfAttention(Layer):
             self.semantic_reweight_bias = self.add_weight(
                 name="semantic_reweight_bias", shape=(1,), initializer="zeros", trainable=True
             )
+        if self.use_decay:
+            # sigmoid(4.0) ~ 0.982: close to no forgetting at init, free to sharpen.
+            self.decay_logit = self.add_weight(
+                name="decay_logit",
+                shape=(self.num_heads,),
+                initializer=tf.keras.initializers.Constant(4.0),
+                trainable=True,
+            )
+        if self.use_rope:
+            # Stored as numpy: a tf.constant created in build() belongs to the
+            # build scratch graph and is out of scope when call() is traced.
+            self.rope_cos, self.rope_sin = build_rope_cache(
+                self.max_position, self.depth, self.rope_base
+            )
+        # Static exponent tables for the intra-chunk decay mask.
+        c = self.chunk_size
+        idx = np.arange(c)
+        self._tri = (idx[:, None] >= idx[None, :]).astype(np.float32)
+        self._mask_exp = (idx[:, None] - idx[None, :]).astype(np.float32)
+        self._q_exp = (idx + 1).astype(np.float32)
+        self._tail_exp = (c - 1 - idx).astype(np.float32)
         self.layer_norm.build(input_shape)
         super().build(input_shape)
 
     def _split_heads(self, x, batch_size):
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
         return tf.transpose(x, perm=[0, 2, 1, 3])
+
+    def _decay_tables(self, dtype):
+        """Per-head (query decay, intra-chunk mask, tail weights, whole-chunk decay)."""
+        c = self.chunk_size
+        tri = tf.constant(self._tri, dtype=dtype)
+        if not self.use_decay:
+            ones_q = tf.ones((self.num_heads, c), dtype=dtype)
+            mask = tf.tile(tri[None], [self.num_heads, 1, 1])
+            return ones_q, mask, ones_q, tf.ones((self.num_heads,), dtype=dtype)
+        gamma = tf.cast(tf.sigmoid(self.decay_logit), dtype)[:, None]
+        decay_q = tf.pow(gamma, tf.constant(self._q_exp, dtype=dtype)[None, :])
+        mask = tf.pow(gamma[:, :, None], tf.constant(self._mask_exp, dtype=dtype)[None]) * tri[None]
+        tail = tf.pow(gamma, tf.constant(self._tail_exp, dtype=dtype)[None, :])
+        chunk_decay = tf.pow(tf.squeeze(gamma, -1), tf.cast(c, dtype))
+        return decay_q, mask, tail, chunk_decay
+
+    def _single_chunk_attention(self, q, k, v, seq_len: int):
+        """Causal linear attention when the whole sequence fits in one chunk.
+
+        Identical to one ``tf.scan`` iteration with a zero carry, without the
+        scan overhead that dominates CPU step time at this scale.
+        """
+        c = self.chunk_size
+        dtype = q.dtype
+        pad = (c - seq_len) % c
+        q = tf.pad(q, [[0, 0], [0, 0], [0, pad], [0, 0]])
+        k = tf.pad(k, [[0, 0], [0, 0], [0, pad], [0, 0]])
+        v = tf.pad(v, [[0, 0], [0, 0], [0, pad], [0, 0]])
+        _, mask, _, _ = self._decay_tables(dtype)
+        scores = tf.einsum("bhcd,bhkd->bhck", q, k) * mask[None]
+        out = tf.einsum("bhck,bhke->bhce", scores, v)
+        den = tf.reduce_sum(scores, axis=-1, keepdims=True)
+        return (out / (den + self.eps))[:, :, :seq_len, :]
+
+    def _chunked_attention(self, q, k, v, seq_len):
+        """Scan chunk-by-chunk, carrying the (d_head, d_head) KV state forward."""
+        c = self.chunk_size
+        dtype = q.dtype
+        pad = (-seq_len) % c
+        q = tf.pad(q, [[0, 0], [0, 0], [0, pad], [0, 0]])
+        k = tf.pad(k, [[0, 0], [0, 0], [0, pad], [0, 0]])
+        v = tf.pad(v, [[0, 0], [0, 0], [0, pad], [0, 0]])
+        batch = tf.shape(q)[0]
+        heads, depth = self.num_heads, self.depth
+        n_chunks = (seq_len + pad) // c
+
+        def to_chunks(t):
+            t = tf.reshape(t, (batch, heads, n_chunks, c, depth))
+            return tf.transpose(t, perm=[2, 0, 1, 3, 4])
+
+        qs, ks, vs = to_chunks(q), to_chunks(k), to_chunks(v)
+        decay_q, mask, tail, chunk_decay = self._decay_tables(dtype)
+        decay_q_n = decay_q[None, :, :, None]
+        decay_q_d = decay_q[None, :, :]
+        mask_b = mask[None]
+        tail_b = tail[None, :, :, None]
+        chunk_kv = chunk_decay[None, :, None, None]
+        chunk_z = chunk_decay[None, :, None]
+
+        def step(carry, elems):
+            _, kv_state, z_state = carry
+            q_c, k_c, v_c = elems
+            inter_num = tf.einsum("bhcd,bhde->bhce", q_c, kv_state) * decay_q_n
+            inter_den = tf.einsum("bhcd,bhd->bhc", q_c, z_state) * decay_q_d
+            scores = tf.einsum("bhcd,bhkd->bhck", q_c, k_c) * mask_b
+            intra_num = tf.einsum("bhck,bhke->bhce", scores, v_c)
+            intra_den = tf.reduce_sum(scores, axis=-1)
+            out = (inter_num + intra_num) / (tf.expand_dims(inter_den + intra_den, -1) + self.eps)
+            k_w = k_c * tail_b
+            kv_next = kv_state * chunk_kv + tf.einsum("bhkd,bhke->bhde", k_w, v_c)
+            z_next = z_state * chunk_z + tf.reduce_sum(k_w, axis=2)
+            return out, kv_next, z_next
+
+        init = (
+            tf.zeros((batch, heads, c, depth), dtype=dtype),
+            tf.zeros((batch, heads, depth, depth), dtype=dtype),
+            tf.zeros((batch, heads, depth), dtype=dtype),
+        )
+        outs, _, _ = tf.scan(step, (qs, ks, vs), initializer=init)
+        outs = tf.transpose(outs, perm=[1, 2, 0, 3, 4])
+        outs = tf.reshape(outs, (batch, heads, n_chunks * c, depth))
+        return outs[:, :, :seq_len, :]
 
     def call(self, inputs, training=False):
         batch_size = tf.shape(inputs)[0]
@@ -787,15 +960,20 @@ class CausalLinearSelfAttention(Layer):
         queries = self._split_heads(queries, batch_size)
         keys = self._split_heads(keys, batch_size)
         values = self._split_heads(values, batch_size)
+        if self.use_rope:
+            # Rotate before the feature map so phi(.) stays non-negative and the
+            # linear-attention denominator cannot change sign.
+            queries = apply_rope(queries, self.rope_cos, self.rope_sin)
+            keys = apply_rope(keys, self.rope_cos, self.rope_sin)
         queries = tf.nn.elu(queries) + 1.0
         keys = tf.nn.elu(keys) + 1.0
-        # Causal prefix: KV_t = Σ_{i≤t} φ(k_i)^T v_i, z_t = Σ_{i≤t} φ(k_i)
-        kv = tf.expand_dims(keys, -1) * tf.expand_dims(values, -2)
-        kv_cs = tf.cumsum(kv, axis=2)
-        z_cs = tf.cumsum(keys, axis=2)
-        numerator = tf.einsum("bhsd,bhsde->bhse", queries, kv_cs)
-        denominator = tf.einsum("bhsd,bhsd->bhs", queries, z_cs)
-        attention_output = numerator / (tf.expand_dims(denominator, -1) + self.eps)
+        static_len = inputs.shape[1]
+        if static_len is not None and self.chunk_size >= int(static_len):
+            attention_output = self._single_chunk_attention(
+                queries, keys, values, int(static_len)
+            )
+        else:
+            attention_output = self._chunked_attention(queries, keys, values, seq_len)
         attention_output = tf.transpose(attention_output, perm=[0, 2, 1, 3])
         attention_output = tf.reshape(attention_output, (batch_size, seq_len, self.d_model))
         output = tf.matmul(attention_output, self.output_weight) + self.output_bias
@@ -803,6 +981,10 @@ class CausalLinearSelfAttention(Layer):
             reweight_factors = tf.sigmoid(
                 tf.matmul(output, self.semantic_reweight_kernel) + self.semantic_reweight_bias
             )
+            # Centred form spans (0, 2) with unit gain at init; the original
+            # (0, 1) form can only attenuate and halves the branch at init.
+            if self.reweight_centered:
+                reweight_factors = 2.0 * reweight_factors
             output = output * reweight_factors
         output = self.dropout(output, training=training)
         return self.layer_norm(inputs + output)
@@ -816,10 +998,121 @@ class CausalLinearSelfAttention(Layer):
                 "dropout_rate": self.dropout_rate,
                 "use_semantic_reweighting": self.use_semantic_reweighting,
                 "eps": self.eps,
+                "chunk_size": self.chunk_size,
+                "use_decay": self.use_decay,
+                "use_rope": self.use_rope,
+                "rope_base": self.rope_base,
+                "max_position": self.max_position,
+                "reweight_centered": self.reweight_centered,
             }
         )
         return config
 
+
+class CausalSoftmaxSelfAttention(Layer):
+    """Standard causal softmax attention with RoPE, for hybrid ARCANE decoders.
+
+    Linear attention compresses the whole prefix into a fixed d_head x d_head
+    state and so cannot do exact key lookup; a softmax teacher can. Interleaving
+    a minority of these layers restores recall without paying quadratic cost at
+    every depth.
+    """
+
+    def __init__(
+        self,
+        d_model,
+        num_heads,
+        dropout_rate=0.1,
+        eps=1e-6,
+        use_rope=True,
+        rope_base=10000.0,
+        max_position=2048,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.dropout_rate = dropout_rate
+        self.eps = eps
+        self.use_rope = use_rope
+        self.rope_base = rope_base
+        self.max_position = int(max_position)
+        if d_model % num_heads != 0:
+            raise ValueError("d_model must be divisible by num_heads")
+        self.depth = d_model // num_heads
+        if self.use_rope and self.depth % 2 != 0:
+            raise ValueError("RoPE requires an even head dimension")
+        self.layer_norm = tf.keras.layers.LayerNormalization(epsilon=eps)
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
+
+    def build(self, input_shape):
+        d_model = self.d_model
+        for name in ("query", "key", "value", "output"):
+            setattr(
+                self,
+                f"{name}_weight",
+                self.add_weight(
+                    name=f"{name}_weight",
+                    shape=(d_model, d_model),
+                    initializer="glorot_uniform",
+                    trainable=True,
+                ),
+            )
+            setattr(
+                self,
+                f"{name}_bias",
+                self.add_weight(
+                    name=f"{name}_bias", shape=(d_model,), initializer="zeros", trainable=True
+                ),
+            )
+        if self.use_rope:
+            # Stored as numpy: a tf.constant created in build() belongs to the
+            # build scratch graph and is out of scope when call() is traced.
+            self.rope_cos, self.rope_sin = build_rope_cache(
+                self.max_position, self.depth, self.rope_base
+            )
+        self.layer_norm.build(input_shape)
+        super().build(input_shape)
+
+    def _split_heads(self, x, batch_size):
+        x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
+        return tf.transpose(x, perm=[0, 2, 1, 3])
+
+    def call(self, inputs, training=False):
+        batch_size = tf.shape(inputs)[0]
+        seq_len = tf.shape(inputs)[1]
+        q = self._split_heads(tf.matmul(inputs, self.query_weight) + self.query_bias, batch_size)
+        k = self._split_heads(tf.matmul(inputs, self.key_weight) + self.key_bias, batch_size)
+        v = self._split_heads(tf.matmul(inputs, self.value_weight) + self.value_bias, batch_size)
+        if self.use_rope:
+            q = apply_rope(q, self.rope_cos, self.rope_sin)
+            k = apply_rope(k, self.rope_cos, self.rope_sin)
+        scores = tf.matmul(q, k, transpose_b=True) / tf.sqrt(tf.cast(self.depth, inputs.dtype))
+        causal = tf.linalg.band_part(tf.ones((seq_len, seq_len), dtype=inputs.dtype), -1, 0)
+        scores += (1.0 - causal)[None, None, :, :] * tf.cast(-1e9, inputs.dtype)
+        weights = tf.nn.softmax(scores, axis=-1)
+        weights = self.dropout(weights, training=training)
+        context = tf.matmul(weights, v)
+        context = tf.transpose(context, perm=[0, 2, 1, 3])
+        context = tf.reshape(context, (batch_size, seq_len, self.d_model))
+        output = tf.matmul(context, self.output_weight) + self.output_bias
+        output = self.dropout(output, training=training)
+        return self.layer_norm(inputs + output)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update(
+            {
+                "d_model": self.d_model,
+                "num_heads": self.num_heads,
+                "dropout_rate": self.dropout_rate,
+                "eps": self.eps,
+                "use_rope": self.use_rope,
+                "rope_base": self.rope_base,
+                "max_position": self.max_position,
+            }
+        )
+        return config
 
 class ResonantSequenceMixer(Layer):
     """Token-parallel closed-form resonance from ResonantGSERCell, made causal.

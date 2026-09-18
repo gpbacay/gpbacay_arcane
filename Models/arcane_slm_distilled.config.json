@@ -1,0 +1,23 @@
+{
+  "vocab_size": 8000,
+  "d_model": 256,
+  "num_layers": 6,
+  "num_heads": 8,
+  "ffn_mult": 4,
+  "seq_len": 256,
+  "dropout_rate": 0.05,
+  "resonance_factor": 0.15,
+  "resonance_cycles": 3,
+  "spike_threshold": 0.4,
+  "leak_rate": 0.1,
+  "enable_inference_plasticity": false,
+  "pad_id": 0,
+  "softmax_every": 3,
+  "use_rope": true,
+  "use_decay": true,
+  "chunk_size": 256,
+  "reweight_centered": true,
+  "gate_normalize": true,
+  "ffn_out_activation": null,
+  "norm_type": "rms"
+}

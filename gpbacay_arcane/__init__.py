@@ -46,6 +46,10 @@ from .mechanisms import (
     PredictiveResonantCell,
     MultiheadLinearSelfAttentionKernalization,
     CausalLinearSelfAttention,
+    CausalSoftmaxSelfAttention,
+    RMSNorm,
+    build_rope_cache,
+    apply_rope,
     ResonantSequenceMixer,
     SpatioTemporalSummaryMixingLayer,
     AttentionResidual,
@@ -70,6 +74,16 @@ from .language_model import (
 )
 
 from .tokenization import BytePairTokenizer
+
+# Distillation support (Qwen vocab adapter needs `transformers`, imported lazily).
+from .distillation import (
+    ArcaneDistiller,
+    WarmupCosine,
+    distillation_loss,
+    topk_kd_loss,
+    read_distill_dataset,
+    write_shard,
+)
 
 
 # Convenience re-exports for callbacks
@@ -116,6 +130,10 @@ __all__ = [
     "SpatioTemporalSummaryMixingLayer",
     "SpatioTemporalSummarization",
     "CausalLinearSelfAttention",
+    "CausalSoftmaxSelfAttention",
+    "RMSNorm",
+    "build_rope_cache",
+    "apply_rope",
     "ResonantSequenceMixer",
     "ArcaneDecoderBlock",
     # Activations
@@ -128,6 +146,13 @@ __all__ = [
     "NeuromimeticSemanticModel",
     "HierarchicalResonanceFoundationModel",
     "ArcaneSmallLanguageModel",
+    # Distillation
+    "ArcaneDistiller",
+    "WarmupCosine",
+    "distillation_loss",
+    "topk_kd_loss",
+    "read_distill_dataset",
+    "write_shard",
     "ArcaneSLMConfig",
     "BytePairTokenizer",
     "load_neuromimetic_model",

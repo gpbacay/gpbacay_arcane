@@ -1,0 +1,11 @@
+{
+  "model_id": "Qwen/Qwen2.5-0.5B",
+  "seq_len": 256,
+  "top_k": 32,
+  "vocab_size": 8000,
+  "windows": 360,
+  "shards": 3,
+  "stride": 256,
+  "vocab_adapter": "Models/qwen_vocab_adapter.json",
+  "vocab_coverage": 0.9994715601837213
+}

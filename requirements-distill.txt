@@ -1,0 +1,9 @@
+# Qwen2.5-0.5B -> ARCANE distillation
+# Teacher side only; training reads dumped TFRecords and needs none of this.
+#
+#   python examples/dump_qwen_logits.py ...   # needs torch + transformers
+#   python examples/distill_arcane_slm.py ... # needs only the base requirements
+
+torch>=2.0.0
+transformers>=4.37.0   # Qwen2 architecture support
+safetensors>=0.4.0

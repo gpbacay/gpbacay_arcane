@@ -6,6 +6,8 @@ from .mechanisms import (
     PredictiveResonantCell,
     MultiheadLinearSelfAttentionKernalization,
     CausalLinearSelfAttention,
+    CausalSoftmaxSelfAttention,
+    RMSNorm,
     ResonantSequenceMixer,
     SpatioTemporalSummaryMixingLayer,
     AttentionResidual,
@@ -31,8 +33,10 @@ class DenseGSER(tf.keras.layers.Layer):
     semantically relevant features in the latent space.
     """
     def __init__(self, units, input_dim=None, spectral_radius=0.9, leak_rate=0.1, spike_threshold=0.5, 
-                 max_dynamic_units=None, activation='gelu', use_conceptual_gate=True, **kwargs):
+                 max_dynamic_units=None, activation='gelu', use_conceptual_gate=True,
+                 gate_normalize=False, **kwargs):
         super().__init__(**kwargs)
+        self.gate_normalize = gate_normalize
         self.units = units
         self.spectral_radius = spectral_radius
         self.leak_rate = leak_rate
@@ -65,6 +69,13 @@ class DenseGSER(tf.keras.layers.Layer):
                 initializer='zeros',
                 name='conceptual_gate_bias'
             )
+        if self.gate_normalize:
+            self.gate_threshold = self.add_weight(
+                shape=(self.units,),
+                initializer=tf.keras.initializers.Constant(self.spike_threshold),
+                trainable=True,
+                name='gate_threshold'
+            )
         self.built = True
 
     def call(self, inputs):
@@ -73,7 +84,15 @@ class DenseGSER(tf.keras.layers.Layer):
         # Leak rate acts as the inverse slope of a soft spike threshold so both
         # GSER parameters affect a non-recurrent dense map.
         sharpness = 1.0 / tf.maximum(tf.cast(self.leak_rate, x.dtype), 1e-3)
-        gate = tf.nn.sigmoid(sharpness * (x - tf.cast(self.spike_threshold, x.dtype)))
+        if self.gate_normalize:
+            # An absolute threshold on unnormalised post-activation values has no
+            # idea what scale x is on; at d_model=768 it attenuated this branch
+            # ~6x at init. Normalising first makes the threshold scale-relative,
+            # and learnable per channel so the layer can set its own sparsity.
+            scale = tf.sqrt(tf.reduce_mean(tf.square(x), axis=-1, keepdims=True) + 1e-6)
+            gate = tf.nn.sigmoid(sharpness * (x / scale - tf.cast(self.gate_threshold, x.dtype)))
+        else:
+            gate = tf.nn.sigmoid(sharpness * (x - tf.cast(self.spike_threshold, x.dtype)))
         x = x * gate
 
         if self.use_conceptual_gate:
@@ -92,6 +111,7 @@ class DenseGSER(tf.keras.layers.Layer):
             'spike_threshold': self.spike_threshold,
             'activation': tf.keras.activations.serialize(self.activation),
             'use_conceptual_gate': self.use_conceptual_gate,
+            'gate_normalize': self.gate_normalize,
         })
         return config
 
@@ -702,7 +722,12 @@ class LatentTemporalCoherence(tf.keras.layers.Layer):
 
 
 class ArcaneDecoderBlock(tf.keras.layers.Layer):
-    """One causal LM block: linear attention, DenseGSER expand, bioplastic project, resonance.
+    """One causal LM block: attention, DenseGSER expand, bioplastic project, resonance.
+
+    ``attention_type`` selects linear (default) or full softmax attention, so a
+    decoder stack can interleave a minority of softmax layers -- linear attention
+    compresses the prefix into a fixed state and cannot do exact key lookup,
+    which is precisely what a softmax teacher is good at.
 
     Residual mixing of prior block outputs is handled by the parent model via
     ``AttentionResidual`` so this block stays a single-tensor in/out layer.
@@ -719,6 +744,16 @@ class ArcaneDecoderBlock(tf.keras.layers.Layer):
         spike_threshold=0.4,
         leak_rate=0.1,
         enable_inference_plasticity=False,
+        attention_type="linear",
+        use_rope=False,
+        rope_base=10000.0,
+        max_position=2048,
+        chunk_size=64,
+        use_decay=False,
+        reweight_centered=False,
+        gate_normalize=False,
+        ffn_out_activation="gelu",
+        norm_type="layer",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -731,24 +766,58 @@ class ArcaneDecoderBlock(tf.keras.layers.Layer):
         self.spike_threshold = spike_threshold
         self.leak_rate = leak_rate
         self.enable_inference_plasticity = enable_inference_plasticity
+        self.attention_type = attention_type
+        self.use_rope = use_rope
+        self.rope_base = rope_base
+        self.max_position = max_position
+        self.chunk_size = chunk_size
+        self.use_decay = use_decay
+        self.reweight_centered = reweight_centered
+        self.gate_normalize = gate_normalize
+        self.ffn_out_activation = ffn_out_activation
+        self.norm_type = norm_type
         d_ff = d_model * ffn_mult
-        self.attn = CausalLinearSelfAttention(
-            d_model=d_model,
-            num_heads=num_heads,
-            dropout_rate=dropout_rate,
-            name="causal_linear_attn",
-        )
+        if attention_type == "softmax":
+            self.attn = CausalSoftmaxSelfAttention(
+                d_model=d_model,
+                num_heads=num_heads,
+                dropout_rate=dropout_rate,
+                use_rope=use_rope,
+                rope_base=rope_base,
+                max_position=max_position,
+                name="causal_softmax_attn",
+            )
+        elif attention_type == "linear":
+            self.attn = CausalLinearSelfAttention(
+                d_model=d_model,
+                num_heads=num_heads,
+                dropout_rate=dropout_rate,
+                chunk_size=chunk_size,
+                use_decay=use_decay,
+                use_rope=use_rope,
+                rope_base=rope_base,
+                max_position=max_position,
+                reweight_centered=reweight_centered,
+                name="causal_linear_attn",
+            )
+        else:
+            raise ValueError(f"attention_type must be 'linear' or 'softmax', got {attention_type!r}")
         self.gser = DenseGSER(
             units=d_ff,
             leak_rate=leak_rate,
             spike_threshold=spike_threshold,
             activation="gelu",
             use_conceptual_gate=True,
+            gate_normalize=gate_normalize,
             name="dense_gser_expand",
         )
         self.bioplastic = BioplasticDenseLayer(
             units=d_model,
-            activation="gelu",
+            # A GELU on the FFN *down*-projection floors negatives at -0.17 while
+            # leaving positives unbounded, so every FFN write into the residual
+            # stream is biased positive (measured: positive mass 1.7x negative).
+            # Standard transformer FFNs leave this projection linear.
+            activation=ffn_out_activation,
             dropout_rate=dropout_rate,
             enable_inference_plasticity=enable_inference_plasticity,
             name="bioplastic_project",
@@ -761,7 +830,10 @@ class ArcaneDecoderBlock(tf.keras.layers.Layer):
             name="resonant_mixer",
         )
         self.ffn_dropout = tf.keras.layers.Dropout(dropout_rate)
-        self.ffn_norm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.ffn_norm = (
+            RMSNorm(eps=1e-6) if norm_type == "rms"
+            else tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        )
 
     def call(self, inputs, training=False):
         x = self.attn(inputs, training=training)
@@ -784,6 +856,16 @@ class ArcaneDecoderBlock(tf.keras.layers.Layer):
                 "spike_threshold": self.spike_threshold,
                 "leak_rate": self.leak_rate,
                 "enable_inference_plasticity": self.enable_inference_plasticity,
+                "attention_type": self.attention_type,
+                "use_rope": self.use_rope,
+                "rope_base": self.rope_base,
+                "max_position": self.max_position,
+                "chunk_size": self.chunk_size,
+                "use_decay": self.use_decay,
+                "reweight_centered": self.reweight_centered,
+                "gate_normalize": self.gate_normalize,
+                "ffn_out_activation": self.ffn_out_activation,
+                "norm_type": self.norm_type,
             }
         )
         return config

@@ -28,7 +28,7 @@ The library provides ready-to-use models, customizable neural layers, and traini
 - **Linear Self-Attention**: Katharopoulos kernel attention, $O(n d^2)$ in sequence length (not $QK^{\top}$).
 
 ### Ready-to-Use Models
-- **ArcaneSmallLanguageModel**: Causal decoder LM (~100M with the `100m` preset).
+- **ArcaneSmallLanguageModel**: Causal decoder LM (~100M with the `100m` preset, ~145M with the distillation-tuned `distill` preset).
 - **HierarchicalResonanceFoundationModel**: Advanced model with multi-level resonance hierarchy and deliberative reasoning.
 - **NeuromimeticSemanticModel**: Standard neuromimetic model with biological learning rules for general tasks.
 - **Custom Architecture Support**: Build your own models using individual layers.
@@ -128,6 +128,39 @@ print(model.count_params())  # ~100M trainable + bioplastic kernels
 # Full 100M architecture: python examples/train_arcane_slm.py --preset 100m --build-only
 # Chat (untrained until you pass --weights): python examples/chat_arcane_slm.py --preset tiny
 ```
+
+### Distilling Qwen2.5-0.5B into ARCANE
+
+The `distill` preset is tuned as a distillation target for a softmax teacher:
+hybrid attention (3 of 12 layers softmax), RoPE, learned KV decay, a wider FFN
+and RMSNorm. See [docs/DISTILLATION.md](docs/DISTILLATION.md) for the full
+rationale and measurements.
+
+```python
+from gpbacay_arcane import ArcaneSLMConfig
+
+cfg = ArcaneSLMConfig.from_preset("distill")
+print(cfg.estimate_trainable_parameters())  # 145,147,509
+print("".join("S" if k == "softmax" else "L" for k in cfg.attention_types()))
+# LLLSLLLSLLLS
+```
+
+```bash
+pip install -r requirements-distill.txt
+
+# 1. Dump teacher top-k logits to TFRecord (PyTorch side)
+python examples/dump_qwen_logits.py --text-file data/corpus.txt     --out-dir data/qwen_shards --seq-len 512 --top-k 64
+
+# 2. Distil into ARCANE (TensorFlow side, no torch needed)
+python examples/distill_arcane_slm.py --shards "data/qwen_shards/*.tfrecord"     --preset distill --steps 20000
+
+# 3. Parameter-matched control -- run this or you are measuring the corpus,
+#    not the distillation
+python examples/distill_arcane_slm.py --shards "data/qwen_shards/*.tfrecord"     --baseline-transformer --steps 20000
+```
+
+Qwen2.5-0.5B is Apache-2.0, so the teacher, the dumped predictions and the
+distilled student are all yours to release.
 
 ## Documentation Portal
 
@@ -231,7 +264,9 @@ gpbacay_arcane/
 │   ├── callbacks.py         # Training callbacks
 │   ├── cli_commands.py      # CLI interface
 │   ├── foundational_models.py # Foundation model architectures
-│   ├── language_model.py    # Causal ~100M ARCANE small language model
+│   ├── language_model.py    # Causal ARCANE small language model (100m / distill)
+│   ├── distillation.py      # Top-k KD loss, TFRecord shards, distillation trainer
+│   ├── qwen_vocab.py        # Qwen BPE -> compact student vocabulary adapter
 │   ├── tokenization.py      # Byte-level BPE tokenizer
 │   ├── layers.py            # High-level neural layers
 │   ├── mechanisms.py        # Core neural mechanisms
@@ -242,6 +277,8 @@ gpbacay_arcane/
 │   ├── arcane_foundational_model.py
 │   ├── create_foundation_model.py
 │   ├── train_arcane_slm.py
+│   ├── dump_qwen_logits.py
+│   ├── distill_arcane_slm.py
 │   ├── train_hierarchical_resonance.py
 │   ├── train_neuromimetic_sm.py
 │   └── test_hierarchical_resonance_comparison.py
