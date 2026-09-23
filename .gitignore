@@ -94,3 +94,19 @@ Models/**/*.keras
 # Logs
 *.log
 logs/
+
+# Local tooling / scratch clones
+.kilo/
+.qoder/
+scratchpad/
+analysis/
+
+# Test plots dumped at repo root
+*_convergence.png
+*_sensitivity.png
+*_comparison.png
+resonant_gser_convergence.png
+homeostatic_plasticity_comparison.png
+resonance_parameter_sensitivity.png
+bioplastic_homeostasis_convergence.png
+hebbian_homeostasis_convergence.png

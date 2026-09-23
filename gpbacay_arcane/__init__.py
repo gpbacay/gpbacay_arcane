@@ -20,8 +20,6 @@ warnings.filterwarnings(
     category=FutureWarning,
 )
 
-from .cli_commands import about
-
 # Convenience re-exports for layers
 from .layers import (
     DenseGSER,
@@ -131,6 +129,8 @@ def __getattr__(name):
     value = getattr(module, attr)
     globals()[name] = value
     return value
+
+
 __all__ = [
     # Layers
     "GSER",

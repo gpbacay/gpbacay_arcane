@@ -72,7 +72,7 @@ before restarting training:
    length fits in one chunk, skip `tf.scan` entirely
    (`test_single_chunk_fast_path_matches_scan`).
 
-Isolated bench (`scratchpad/bench_step.py`) on this machine:
+Isolated step bench on this machine (historical):
 
 ```
 chunk=256 (single-chunk fast path)   7.36 s/step

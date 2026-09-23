@@ -7,12 +7,11 @@ from tensorflow.keras.layers import (
 )
 from tensorflow.keras import Model
 from gpbacay_arcane.layers import (
-    ResonantGSER, 
-    BioplasticDenseLayer, 
+    ResonantGSER,
+    BioplasticDenseLayer,
     DenseGSER,
     LatentTemporalCoherence,
     PositionalEncodingLayer,
-    ExpandDimensionLayer,
 )
 
 class HierarchicalResonanceFoundationModel:
