@@ -129,6 +129,44 @@ print(model.count_params())  # ~100M trainable + bioplastic kernels
 # Chat (untrained until you pass --weights): python examples/chat_arcane_slm.py --preset tiny
 ```
 
+### ARC 1 — Automation Foundation Model
+
+A small laddered ARCANE decoder (`ResonantChannelMixer`, `ConceptEngram`, resonance) that does
+tool calling, structured extraction and embeddings through Laya-style typed decision heads
+rather than free-form JSON generation:
+
+- **noul**: calibrated P(tool applies / optional argument present / boolean is true)
+- **span**: copies string and number arguments from the user text (grounded, never invented)
+- **choice**: softmax over enum options
+
+Every head has a temperature fitted on held-out data, so `confidence` is calibrated. Each training
+step samples a ladder depth, so shallow slices of the same weights stay usable.
+
+```python
+from gpbacay_arcane import Arc1Agent, Arc1Config, Arc1Model, BytePairTokenizer, ToolParam, ToolSpec
+import json
+
+config = Arc1Config.from_dict(json.load(open("Models/arc1_arc1_tiny.config.json")))
+model = Arc1Model(config).build_model()
+model.load_weights("Models/arc1_arc1_tiny.weights.h5")
+agent = Arc1Agent(model, BytePairTokenizer.load("Models/arc1_arc1_tiny_tokenizer.json"))
+
+weather = ToolSpec("get_weather", "Get the current weather for a city.", [ToolParam("city", description="City name")])
+agent.run("is it raining in Tokyo?", tools=[weather], depth=2)
+# {"function_calls": [{"name": "get_weather", "arguments": {"city": "Tokyo"}}], "confidence": ..., ...}
+```
+
+```bash
+python examples/train_arc1.py --preset arc1-tiny --steps 3000   # train + calibrate + evaluate
+python examples/serve_arc1_api.py          # port 8002
+python examples/export_arc1.py --config Models/arc1_arc1_tiny.config.json     --weights Models/arc1_arc1_tiny.weights.h5 --layers 2 --tflite
+# Docs demo: cd arcane-docs-web && npm run dev:with-arc1  →  /docs/arc-1
+```
+
+Held-out metrics are written to `Models/arc1_arc1_tiny.metrics.json`. They cover unseen argument
+values, tools never seen in training, extraction field F1, and ECE before and after calibration.
+Limits: one call per tool per request, and the user text is truncated to fit `seq_len`.
+
 ### Distilling Qwen2.5-0.5B into ARCANE
 
 The `distill` preset is tuned as a distillation target for a softmax teacher:

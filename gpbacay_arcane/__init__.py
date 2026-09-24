@@ -35,6 +35,8 @@ from .layers import (
     ExpandDimensionLayer,
     SpatioTemporalSummarization,
     ArcaneDecoderBlock,
+    ResonantChannelMixer,
+    Arc1DecoderBlock,
 )
 
 # Convenience re-exports for activations
@@ -61,6 +63,7 @@ from .mechanisms import (
     SpatioTemporalSummaryMixingLayer,
     AttentionResidual,
     BlockAttentionResidual,
+    ConceptEngram,
 )
 
 
@@ -79,6 +82,24 @@ from .language_model import (
     ArcaneSLMConfig,
     ArcaneSmallLanguageModel,
 )
+
+from .arc1 import (
+    Arc1Config,
+    Arc1Model,
+    nested_ladder_indices,
+)
+
+from .tools import (
+    ToolParam,
+    ToolSpec,
+    tool,
+    Arc1Agent,
+    parse_agent_json,
+    format_tools_prompt,
+    coerce_value,
+)
+
+from .arc1_codec import Arc1Codec
 
 from .tokenization import BytePairTokenizer
 
@@ -157,6 +178,9 @@ __all__ = [
     "apply_rope",
     "ResonantSequenceMixer",
     "ArcaneDecoderBlock",
+    "ResonantChannelMixer",
+    "Arc1DecoderBlock",
+    "ConceptEngram",
     # Activations
     "straight_through_spike",
     "resonant_spike",
@@ -167,6 +191,17 @@ __all__ = [
     "NeuromimeticSemanticModel",
     "HierarchicalResonanceFoundationModel",
     "ArcaneSmallLanguageModel",
+    "Arc1Model",
+    "Arc1Config",
+    "nested_ladder_indices",
+    "Arc1Agent",
+    "ToolParam",
+    "ToolSpec",
+    "tool",
+    "parse_agent_json",
+    "format_tools_prompt",
+    "coerce_value",
+    "Arc1Codec",
     # Distillation
     "ArcaneDistiller",
     "WarmupCosine",

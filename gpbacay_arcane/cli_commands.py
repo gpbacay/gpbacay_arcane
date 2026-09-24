@@ -38,17 +38,24 @@ def list_models():
 │                           Available Models                                    │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  1. ArcaneSmallLanguageModel  ⭐ NEW                                           │
+│  1. Arc1Model  ⭐ NEW — Automation foundation (tools / extract / embed)         │
+│     Laddered decoder + Laya-style noul/span/choice heads, calibrated.        │
+│     Presets: arc1-tiny, arc1. Depth ladder: agent.run(..., depth=N).        │
+│     Train: python examples/train_arc1.py --preset arc1-tiny                  │
+│     Serve: python examples/serve_arc1_api.py  (port 8002)                    │
+│     Export: python examples/export_arc1.py --tflite --layers 2               │
+│                                                                              │
+│  2. ArcaneSmallLanguageModel                                                  │
 │     Causal decoder LM (~100M with the 100m preset). Linear attention,        │
 │     DenseGSER, bioplastic FFN, token-parallel resonance, AttentionResidual.  │
 │                                                                              │
-│  2. HierarchicalResonanceFoundationModel                                      │
+│  3. HierarchicalResonanceFoundationModel                                      │
 │     Deep neuromimetic architecture with bi-directional resonance.            │
 │     Features: Multi-level ResonantGSER hierarchy, cross-level skip           │
 │     connections, temporal coherence, attention fusion, BCM plasticity.       │
 │     Use with NeuralResonanceCallback for "System 2" reasoning.               │
 │                                                                              │
-│  3. NeuromimeticSemanticModel                                                │
+│  4. NeuromimeticSemanticModel                                                │
 │     Standard semantic model with neural resonance and Hebbian learning.      │
 │                                                                              │
 │  Legacy Aliases (for backward compatibility):                                │
@@ -99,6 +106,9 @@ def list_layers():
 │  17. ExpandDimensionLayer     - Dimension expansion utility                  │
 │  18. SpatioTemporalSummaryMixingLayer   - Local GLU + sequence summary       │
 │  19. SpatioTemporalSummarization        - Wrapper around the mixing layer    │
+│  20. ResonantChannelMixer               - Cheap ARC 1 FFN (low-rank+GSER)    │
+│  21. ConceptEngram                      - Hashed n-gram gather memory        │
+│  22. Arc1DecoderBlock                   - Attn + mixer + engram + resonance  │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
     """)

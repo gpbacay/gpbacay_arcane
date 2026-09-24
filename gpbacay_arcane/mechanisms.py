@@ -1088,8 +1088,10 @@ class CausalSoftmaxSelfAttention(Layer):
             q = apply_rope(q, self.rope_cos, self.rope_sin)
             k = apply_rope(k, self.rope_cos, self.rope_sin)
         scores = tf.matmul(q, k, transpose_b=True) / tf.sqrt(tf.cast(self.depth, inputs.dtype))
-        causal = tf.linalg.band_part(tf.ones((seq_len, seq_len), dtype=inputs.dtype), -1, 0)
-        scores += (1.0 - causal)[None, None, :, :] * tf.cast(-1e9, inputs.dtype)
+        # tf.where rather than ``scores += (1 - causal) * -1e9``: on CPU, oneDNN
+        # fuses that broadcast add into the batch matmul and runs ~7x slower.
+        causal = tf.linalg.band_part(tf.ones((seq_len, seq_len), dtype=tf.bool), -1, 0)
+        scores = tf.where(causal[None, None, :, :], scores, tf.cast(-1e9, inputs.dtype))
         weights = tf.nn.softmax(scores, axis=-1)
         weights = self.dropout(weights, training=training)
         context = tf.matmul(weights, v)
@@ -1395,4 +1397,132 @@ class BlockAttentionResidual(Layer):
     def get_config(self):
         config = super().get_config()
         config.update({'d_model': self.d_model, 'eps': self.eps})
+        return config
+
+
+class ConceptEngram(Layer):
+    """Hashed n-gram lookup memory written into the residual stream.
+
+    Most capacity lives in gatherable table rows rather than dense matmuls:
+    each token hashes local n-grams, gathers table rows, and gates the write
+    with a cheap DenseGSER-style sigmoid. Arithmetic cost is O(n_rows * d),
+    independent of table size beyond the gather.
+    """
+
+    def __init__(
+        self,
+        d_model,
+        table_size=4096,
+        ngram_sizes=(2, 3),
+        rows_per_token=8,
+        hash_base=1000003,
+        leak_rate=0.1,
+        spike_threshold=0.4,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.d_model = int(d_model)
+        self.table_size = int(table_size)
+        self.ngram_sizes = tuple(int(n) for n in ngram_sizes)
+        self.rows_per_token = int(rows_per_token)
+        self.hash_base = int(hash_base)
+        self.leak_rate = float(leak_rate)
+        self.spike_threshold = float(spike_threshold)
+
+    def build(self, input_shape):
+        self.table = self.add_weight(
+            name="engram_table",
+            shape=(self.table_size, self.d_model),
+            initializer="glorot_uniform",
+            trainable=True,
+        )
+        self.gate_kernel = self.add_weight(
+            name="gate_kernel",
+            shape=(self.d_model, self.d_model),
+            initializer="glorot_uniform",
+            trainable=True,
+        )
+        self.gate_bias = self.add_weight(
+            name="gate_bias",
+            shape=(self.d_model,),
+            initializer="zeros",
+            trainable=True,
+        )
+        self.value_scale = self.add_weight(
+            name="value_scale",
+            shape=(self.d_model,),
+            initializer=tf.keras.initializers.Constant(0.1),
+            trainable=True,
+        )
+        super().build(input_shape)
+
+    _PRIME = 2147483647  # 2^31 - 1; keeps every intermediate product inside int64
+
+    def _ngram_keys(self, token_ids, n):
+        """Rolling polynomial hash of n-grams, reduced mod a Mersenne prime.
+
+        Reducing inside the loop keeps ``acc * base`` below 2^62 for any n.
+        """
+        ids = tf.cast(token_ids, tf.int64)
+        batch = tf.shape(ids)[0]
+        seq = tf.shape(ids)[1]
+        prime = tf.constant(self._PRIME, dtype=tf.int64)
+        base = tf.constant(self.hash_base % self._PRIME, dtype=tf.int64)
+        pad = max(n - 1, 0)
+        padded = tf.pad(ids, [[0, 0], [pad, 0]])
+        acc = tf.fill((batch, seq), tf.constant(n, dtype=tf.int64))
+        for offset in range(n):
+            sl = padded[:, offset : offset + seq]
+            acc = (acc * base + sl) % prime
+        return acc
+
+    def _lookup_keys(self, token_ids):
+        """``rows_per_token`` independent universal hashes over the n-gram keys.
+
+        Row r uses n-gram family ``r % len(ngram_sizes)`` and its own (a_r, b_r),
+        so two n-grams that collide in one row almost never collide in the others.
+        """
+        families = [self._ngram_keys(token_ids, n) for n in self.ngram_sizes]
+        prime = tf.constant(self._PRIME, dtype=tf.int64)
+        table = tf.constant(self.table_size, dtype=tf.int64)
+        rows = []
+        for r in range(self.rows_per_token):
+            a = tf.constant(2 * (40503 * (r + 1) % 65521) + 1, dtype=tf.int64)
+            b = tf.constant(2654435761 * (r + 7) % self._PRIME, dtype=tf.int64)
+            src = families[r % len(families)]
+            rows.append(((src * a + b) % prime) % table)
+        return tf.stack(rows, axis=-1)
+
+    def call(self, inputs, token_ids=None, training=False):
+        """``inputs`` is (B, T, D). ``token_ids`` optional (B, T)."""
+        x = inputs
+        dtype = x.dtype
+        if token_ids is None:
+            pseudo = tf.cast(
+                tf.reduce_sum(tf.cast(x * 97.0, tf.float32), axis=-1),
+                tf.int64,
+            )
+            token_ids = tf.math.abs(pseudo)
+        keys = self._lookup_keys(token_ids)  # (B, T, R)
+        gathered = tf.gather(self.table, keys)  # (B, T, R, D)
+        memory = tf.reduce_mean(tf.cast(gathered, dtype), axis=2)
+        memory = memory * tf.cast(self.value_scale, dtype)
+        gate_pre = tf.matmul(x, tf.cast(self.gate_kernel, dtype)) + tf.cast(self.gate_bias, dtype)
+        sharpness = 1.0 / tf.maximum(tf.cast(self.leak_rate, dtype), 1e-3)
+        gate = tf.nn.sigmoid(sharpness * (gate_pre - tf.cast(self.spike_threshold, dtype)))
+        return x + gate * memory
+
+    def get_config(self):
+        config = super().get_config()
+        config.update(
+            {
+                "d_model": self.d_model,
+                "table_size": self.table_size,
+                "ngram_sizes": self.ngram_sizes,
+                "rows_per_token": self.rows_per_token,
+                "hash_base": self.hash_base,
+                "leak_rate": self.leak_rate,
+                "spike_threshold": self.spike_threshold,
+            }
+        )
         return config

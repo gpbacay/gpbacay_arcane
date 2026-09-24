@@ -7,6 +7,7 @@
     "dev:with-mnist": "node scripts/start-with-mnist.js",
     "dev:with-flywire": "node scripts/start-with-flywire.js",
     "dev:with-slm": "node scripts/start-with-slm.js",
+    "dev:with-arc1": "node scripts/start-with-arc1.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

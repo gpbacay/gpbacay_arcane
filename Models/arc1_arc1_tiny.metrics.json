@@ -1,0 +1,122 @@
+{
+  "preset": "arc1-tiny",
+  "parameters": 2829966,
+  "calibration": {
+    "temperatures": {
+      "noul": 0.9337807760058026,
+      "span": 1.4894891113061028,
+      "choice": 0.2
+    },
+    "noul_ece_before": 0.023308836308354265,
+    "noul_ece_after": 0.01811431950728984,
+    "n_noul": 801,
+    "n_span": 306,
+    "n_choice": 75
+  },
+  "evaluation": {
+    "depth_2": {
+      "tools_heldout_values": {
+        "n": 300,
+        "tool_selection_acc": 0.8833333333333333,
+        "exact_call_acc": 0.6833333333333333,
+        "argument_acc": 0.6919060052219321,
+        "no_tool_acc": 0.9682539682539683,
+        "latency_ms_p50": 198.8
+      },
+      "tools_unseen_tools": {
+        "n": 150,
+        "tool_selection_acc": 0.30666666666666664,
+        "exact_call_acc": 0.20666666666666667,
+        "argument_acc": 0.06989247311827956,
+        "no_tool_acc": 0.8055555555555556,
+        "latency_ms_p50": 96.25
+      },
+      "extraction_heldout_values": {
+        "n": 150,
+        "field_precision": 0.6613995485327314,
+        "field_recall": 0.6992840095465394,
+        "field_f1": 0.6798143851508122,
+        "exact_record_acc": 0.3333333333333333
+      }
+    },
+    "depth_4": {
+      "tools_heldout_values": {
+        "n": 300,
+        "tool_selection_acc": 0.8933333333333333,
+        "exact_call_acc": 0.7033333333333334,
+        "argument_acc": 0.7154046997389034,
+        "no_tool_acc": 0.9682539682539683,
+        "latency_ms_p50": 374.9
+      },
+      "tools_unseen_tools": {
+        "n": 150,
+        "tool_selection_acc": 0.3,
+        "exact_call_acc": 0.20666666666666667,
+        "argument_acc": 0.06989247311827956,
+        "no_tool_acc": 0.8055555555555556,
+        "latency_ms_p50": 202.2
+      },
+      "extraction_heldout_values": {
+        "n": 150,
+        "field_precision": 0.6845637583892618,
+        "field_recall": 0.7303102625298329,
+        "field_f1": 0.7066974595842956,
+        "exact_record_acc": 0.34
+      }
+    },
+    "embeddings": {
+      "n": 60,
+      "intent_retrieval_at_1": 1.0
+    }
+  },
+  "train": {
+    "train_seconds": 8916.785732030869
+  },
+  "history_tail": [
+    {
+      "step": 2900,
+      "noul": 0.16707048445940018,
+      "span": 0.24034894168376922,
+      "choice": 9.341982308342267e-05,
+      "embed": 0.0011780335978255607,
+      "lm": 0.0,
+      "total": 0.40810186564922335
+    },
+    {
+      "step": 2925,
+      "noul": 0.17246123179793357,
+      "span": 0.19710784330964087,
+      "choice": 0.01623282921831077,
+      "embed": 0.0023869901444413697,
+      "lm": 0.0,
+      "total": 0.38699539840221403
+    },
+    {
+      "step": 2950,
+      "noul": 0.16896917194128036,
+      "span": 0.20671818345785142,
+      "choice": 6.948825937797665e-05,
+      "embed": 0.004120851985717309,
+      "lm": 0.0,
+      "total": 0.377817268371582
+    },
+    {
+      "step": 2975,
+      "noul": 0.17880351930856705,
+      "span": 0.18060410737991334,
+      "choice": 6.522993165162916e-05,
+      "embed": 0.0017919174036069307,
+      "lm": 0.0,
+      "total": 0.3603688132762909
+    },
+    {
+      "step": 3000,
+      "noul": 0.18162366718053818,
+      "span": 0.20617134556174277,
+      "choice": 0.042227071423833425,
+      "embed": 0.013537975630679284,
+      "lm": 0.0,
+      "total": 0.4367910724878311
+    }
+  ]
+}

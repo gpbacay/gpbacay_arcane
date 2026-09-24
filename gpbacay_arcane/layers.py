@@ -8,6 +8,7 @@ from .mechanisms import (
     RMSNorm,
     ResonantSequenceMixer,
     SpatioTemporalSummaryMixingLayer,
+    ConceptEngram,
 )
 
 class ExpandDimensionLayer(tf.keras.layers.Layer):
@@ -862,6 +863,218 @@ class ArcaneDecoderBlock(tf.keras.layers.Layer):
                 "gate_normalize": self.gate_normalize,
                 "ffn_out_activation": self.ffn_out_activation,
                 "norm_type": self.norm_type,
+            }
+        )
+        return config
+
+
+class ResonantChannelMixer(tf.keras.layers.Layer):
+    """Cheap channel mixer: low-rank expand + DenseGSER gate + project.
+
+    Replaces a dense ``d * ffn_mult`` FFN with a bottleneck of width
+    ``d_model // rank_div`` so most ARC 1 capacity can sit in ConceptEngram
+    tables instead of matmuls.
+    """
+
+    def __init__(
+        self,
+        d_model,
+        rank_div=4,
+        leak_rate=0.1,
+        spike_threshold=0.4,
+        dropout_rate=0.0,
+        gate_normalize=True,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.d_model = int(d_model)
+        self.rank_div = max(2, int(rank_div))
+        self.leak_rate = float(leak_rate)
+        self.spike_threshold = float(spike_threshold)
+        self.dropout_rate = float(dropout_rate)
+        self.gate_normalize = bool(gate_normalize)
+        self.inner = max(self.d_model // self.rank_div, 16)
+
+    def build(self, input_shape):
+        self.down = tf.keras.layers.Dense(self.inner, use_bias=True, name="mix_down")
+        self.up = tf.keras.layers.Dense(self.d_model, use_bias=True, name="mix_up")
+        self.gser = DenseGSER(
+            units=self.d_model,
+            leak_rate=self.leak_rate,
+            spike_threshold=self.spike_threshold,
+            activation="gelu",
+            use_conceptual_gate=True,
+            gate_normalize=self.gate_normalize,
+            name="mix_gser",
+        )
+        self.drop = tf.keras.layers.Dropout(self.dropout_rate)
+        self.down.build(input_shape)
+        mid = list(input_shape)
+        mid[-1] = self.inner
+        self.up.build(mid)
+        self.gser.build(input_shape)
+        super().build(input_shape)
+
+    def call(self, inputs, training=False):
+        h = self.up(self.down(inputs))
+        h = self.gser(h)
+        return self.drop(h, training=training)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update(
+            {
+                "d_model": self.d_model,
+                "rank_div": self.rank_div,
+                "leak_rate": self.leak_rate,
+                "spike_threshold": self.spike_threshold,
+                "dropout_rate": self.dropout_rate,
+                "gate_normalize": self.gate_normalize,
+            }
+        )
+        return config
+
+
+class Arc1DecoderBlock(tf.keras.layers.Layer):
+    """ARC 1 block: causal attn → ResonantChannelMixer → ConceptEngram → resonance."""
+
+    def __init__(
+        self,
+        d_model,
+        num_heads,
+        dropout_rate=0.1,
+        resonance_factor=0.15,
+        resonance_cycles=3,
+        spike_threshold=0.4,
+        leak_rate=0.1,
+        attention_type="linear",
+        use_rope=True,
+        rope_base=10000.0,
+        max_position=2048,
+        chunk_size=64,
+        use_decay=True,
+        reweight_centered=True,
+        gate_normalize=True,
+        norm_type="rms",
+        mixer_rank_div=4,
+        engram_table_size=4096,
+        engram_rows=8,
+        ngram_sizes=(2, 3),
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.dropout_rate = dropout_rate
+        self.resonance_factor = resonance_factor
+        self.resonance_cycles = resonance_cycles
+        self.spike_threshold = spike_threshold
+        self.leak_rate = leak_rate
+        self.attention_type = attention_type
+        self.use_rope = use_rope
+        self.rope_base = rope_base
+        self.max_position = max_position
+        self.chunk_size = chunk_size
+        self.use_decay = use_decay
+        self.reweight_centered = reweight_centered
+        self.gate_normalize = gate_normalize
+        self.norm_type = norm_type
+        self.mixer_rank_div = mixer_rank_div
+        self.engram_table_size = engram_table_size
+        self.engram_rows = engram_rows
+        self.ngram_sizes = tuple(ngram_sizes)
+
+        if attention_type == "softmax":
+            self.attn = CausalSoftmaxSelfAttention(
+                d_model=d_model,
+                num_heads=num_heads,
+                dropout_rate=dropout_rate,
+                use_rope=use_rope,
+                rope_base=rope_base,
+                max_position=max_position,
+                name="causal_softmax_attn",
+            )
+        elif attention_type == "linear":
+            self.attn = CausalLinearSelfAttention(
+                d_model=d_model,
+                num_heads=num_heads,
+                dropout_rate=dropout_rate,
+                chunk_size=chunk_size,
+                use_decay=use_decay,
+                use_rope=use_rope,
+                rope_base=rope_base,
+                max_position=max_position,
+                reweight_centered=reweight_centered,
+                name="causal_linear_attn",
+            )
+        else:
+            raise ValueError(f"attention_type must be 'linear' or 'softmax', got {attention_type!r}")
+
+        self.mixer = ResonantChannelMixer(
+            d_model=d_model,
+            rank_div=mixer_rank_div,
+            leak_rate=leak_rate,
+            spike_threshold=spike_threshold,
+            dropout_rate=dropout_rate,
+            gate_normalize=gate_normalize,
+            name="channel_mixer",
+        )
+        self.engram = ConceptEngram(
+            d_model=d_model,
+            table_size=engram_table_size,
+            ngram_sizes=self.ngram_sizes,
+            rows_per_token=engram_rows,
+            leak_rate=leak_rate,
+            spike_threshold=spike_threshold,
+            name="concept_engram",
+        )
+        self.resonance = ResonantSequenceMixer(
+            d_model=d_model,
+            resonance_factor=resonance_factor,
+            resonance_cycles=resonance_cycles,
+            spike_threshold=spike_threshold,
+            name="resonant_mixer",
+        )
+        self.mix_norm = (
+            RMSNorm(eps=1e-6) if norm_type == "rms"
+            else tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        )
+        self.engram_norm = (
+            RMSNorm(eps=1e-6) if norm_type == "rms"
+            else tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        )
+
+    def call(self, inputs, token_ids=None, training=False):
+        x = self.attn(inputs, training=training)
+        h = self.mixer(x, training=training)
+        x = self.mix_norm(x + h)
+        x = self.engram_norm(self.engram(x, token_ids=token_ids, training=training))
+        return self.resonance(x, training=training)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update(
+            {
+                "d_model": self.d_model,
+                "num_heads": self.num_heads,
+                "dropout_rate": self.dropout_rate,
+                "resonance_factor": self.resonance_factor,
+                "resonance_cycles": self.resonance_cycles,
+                "spike_threshold": self.spike_threshold,
+                "leak_rate": self.leak_rate,
+                "attention_type": self.attention_type,
+                "use_rope": self.use_rope,
+                "rope_base": self.rope_base,
+                "max_position": self.max_position,
+                "chunk_size": self.chunk_size,
+                "use_decay": self.use_decay,
+                "reweight_centered": self.reweight_centered,
+                "gate_normalize": self.gate_normalize,
+                "norm_type": self.norm_type,
+                "mixer_rank_div": self.mixer_rank_div,
+                "engram_table_size": self.engram_table_size,
+                "engram_rows": self.engram_rows,
+                "ngram_sizes": self.ngram_sizes,
             }
         )
         return config

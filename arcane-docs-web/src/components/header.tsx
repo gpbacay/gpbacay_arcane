@@ -98,6 +98,12 @@ export function SiteHeader() {
               Chat
             </Link>
             <Link
+              href="/docs/arc-1"
+              className="text-zinc-400 transition-colors hover:text-zinc-100"
+            >
+              ARC 1
+            </Link>
+            <Link
               href="/docs/blog"
               className="text-zinc-400 transition-colors hover:text-zinc-100"
             >
@@ -153,6 +159,13 @@ export function SiteHeader() {
                 Chat
               </Link>
               <Link
+                href="/docs/arc-1"
+                className="flex items-center text-lg font-bold text-zinc-400 hover:text-zinc-100 transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                ARC 1
+              </Link>
+              <Link
                 href="/docs/blog"
                 className="flex items-center text-lg font-bold text-zinc-400 hover:text-zinc-100 transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
@@ -185,6 +198,7 @@ export function SiteHeader() {
             <CommandGroup key={group.title} heading={group.title}>
               {group.items.map((item) => {
                 const Icon = 
+                  item.title.includes("ARC 1") ? Cpu :
                   item.title.includes("Chat") ? MessageSquare :
                   item.title.includes("Introduction") ? FileText :
                   item.title.includes("Installation") || item.title.includes("Quick Start") ? Zap :

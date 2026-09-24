@@ -67,6 +67,21 @@ class BytePairTokenizer:
             ids = ids + [EOS_ID]
         return ids
 
+    def encode_with_offsets(self, text: str) -> Tuple[List[int], List[Tuple[int, int]]]:
+        """Encode ``text`` and return each token's ``[start, end)`` UTF-8 byte range.
+
+        Merges never cross token boundaries, so tokens tile the byte string and
+        offsets are cumulative expanded lengths.
+        """
+        ids = self.encode(text)
+        inverse = {BASE_VOCAB + i: pair for i, pair in enumerate(self.merges)}
+        offsets, pos = [], 0
+        for tok in ids:
+            width = len(_expand_token(tok, inverse)) if tok >= BASE_VOCAB else 1
+            offsets.append((pos, pos + width))
+            pos += width
+        return ids, offsets
+
     def decode(self, token_ids: Sequence[int]) -> str:
         pieces: List[int] = []
         inverse = {BASE_VOCAB + i: pair for i, pair in enumerate(self.merges)}
