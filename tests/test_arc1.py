@@ -11,7 +11,7 @@ import tensorflow as tf
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from gpbacay_arcane.arc1 import Arc1Config, Arc1Model
+from gpbacay_arcane.arc1 import Arc1Config, Arc1LanguageModel, Arc1Model
 from gpbacay_arcane.arc1_codec import (
     ROLE_BOOL,
     ROLE_ENUM,
@@ -472,6 +472,21 @@ def test_validate_and_heuristic():
     assert calls == [{"name": "get_weather", "arguments": {"city": "Tokyo"}}]
     assert heuristic_tool_match("what's the weather in Lagos?", tools)[0]["arguments"]["city"] == "Lagos"
     assert heuristic_tool_match("dim the living room to 30", tools)[0]["arguments"]["level"] == 30
+
+
+def test_arc1_language_model_is_causal():
+    tf.random.set_seed(0)
+    lm = Arc1LanguageModel(Arc1Config(vocab_size=64, d_model=32, num_layers=2, num_heads=4, seq_len=16,
+                                      engram_table_size=128, dropout_rate=0.0))
+    x = np.random.RandomState(0).randint(2, 64, (1, 16)).astype(np.int32)
+    y = x.copy()
+    y[0, 10] = 1
+    a, b = lm(x).numpy(), lm(y).numpy()
+    assert a.shape == (1, 16, 64)
+    np.testing.assert_allclose(a[0, :10], b[0, :10], atol=1e-5)  # the past never sees the future
+    assert np.abs(a[0, 10:] - b[0, 10:]).max() > 1e-4
+    out = lm.generate([1, 5, 6], max_new_tokens=4, eos_id=None)
+    assert len(out) == 7 and all(0 <= t < 64 for t in out)
 
 
 if __name__ == "__main__":

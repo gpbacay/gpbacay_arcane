@@ -10,6 +10,11 @@ Example::
         --shards "data/qwen_shards/*.tfrecord" \
         --preset distill --steps 20000 --batch-size 8
 
+``--arch arc1`` distils into ``Arc1LanguageModel`` (ARC 1's perception stack
+run causally, ~10M params) instead; it trains in minutes on CPU::
+
+    python examples/distill_arcane_slm.py --arch arc1 --steps 1500
+
 ``--baseline-transformer`` swaps in a parameter-matched vanilla transformer
 student instead. Run both on identical shards: if ARCANE tracks the baseline's
 KL-to-teacher curve its mechanisms are free, and if it plateaus higher you have
@@ -41,7 +46,10 @@ def parse_args():
     p.add_argument("--meta", default=None, help="meta.json from the dump (defaults beside shards)")
     from gpbacay_arcane.language_model import SLM_PRESETS
 
-    p.add_argument("--preset", default="distill", choices=sorted(SLM_PRESETS))
+    p.add_argument("--arch", default="slm", choices=["slm", "arc1"],
+                   help="slm = ArcaneSmallLanguageModel, arc1 = Arc1LanguageModel.")
+    p.add_argument("--preset", default=None,
+                   help=f"slm: {sorted(SLM_PRESETS)} (default distill); arc1: arc1-lm (default)")
     p.add_argument("--steps", type=int, default=20_000)
     p.add_argument("--batch-size", type=int, default=8)
     p.add_argument("--peak-lr", type=float, default=3e-4)
@@ -56,8 +64,9 @@ def parse_args():
                    help="Shards reserved for validation (0 = evaluate on training data).")
     p.add_argument("--time-budget-min", type=float, default=None,
                    help="Stop cleanly after this many minutes, saving what is trained.")
-    p.add_argument("--checkpoint", default="Models/arcane_slm_distilled.weights.h5")
-    p.add_argument("--history", default="Models/arcane_slm_distill_history.json")
+    p.add_argument("--checkpoint", default=None,
+                   help="default Models/arcane_slm_distilled.weights.h5 (slm) or Models/arc1_lm.weights.h5 (arc1)")
+    p.add_argument("--history", default=None)
     p.add_argument("--vocab-adapter", default="Models/qwen_vocab_adapter.json")
     p.add_argument("--warm-start-embedding", action="store_true",
                    help="Initialise the embedding from Qwen's, PCA-projected to d_model.")
@@ -72,7 +81,13 @@ def parse_args():
         "one iteration (identical output; typically faster on CPU).",
     )
     p.add_argument("--generate", default=None, help="Sample from this prompt after training.")
-    return p.parse_args()
+    args = p.parse_args()
+    arc1 = args.arch == "arc1"
+    args.preset = args.preset or ("arc1-lm" if arc1 else "distill")
+    stem = "Models/arc1_lm" if arc1 else "Models/arcane_slm_distilled"
+    args.checkpoint = args.checkpoint or f"{stem}.weights.h5"
+    args.history = args.history or ("Models/arc1_lm_history.json" if arc1 else "Models/arcane_slm_distill_history.json")
+    return args
 
 
 def build_baseline(cfg: ArcaneSLMConfig) -> tf.keras.Model:
@@ -150,20 +165,24 @@ def main():
     overrides = {"vocab_size": vocab_size, "seq_len": seq_len}
     if args.chunk_size is not None:
         overrides["chunk_size"] = args.chunk_size
-    cfg = ArcaneSLMConfig.from_preset(args.preset, **overrides)
-    if args.baseline_transformer:
+    if args.arch == "arc1":
+        from gpbacay_arcane.arc1 import Arc1Config, Arc1LanguageModel
+
+        overrides.pop("chunk_size", None)
+        cfg = Arc1Config.from_preset(args.preset, **overrides)
+        student = Arc1LanguageModel(cfg)
+        label = f"arc1-lm ({args.preset})"
+    elif args.baseline_transformer:
+        cfg = ArcaneSLMConfig.from_preset(args.preset, **overrides)
         student = build_baseline(cfg)
         label = "baseline-transformer"
     else:
+        cfg = ArcaneSLMConfig.from_preset(args.preset, **overrides)
         student = ArcaneSmallLanguageModel(cfg)
         label = f"arcane-{args.preset}"
     student(tf.zeros((1, seq_len), dtype=tf.int32), training=False)
     trainable = int(np.sum([tf.keras.backend.count_params(w) for w in student.trainable_weights]))
-    attn_map = "".join("S" if k == "softmax" else "L" for k in cfg.attention_types())
-    print(
-        f"student: {label} | {trainable:,} trainable params | attention {attn_map} "
-        f"| chunk_size {cfg.chunk_size}"
-    )
+    print(f"student: {label} | {trainable:,} trainable params (~{trainable * 4 / 1e6:.0f} MB fp32)")
 
     if args.warm_start_embedding and not args.baseline_transformer:
         from gpbacay_arcane.qwen_vocab import QwenVocabAdapter, project_qwen_embeddings

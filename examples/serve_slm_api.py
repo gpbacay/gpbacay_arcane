@@ -14,7 +14,8 @@ Tokenizer, in priority order:
   3. byte-level fallback with no merges
 
 If nothing is set, the server auto-discovers a distilled checkpoint in Models/
-and falls back to the tiny preset.
+(ARC 1 LM ``arc1_lm.*`` first, then ``arcane_slm_distilled.*``) and falls back
+to the tiny preset. A config with ARC 1 keys builds ``Arc1LanguageModel``.
 
 Run from repo root:
   python examples/serve_slm_api.py
@@ -49,6 +50,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from gpbacay_arcane.arc1 import Arc1Config, Arc1LanguageModel
 from gpbacay_arcane.language_model import ArcaneSLMConfig, ArcaneSmallLanguageModel
 from gpbacay_arcane.tokenization import BASE_VOCAB, EOS_ID, BytePairTokenizer
 
@@ -77,11 +79,17 @@ def _first_existing(*paths: str) -> str:
 
 # Auto-discovery: a distilled checkpoint wins over the tiny default, because if
 # one exists it is almost certainly what the operator wants served.
-DISTILLED_CONFIG = os.path.join(MODELS_DIR, "arcane_slm_distilled.config.json")
-DISTILLED_WEIGHTS = os.path.join(MODELS_DIR, "arcane_slm_distilled.weights.h5")
 DISTILLED_ADAPTER = os.path.join(MODELS_DIR, "qwen_vocab_adapter.json")
+# (config, weights) pairs, most preferred first; the first complete pair wins.
+_CANDIDATES = [
+    (os.path.join(MODELS_DIR, f"{stem}.config.json"), os.path.join(MODELS_DIR, f"{stem}.weights.h5"))
+    for stem in ("arc1_lm", "arcane_slm_distilled")
+]
+DISTILLED_CONFIG, DISTILLED_WEIGHTS = next(
+    ((c, w) for c, w in _CANDIDATES if os.path.exists(c) and os.path.exists(w)), ("", "")
+)
 
-CONFIG_PATH = _env("SLM_CONFIG_PATH") or _first_existing(DISTILLED_CONFIG)
+CONFIG_PATH = _env("SLM_CONFIG_PATH") or DISTILLED_CONFIG
 PRESET = (_env("SLM_PRESET") or ("distill" if CONFIG_PATH else "tiny")).lower()
 
 WEIGHTS_PATH = _env("SLM_WEIGHTS_PATH") or _first_existing(
@@ -95,7 +103,7 @@ TOKENIZER_PATH = _env("SLM_TOKENIZER_PATH") or _first_existing(
     os.path.join(MODELS_DIR, f"arcane_slm_{PRESET}_tokenizer.json")
 )
 
-_model: Optional[ArcaneSmallLanguageModel] = None
+_model: Any = None
 _tokenizer: Any = None
 _allowed_ids: Optional[List[int]] = None
 _state = {
@@ -140,10 +148,14 @@ def _build_prompt(history: List[ChatTurn], message: str) -> str:
     return "\n".join(parts)
 
 
-def _load_config() -> ArcaneSLMConfig:
+def _load_config():
+    """Return ``(config, model_class)``."""
     if CONFIG_PATH:
         with open(CONFIG_PATH, encoding="utf-8") as f:
             payload = json.load(f)
+        if "engram_table_size" in payload:
+            print(f"[slm] Loaded ARC 1 LM config {CONFIG_PATH}")
+            return Arc1Config.from_dict(payload), Arc1LanguageModel
         # Tolerate configs written by a newer/older version of the dataclass.
         known = {f for f in ArcaneSLMConfig.__dataclass_fields__}
         filtered = {k: v for k, v in payload.items() if k in known}
@@ -151,9 +163,9 @@ def _load_config() -> ArcaneSLMConfig:
         if dropped:
             print(f"[slm] Ignoring unknown config keys: {sorted(dropped)}")
         print(f"[slm] Loaded config {CONFIG_PATH}")
-        return ArcaneSLMConfig(**filtered)
+        return ArcaneSLMConfig(**filtered), ArcaneSmallLanguageModel
     print(f"[slm] Using preset '{PRESET}'")
-    return ArcaneSLMConfig.from_preset(PRESET)
+    return ArcaneSLMConfig.from_preset(PRESET), ArcaneSmallLanguageModel
 
 
 def _load_tokenizer(vocab_size: int):
@@ -177,13 +189,13 @@ def _load_tokenizer(vocab_size: int):
 def _load_model() -> None:
     global _model, _tokenizer, _allowed_ids
     try:
-        config = _load_config()
+        config, model_cls = _load_config()
         print(
-            f"[slm] Building ArcaneSmallLanguageModel "
+            f"[slm] Building {model_cls.__name__} "
             f"d_model={config.d_model} layers={config.num_layers} "
             f"vocab={config.vocab_size} seq_len={config.seq_len}"
         )
-        model = ArcaneSmallLanguageModel(config)
+        model = model_cls(config)
         model.build_model()
 
         trained = False
@@ -209,7 +221,7 @@ def _load_model() -> None:
             vocab_size=config.vocab_size,
             parameters=int(model.count_params()),
             distilled=bool(VOCAB_ADAPTER_PATH and trained),
-            preset="distilled" if CONFIG_PATH else PRESET,
+            preset=("arc1-lm" if model_cls is Arc1LanguageModel else "distilled") if CONFIG_PATH else PRESET,
         )
         print(f"[slm] Ready ({_state['parameters']:,} params, tokenizer={label})")
     except Exception as exc:

@@ -118,7 +118,7 @@ export function SlmChat() {
     <div className="not-prose flex flex-col border border-zinc-800 bg-zinc-950/80 min-h-[520px] h-[min(68vh,640px)]">
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-zinc-800">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">ARCANE SLM</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">ARC 1 SLM</p>
           <p className="text-sm text-zinc-300">
             {health?.preset ? `${health.preset} decoder` : "Causal decoder"}
           </p>
@@ -132,11 +132,11 @@ export function SlmChat() {
       <div ref={scrollerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 && (
           <div className="h-full min-h-[280px] flex flex-col items-center justify-center text-center px-6">
-            <p className="text-zinc-200 font-medium">Chat with the ARCANE small language model</p>
+            <p className="text-zinc-200 font-medium">Chat with ARC 1, ARCANE&apos;s small language model</p>
             <p className="text-sm text-zinc-500 mt-2 max-w-md">
               {health?.ready
                 ? health.trained
-                  ? "Weights are loaded. The tiny checkpoint continues text (Shakespeare-style), not a chat-tuned assistant."
+                  ? "Weights are loaded. This is a small next-token model: it continues your text rather than following instructions."
                   : "The decoder is live, but weights are random until you pretrain. Replies will look like noise."
                 : "Start the local SLM API to talk to the real TensorFlow model."}
             </p>

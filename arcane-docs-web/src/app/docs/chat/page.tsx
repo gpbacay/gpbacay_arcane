@@ -9,9 +9,10 @@ export default function ChatPage() {
           Chat with ARCANE
         </h1>
         <p className="text-xl text-zinc-400">
-          Talk to the causal{" "}
-          <code className="text-[#C785F2] bg-zinc-900 px-1.5 py-0.5">ArcaneSmallLanguageModel</code>
-          — linear attention, DenseGSER, bioplastic projection, and resonance.
+          Talk to{" "}
+          <code className="text-[#C785F2] bg-zinc-900 px-1.5 py-0.5">Arc1LanguageModel</code>
+          — ARC 1&apos;s perception stack (FieldAttention, ResonantChannelMixer, ConceptEngram, FieldResonance)
+          run causally as a ~10M-parameter (~40 MB) small language model, distilled from Qwen2.5-0.5B.
         </p>
       </div>
 
@@ -26,12 +27,13 @@ export default function ChatPage() {
         </h2>
         <p className="leading-relaxed">
           The page calls a same-origin proxy at <code className="bg-zinc-900 px-1.5 py-0.5">/api/slm-chat</code>,
-          which forwards to the Python SLM server. That server loads{" "}
-          <Link href="/docs/foundation-model" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
-            ArcaneSmallLanguageModel
+          which forwards to the Python SLM server. That server loads the{" "}
+          <Link href="/docs/arc-1" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
+            ARC 1
           </Link>{" "}
-          and samples next tokens. The default API preset is <strong>tiny</strong> so CPU inference stays usable.
-          Set <code className="bg-zinc-900 px-1.5 py-0.5">SLM_PRESET=100m</code> for the ~100M decoder.
+          language model and samples next tokens. It is the same architecture as the ARC 1 decision model, with
+          two changes: attention gets a causal mask, and field resonance harmonizes each token toward the running
+          mean of its prefix instead of the whole field. A tied embedding head turns the field into next-token logits.
         </p>
 
         <div className="rounded-none border border-amber-900/50 bg-amber-900/10 p-4 not-prose">
@@ -44,9 +46,9 @@ export default function ChatPage() {
             <code className="bg-zinc-900 px-1.5 py-0.5">.env.local</code>.
           </p>
           <p className="text-sm text-amber-200 mt-2">
-            Without <code className="bg-zinc-900 px-1.5 py-0.5">SLM_WEIGHTS_PATH</code> the model is randomly initialized,
-            so replies will not be coherent. Train first with{" "}
-            <code className="bg-zinc-900 px-1.5 py-0.5">python examples/train_arcane_slm.py</code>.
+            Train it (minutes on CPU) with{" "}
+            <code className="bg-zinc-900 px-1.5 py-0.5">python examples/distill_arcane_slm.py --arch arc1</code>.
+            The server picks up <code className="bg-zinc-900 px-1.5 py-0.5">Models/arc1_lm.weights.h5</code> automatically.
           </p>
         </div>
       </div>

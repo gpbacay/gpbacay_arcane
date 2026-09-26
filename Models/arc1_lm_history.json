@@ -1,0 +1,64 @@
+{
+  "student": "arc1-lm (arc1-lm)",
+  "config": {
+    "vocab_size": 8000,
+    "d_model": 256,
+    "num_layers": 6,
+    "num_heads": 8,
+    "seq_len": 256,
+    "schema_len": 64,
+    "dropout_rate": 0.05,
+    "resonance_factor": 0.15,
+    "resonance_cycles": 3,
+    "spike_threshold": 0.4,
+    "leak_rate": 0.1,
+    "pad_id": 0,
+    "use_rope": true,
+    "gate_normalize": true,
+    "mixer_rank_div": 2,
+    "engram_table_size": 16384,
+    "engram_rows": 8,
+    "ngram_sizes": [
+      2,
+      3
+    ],
+    "binding_heads": 8,
+    "binding_cycles": 1,
+    "active_cycles": null,
+    "calibration": {
+      "fire": 1.0,
+      "anchor": 1.0,
+      "select": 1.0
+    }
+  },
+  "history": [
+    {
+      "loss": 4.040695887345534,
+      "ce": 6.14750939149123,
+      "kd": 0.6590383511323196,
+      "ppl": 467.5514478221416,
+      "step": 250
+    },
+    {
+      "loss": 3.9630050842578592,
+      "ce": 6.00053673524123,
+      "kd": 0.6511626289441035,
+      "ppl": 403.64538606476304,
+      "step": 500
+    },
+    {
+      "loss": 3.967356590124277,
+      "ce": 5.98414160655095,
+      "kd": 0.6557082763084998,
+      "ppl": 397.08152273698937,
+      "step": 750
+    },
+    {
+      "loss": 3.9623090487260084,
+      "ce": 6.0019510342524605,
+      "kd": 0.6506368472025945,
+      "ppl": 404.21666521970945,
+      "step": 829
+    }
+  ]
+}

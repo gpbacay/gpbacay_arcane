@@ -73,7 +73,7 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
         { 
           title: "Chat with ARCANE", 
           href: "/docs/chat",
-          keywords: ["chat", "slm", "language model", "generate", "talk", "100m", "tiny", "inference"]
+          keywords: ["chat", "slm", "arc 1", "arc1", "language model", "generate", "talk", "tiny", "inference"]
         },
         { 
           title: "Foundation Model", 

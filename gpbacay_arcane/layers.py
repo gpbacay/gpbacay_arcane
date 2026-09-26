@@ -962,9 +962,13 @@ class Arc1PerceptionBlock(tf.keras.layers.Layer):
         engram_table_size=4096,
         engram_rows=4,
         ngram_sizes=(2, 3),
+        causal=False,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        # ConceptEngram n-grams already look backward only, so causal just
+        # switches attention and resonance to prefix-only.
+        self.causal = bool(causal)
         self.d_model = int(d_model)
         self.num_heads = int(num_heads)
         self.dropout_rate = float(dropout_rate)
@@ -988,6 +992,7 @@ class Arc1PerceptionBlock(tf.keras.layers.Layer):
             dropout_rate=self.dropout_rate,
             use_rope=self.use_rope,
             max_position=self.max_position,
+            causal=self.causal,
             name="field_attention",
         )
         self.mix_norm = RMSNorm(eps=1e-6, name="mix_norm")
@@ -1018,6 +1023,7 @@ class Arc1PerceptionBlock(tf.keras.layers.Layer):
             resonance_factor=self.resonance_factor,
             resonance_cycles=self.resonance_cycles,
             spike_threshold=self.spike_threshold,
+            causal=self.causal,
             name="field_resonance",
         )
         self.out_norm = RMSNorm(eps=1e-6, name="out_norm")
@@ -1056,6 +1062,7 @@ class Arc1PerceptionBlock(tf.keras.layers.Layer):
                 "engram_table_size": self.engram_table_size,
                 "engram_rows": self.engram_rows,
                 "ngram_sizes": self.ngram_sizes,
+                "causal": self.causal,
             }
         )
         return config

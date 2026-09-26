@@ -1545,8 +1545,9 @@ class FieldAttention(Layer):
     """
 
     def __init__(self, d_model, num_heads, dropout_rate=0.0, use_rope=True,
-                 rope_base=10000.0, max_position=1024, **kwargs):
+                 rope_base=10000.0, max_position=1024, causal=False, **kwargs):
         super().__init__(**kwargs)
+        self.causal = bool(causal)  # True: token t sees only tokens <= t (ARC 1 LM)
         if d_model % num_heads != 0:
             raise ValueError("d_model must be divisible by num_heads")
         self.d_model = int(d_model)
@@ -1582,6 +1583,9 @@ class FieldAttention(Layer):
         if token_mask is not None:
             keys = tf.reshape(tf.cast(token_mask, tf.bool), (batch, 1, 1, seq))
             scores = tf.where(keys, scores, tf.cast(_MASK_NEG, inputs.dtype))
+        if self.causal:
+            past = tf.linalg.band_part(tf.ones((seq, seq), dtype=tf.bool), -1, 0)
+            scores = tf.where(past, scores, tf.cast(_MASK_NEG, inputs.dtype))
         weights = self.dropout(tf.nn.softmax(scores, axis=-1), training=training)
         context = tf.transpose(tf.matmul(weights, v), perm=[0, 2, 1, 3])
         context = tf.reshape(context, (batch, seq, self.d_model))
@@ -1592,6 +1596,7 @@ class FieldAttention(Layer):
         config.update({
             "d_model": self.d_model, "num_heads": self.num_heads, "dropout_rate": self.dropout_rate,
             "use_rope": self.use_rope, "rope_base": self.rope_base, "max_position": self.max_position,
+            "causal": self.causal,
         })
         return config
 
@@ -1606,8 +1611,9 @@ class FieldResonance(Layer):
     """
 
     def __init__(self, d_model, resonance_factor=0.15, resonance_cycles=3, spike_threshold=0.4,
-                 **kwargs):
+                 causal=False, **kwargs):
         super().__init__(**kwargs)
+        self.causal = bool(causal)  # True: prototype is the running mean of tokens <= t
         self.d_model = int(d_model)
         self.resonance_factor = float(resonance_factor)
         self.resonance_cycles = int(resonance_cycles)
@@ -1629,8 +1635,11 @@ class FieldResonance(Layer):
         if token_mask is None:
             token_mask = tf.ones(tf.shape(inputs)[:2], dtype=tf.bool)
         m = tf.expand_dims(tf.cast(token_mask, dtype), -1)
-        prototype = tf.reduce_sum(inputs * m, axis=1, keepdims=True) / tf.maximum(
-            tf.reduce_sum(m, axis=1, keepdims=True), 1.0)
+        if self.causal:
+            prototype = tf.cumsum(inputs * m, axis=1) / tf.maximum(tf.cumsum(m, axis=1), 1.0)
+        else:
+            prototype = tf.reduce_sum(inputs * m, axis=1, keepdims=True) / tf.maximum(
+                tf.reduce_sum(m, axis=1, keepdims=True), 1.0)
         prototype = tf.matmul(prototype, self.projection_kernel)
         alpha = tf.clip_by_value(tf.cast(self.resonance_factor, dtype), 0.0, 0.99)
         decay = tf.pow(1.0 - alpha, tf.cast(self.resonance_cycles, dtype))
@@ -1644,6 +1653,7 @@ class FieldResonance(Layer):
         config.update({
             "d_model": self.d_model, "resonance_factor": self.resonance_factor,
             "resonance_cycles": self.resonance_cycles, "spike_threshold": self.spike_threshold,
+            "causal": self.causal,
         })
         return config
 

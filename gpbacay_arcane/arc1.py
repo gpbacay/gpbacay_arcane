@@ -2,7 +2,8 @@
 
 ARC 1 is an ultra-compact, non-autoregressive "System 1" decision model: it
 maps text plus a schema (tools, a record, or a label set) to typed, grounded,
-calibrated decisions in one forward pass. It does not generate text.
+calibrated decisions in one forward pass. It does not generate text; the
+causal variant ``Arc1LanguageModel`` (bottom of this file) does.
 
 Pipeline
 --------
@@ -35,7 +36,7 @@ Each readout has a temperature fitted on held-out data (``calibration``).
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import tensorflow as tf
 
@@ -56,6 +57,18 @@ ARC1_PRESETS: Dict[str, Dict] = {
         "engram_rows": 4,
         "binding_heads": 4,
         "binding_cycles": 3,
+    },
+    # Causal LM (Arc1LanguageModel) sized for fast CPU distillation: ~10M params, ~40 MB.
+    "arc1-lm": {
+        "vocab_size": 8000,
+        "d_model": 256,
+        "num_layers": 6,
+        "num_heads": 8,
+        "seq_len": 256,
+        "engram_table_size": 16384,
+        "engram_rows": 8,
+        "binding_heads": 8,
+        "binding_cycles": 1,
     },
     "arc1": {
         "vocab_size": 2048,
@@ -148,6 +161,31 @@ class Arc1Config:
         return Arc1Config.from_dict(data)
 
 
+def _perception_blocks(cfg: Arc1Config, causal: bool = False) -> List[Arc1PerceptionBlock]:
+    return [
+        Arc1PerceptionBlock(
+            d_model=cfg.d_model,
+            num_heads=cfg.num_heads,
+            dropout_rate=cfg.dropout_rate,
+            resonance_factor=cfg.resonance_factor,
+            resonance_cycles=cfg.resonance_cycles,
+            spike_threshold=cfg.spike_threshold,
+            leak_rate=cfg.leak_rate,
+            use_rope=cfg.use_rope,
+            max_position=max(cfg.seq_len, cfg.schema_len, 128),
+            gate_normalize=cfg.gate_normalize,
+            mixer_rank_div=cfg.mixer_rank_div,
+            use_engram=(i == 0),  # one lexical memory at the bottom of the stack
+            engram_table_size=cfg.engram_table_size,
+            engram_rows=cfg.engram_rows,
+            ngram_sizes=cfg.ngram_sizes,
+            causal=causal,
+            name=f"perception_{i}",
+        )
+        for i in range(cfg.num_layers)
+    ]
+
+
 class Arc1Model(tf.keras.Model):
     """Resonant Schema Binding model: perceive once, bind every schema probe, read out."""
 
@@ -161,27 +199,7 @@ class Arc1Model(tf.keras.Model):
 
         self.token_embedding = tf.keras.layers.Embedding(cfg.vocab_size, d, name="token_embedding")
         self.embed_dropout = tf.keras.layers.Dropout(cfg.dropout_rate)
-        self.blocks = [
-            Arc1PerceptionBlock(
-                d_model=d,
-                num_heads=cfg.num_heads,
-                dropout_rate=cfg.dropout_rate,
-                resonance_factor=cfg.resonance_factor,
-                resonance_cycles=cfg.resonance_cycles,
-                spike_threshold=cfg.spike_threshold,
-                leak_rate=cfg.leak_rate,
-                use_rope=cfg.use_rope,
-                max_position=max(cfg.seq_len, cfg.schema_len, 128),
-                gate_normalize=cfg.gate_normalize,
-                mixer_rank_div=cfg.mixer_rank_div,
-                use_engram=(i == 0),  # one lexical memory at the bottom of the stack
-                engram_table_size=cfg.engram_table_size,
-                engram_rows=cfg.engram_rows,
-                ngram_sizes=cfg.ngram_sizes,
-                name=f"perception_{i}",
-            )
-            for i in range(cfg.num_layers)
-        ]
+        self.blocks = _perception_blocks(cfg)
         # Attention pooling: one score per token, separately for schemas and utterances.
         self.schema_pool = tf.keras.layers.Dense(1, name="schema_pool")
         self.schema_proj = tf.keras.layers.Dense(d, name="schema_proj")
@@ -347,3 +365,59 @@ class Arc1Model(tf.keras.Model):
             "active_cycles": self.arc1_config.resolve_cycles(cycles),
             "config": self.arc1_config.to_dict(),
         }
+
+
+class Arc1LanguageModel(tf.keras.Model):
+    """ARC 1 as a small causal language model (the docs chat model).
+
+    Same perception stack as ``Arc1Model`` (FieldAttention -> ResonantChannelMixer
+    -> ConceptEngram -> FieldResonance) run in causal mode, plus a tied
+    embedding / LM head. Exposes ``slm_config`` and ``generate`` so it is a
+    drop-in for ``ArcaneSmallLanguageModel`` in distillation and serving.
+    """
+
+    def __init__(self, config: Optional[Arc1Config] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.slm_config = config or Arc1Config.from_preset("arc1-lm")
+        cfg = self.slm_config
+        self.token_embedding = tf.keras.layers.Embedding(cfg.vocab_size, cfg.d_model, name="token_embedding")
+        self.embed_dropout = tf.keras.layers.Dropout(cfg.dropout_rate)
+        self.blocks = _perception_blocks(cfg, causal=True)
+
+    @classmethod
+    def from_preset(cls, name: str = "arc1-lm", **overrides) -> "Arc1LanguageModel":
+        return cls(Arc1Config.from_preset(name, **overrides))
+
+    def call(self, token_ids, training=False):
+        mask = tf.not_equal(token_ids, self.slm_config.pad_id)
+        x = self.embed_dropout(self.token_embedding(token_ids), training=training)
+        for block in self.blocks:
+            x = block(x, token_ids=token_ids, token_mask=mask, training=training)
+        return tf.matmul(x, self.token_embedding.embeddings, transpose_b=True)
+
+    def build_model(self) -> "Arc1LanguageModel":
+        self(tf.ones((1, self.slm_config.seq_len), dtype=tf.int32), training=False)
+        return self
+
+    def generate(self, token_ids, max_new_tokens=50, temperature=0.8, top_k=40, eos_id=1,
+                 allowed_token_ids=None) -> List[int]:
+        from .language_model import _sample_logits
+
+        cfg = self.slm_config
+        tokens = [int(t) for t in token_ids] or [1]
+        # ponytail: full-window recompute per token, add a KV cache if chat latency matters
+        for _ in range(max_new_tokens):
+            window = tokens[-cfg.seq_len:]
+            logits = self(tf.constant([window], dtype=tf.int32), training=False)[0, -1]
+            next_id = _sample_logits(logits, temperature=temperature, top_k=top_k, allowed_ids=allowed_token_ids)
+            tokens.append(int(next_id))
+            if eos_id is not None and next_id == eos_id:
+                break
+        return tokens
+
+    def get_config(self):
+        return self.slm_config.to_dict()
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(Arc1Config.from_dict(config))

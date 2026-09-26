@@ -1,0 +1,31 @@
+{
+  "vocab_size": 8000,
+  "d_model": 256,
+  "num_layers": 6,
+  "num_heads": 8,
+  "seq_len": 256,
+  "schema_len": 64,
+  "dropout_rate": 0.05,
+  "resonance_factor": 0.15,
+  "resonance_cycles": 3,
+  "spike_threshold": 0.4,
+  "leak_rate": 0.1,
+  "pad_id": 0,
+  "use_rope": true,
+  "gate_normalize": true,
+  "mixer_rank_div": 2,
+  "engram_table_size": 16384,
+  "engram_rows": 8,
+  "ngram_sizes": [
+    2,
+    3
+  ],
+  "binding_heads": 8,
+  "binding_cycles": 1,
+  "active_cycles": null,
+  "calibration": {
+    "fire": 1.0,
+    "anchor": 1.0,
+    "select": 1.0
+  }
+}
