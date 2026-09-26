@@ -1,0 +1,32 @@
+{
+ "weights.h5 (f32)": {
+  "bytes": 5465216,
+  "exact_call": 0.887,
+  "extract_f1": 0.972,
+  "classify": 0.727
+ },
+ "f16": {
+  "bytes": 2653440,
+  "load_s": 1.32,
+  "exact_call": 0.887,
+  "extract_f1": 0.972,
+  "classify": 0.727
+ },
+ "rq8": {
+  "bytes": 1425088,
+  "load_s": 0.89,
+  "exact_call": 0.887,
+  "extract_f1": 0.972,
+  "classify": 0.727
+ },
+ "rq4": {
+  "bytes": 769344,
+  "load_s": 1.11,
+  "exact_call": 0.893,
+  "extract_f1": 0.968,
+  "classify": 0.727
+ },
+ "tflite int8": {
+  "bytes": 1791192
+ }
+}

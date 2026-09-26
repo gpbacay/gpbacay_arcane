@@ -104,6 +104,8 @@ from .tools import (
 
 from .arc1_codec import Arc1Codec
 
+from .rcn import load_rcn, read_header as read_rcn_header, save_rcn
+
 from .tokenization import BytePairTokenizer
 
 # Distillation support (Qwen vocab adapter needs `transformers`, imported lazily).
@@ -208,6 +210,9 @@ __all__ = [
     "format_tools_prompt",
     "coerce_value",
     "Arc1Codec",
+    "save_rcn",
+    "load_rcn",
+    "read_rcn_header",
     # Distillation
     "ArcaneDistiller",
     "WarmupCosine",

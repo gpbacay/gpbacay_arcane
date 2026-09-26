@@ -415,6 +415,37 @@ def test_classification_examples_are_well_formed():
     assert (batch["select_label"] < (batch["select_options"] >= 0).sum(axis=1)).all()
 
 
+def test_rcn_roundtrip_header_and_integrity(tmp_path):
+    from gpbacay_arcane.rcn import load_rcn, read_header, save_rcn
+
+    model = _small_model()
+    tok = BytePairTokenizer(vocab_size=320).train(["weather in Lagos and Paris " * 20])
+    utter = tf.constant([[3, 40, 41, 42, 43]])
+    a, b, roles = _probe_inputs(model)
+    ref = model.decide(utter, tf.zeros((3,), tf.int32), a, b, roles)["fire"].numpy()
+    sizes = {}
+    for quant, tol in (("f16", 0.05), ("rq8", 0.1), ("rq4", 0.6)):
+        path = str(tmp_path / f"m-{quant}.rcn")
+        sizes[quant] = save_rcn(model, tok, path, quant=quant, cycles=1)["bytes"]
+        head = read_header(path)
+        assert head["quant"] == quant and head["cycles"] == 1 and head["d_model"] == model.arc1_config.d_model
+        loaded, tok2, _ = load_rcn(path)
+        assert loaded.arc1_config.resolve_cycles() == 1          # baked profile
+        assert tok2.merges == tok.merges                          # tokenizer travels with the model
+        got = loaded.decide(utter, tf.zeros((3,), tf.int32), a, b, roles, cycles=model.arc1_config.binding_cycles)
+        np.testing.assert_allclose(got["fire"].numpy(), ref, atol=tol)
+    assert sizes["rq4"] < sizes["rq8"] < sizes["f16"]
+    raw = bytearray(open(path, "rb").read())
+    raw[-1] ^= 0xFF
+    bad = str(tmp_path / "bad.rcn")
+    open(bad, "wb").write(bytes(raw))
+    try:
+        load_rcn(bad)
+        raise AssertionError("corruption not detected")
+    except ValueError as exc:
+        assert "corrupted" in str(exc)
+
+
 def test_coerce_value():
     assert coerce_value("integer", "30%") == (True, 30)
     assert coerce_value("number", "12.50") == (True, 12.5)

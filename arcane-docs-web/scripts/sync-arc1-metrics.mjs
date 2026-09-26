@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import crypto from "node:crypto";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..", "..");
@@ -43,7 +44,28 @@ const byCycles = keys.map((k) => {
 });
 const full = byCycles[byCycles.length - 1];
 
+const benchPath = path.join(repoRoot, "Models", "arc1_rcn_benchmark.json");
+const bench = JSON.parse(fs.readFileSync(benchPath, "utf8"));
+const rcnFile = path.join(here, "..", "public", "models", "arc1-tiny.rcn");
+const rcnBytes = fs.readFileSync(rcnFile);
+const formats = [
+  ["Keras weights, f32", bench["weights.h5 (f32)"]],
+  [".rcn f16", bench.f16],
+  ["TFLite int8", bench["tflite int8"]],
+  [".rcn rq8", bench.rq8],
+  [".rcn rq4", bench.rq4],
+]
+  .filter(([, v]) => v)
+  .map(([label, v]) => ({ label, bytes: v.bytes, exactCall: v.exact_call ?? null, extractF1: v.extract_f1 ?? null }));
+
 const data = {
+  rcn: {
+    file: "/models/arc1-tiny.rcn",
+    bytes: rcnBytes.length,
+    sha256: crypto.createHash("sha256").update(rcnBytes).digest("hex"),
+    quant: "rq4",
+  },
+  formats,
   parameters: metrics.parameters,
   cycles: full.cycles,
   seqLen: config.seq_len,

@@ -26,7 +26,8 @@ if (typeof window !== "undefined") {
   });
 }
 
-const Mermaid = ({ chart }: { chart: string }) => {
+/** ``minWidth``: dense diagrams keep a readable size on phones and scroll inside their box. */
+export const Mermaid = ({ chart, minWidth }: { chart: string; minWidth?: number }) => {
   const id = "mermaid-" + useId().replace(/:/g, "");
   const [svg, setSvg] = useState("");
 
@@ -43,6 +44,17 @@ const Mermaid = ({ chart }: { chart: string }) => {
   }, [chart, id]);
 
   if (!svg) return <div className="text-zinc-500 text-xs animate-pulse">Loading diagram...</div>;
+
+  if (minWidth) {
+    return (
+      <div className="not-prose my-8">
+        <div className="mermaid overflow-x-auto border border-zinc-900/50 bg-zinc-950/30 p-4 sm:p-6">
+          <div className="mx-auto [&_svg]:mx-auto" style={{ minWidth }} dangerouslySetInnerHTML={{ __html: svg }} />
+        </div>
+        <p className="mt-2 text-xs text-zinc-500 sm:hidden">Swipe sideways to see the whole diagram.</p>
+      </div>
+    );
+  }
 
   return (
     <div

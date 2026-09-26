@@ -41,6 +41,9 @@ def parse_args():
     p.add_argument("--cycles", type=int, default=None, help="Binding cycles baked into the export")
     p.add_argument("--out", default="Models/arc1_export")
     p.add_argument("--tflite", action="store_true", help="Also write int8 TFLite if possible")
+    p.add_argument("--rcn", default=None, help="Also write an .rcn container to this path")
+    p.add_argument("--quant", default="rq4", choices=["f16", "rq8", "rq4"], help=".rcn weight format")
+    p.add_argument("--tokenizer", default=None, help="Tokenizer JSON to embed in the .rcn file")
     return p.parse_args()
 
 
@@ -99,6 +102,14 @@ def main():
     with open(os.path.join(args.out, "config.json"), "w", encoding="utf-8") as f:
         json.dump(config.to_dict(), f, indent=2)
     print(f"SavedModel -> {saved}  (binding cycles={cycles})")
+
+    if args.rcn:
+        from gpbacay_arcane.rcn import save_rcn
+        from gpbacay_arcane.tokenization import BytePairTokenizer
+
+        tok = BytePairTokenizer.load(args.tokenizer) if args.tokenizer else None
+        info = save_rcn(model, tok, args.rcn, quant=args.quant, cycles=args.cycles)
+        print(f"RCN -> {args.rcn} ({info['bytes']:,} bytes, {info['quant']}, tokenizer={'yes' if tok else 'no'})")
 
     if args.tflite:
         try:
