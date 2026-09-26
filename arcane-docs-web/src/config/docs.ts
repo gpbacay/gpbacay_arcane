@@ -68,7 +68,7 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
         { 
           title: "ARC 1", 
           href: "/docs/arc-1",
-          keywords: ["arc1", "arc 1", "automation", "tools", "tool calling", "extract", "engram", "ladder", "needle"]
+          keywords: ["arc1", "arc 1", "automation", "tools", "tool calling", "extract", "engram", "resonant binding", "function calling"]
         },
         { 
           title: "Chat with ARCANE", 

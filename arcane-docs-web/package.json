@@ -10,7 +10,8 @@
     "dev:with-arc1": "node scripts/start-with-arc1.js",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync:arc1-metrics": "node scripts/sync-arc1-metrics.mjs"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

@@ -111,9 +111,9 @@ function DocsLayoutContent({ children, headings, tocOpen, setTocOpen }: { childr
         </Sidebar>
 
           <div className="flex-1 flex flex-col min-w-0">
-            <div className="flex-1 flex items-start lg:grid lg:grid-cols-[1fr_260px] lg:gap-10 xl:gap-14 mx-auto px-4 md:px-8 w-full">
+            <div className="flex-1 flex items-start lg:grid lg:grid-cols-[minmax(0,1fr)_260px] lg:gap-10 xl:gap-14 mx-auto px-4 md:px-8 w-full">
               {/* Main Content - Center */}
-              <main className="relative py-6 md:py-12 lg:px-4 xl:px-0 w-full">
+              <main className="relative py-6 md:py-12 lg:px-4 xl:px-0 w-full min-w-0">
                 {state === "collapsed" && !isMobile && (
                   <div className="absolute left-[-12px] top-[26px] hidden md:block">
                     <SidebarTrigger className="text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900/50 transition-colors" />

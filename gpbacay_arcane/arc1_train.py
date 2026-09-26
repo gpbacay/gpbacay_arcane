@@ -1,17 +1,16 @@
-"""Multi-task training, calibration, and evaluation for ARC 1 decision heads.
+"""Multi-task training, calibration, and evaluation for ARC 1 (Resonant Schema Binding).
 
-Losses per step (one shared encoder pass over every sequence in the batch):
+One step perceives every utterance and every unique schema text in the batch
+once, composes all probes, binds them, and sums four losses:
 
-* noul    — BCE on tool relevance, optional-argument presence, boolean values
-* span    — CE on start/end pointers over the COPY tokens
-* choice  — CE over enum candidate groups
-* embed   — InfoNCE between two paraphrases of the same intent (echo pooling)
-* lm      — optional auxiliary next-token CE (``lm_weight``, off by default: on
-            this data it stays near uniform and only costs compute)
+* fire    — BCE: tool fires, optional argument present, boolean value
+* anchor  — CE on start/end pointers over utterance tokens
+* select  — CE over each enum argument's (or classification label set's) option probes
+* embed   — InfoNCE between two paraphrases of the same intent
 
-A ladder depth is sampled per step so every nested slice is trained.
-After training, one scalar temperature per head is fit on held-out data
-(Laya-style calibration) and ECE before/after is reported.
+A binding cycle count is sampled per step so every ``cycles`` setting works
+with the same weights. After training, one temperature per readout is fitted
+on held-out values and ECE before/after is reported.
 """
 
 from __future__ import annotations
@@ -27,176 +26,212 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import tensorflow as tf
 
-from .arc1 import Arc1Config, Arc1Model
-from .arc1_codec import SPAN_TYPES, Arc1Codec, EncodedSeq, pad_batch
+from .arc1 import Arc1Model
+from .arc1_codec import (
+    ROLE_BOOL,
+    ROLE_OPTION,
+    ROLE_TOOL,
+    SPAN_TYPES,
+    Arc1Codec,
+    Utterance,
+    option_text,
+    pad_batch,
+    param_text,
+    role_for,
+    tool_text,
+)
 from .arc1_data import (
+    ClassifyExample,
+    EXTRACT_TOOL_DESCRIPTION,
     EXTRACT_TOOL_NAME,
     HELD_OUT_TOOLS,
     Example,
     ExtractExample,
     build_tool_library,
+    classify_tool_spec,
     extract_tool_spec,
+    fixed_classify_set,
     fixed_eval_set,
     fixed_extract_set,
+    sample_classify_example,
     sample_extract_example,
     sample_tool_example,
     _single,
 )
-from .tools import Arc1Agent, ToolParam, ToolSpec
+from .tools import Arc1Agent, ToolParam
 
 
 # ------------------------------------------------------------------ batching
 @dataclass
 class _Rows:
-    seqs: List[EncodedSeq] = field(default_factory=list)
-    noul_idx: List[int] = field(default_factory=list)
-    noul_label: List[float] = field(default_factory=list)
-    span_idx: List[int] = field(default_factory=list)
-    span_start: List[int] = field(default_factory=list)
-    span_end: List[int] = field(default_factory=list)
-    choice_groups: List[List[int]] = field(default_factory=list)
-    choice_label: List[int] = field(default_factory=list)
+    utters: List[Utterance] = field(default_factory=list)
+    schema_index: Dict[str, int] = field(default_factory=dict)
+    probe_example: List[int] = field(default_factory=list)
+    probe_a: List[int] = field(default_factory=list)
+    probe_b: List[int] = field(default_factory=list)
+    probe_role: List[int] = field(default_factory=list)
+    fire_idx: List[int] = field(default_factory=list)
+    fire_label: List[float] = field(default_factory=list)
+    anchor_idx: List[int] = field(default_factory=list)
+    anchor_start: List[int] = field(default_factory=list)
+    anchor_end: List[int] = field(default_factory=list)
+    select_param: List[int] = field(default_factory=list)
+    select_options: List[List[int]] = field(default_factory=list)
+    select_label: List[int] = field(default_factory=list)
     embed_a: List[int] = field(default_factory=list)
     embed_b: List[int] = field(default_factory=list)
     embed_group: List[int] = field(default_factory=list)
 
-    def add(self, seq: EncodedSeq) -> int:
-        self.seqs.append(seq)
-        return len(self.seqs) - 1
+    def utter(self, utt: Utterance) -> int:
+        self.utters.append(utt)
+        return len(self.utters) - 1
+
+    def _schema(self, text: str) -> int:
+        return self.schema_index.setdefault(text, len(self.schema_index))
+
+    def probe(self, example: int, text_a: str, text_b: Optional[str], role: int) -> int:
+        self.probe_example.append(example)
+        self.probe_a.append(self._schema(text_a))
+        self.probe_b.append(-1 if text_b is None else self._schema(text_b))
+        self.probe_role.append(role)
+        return len(self.probe_role) - 1
+
+    def fire(self, idx: int, label: float) -> None:
+        self.fire_idx.append(idx)
+        self.fire_label.append(float(label))
 
 
-def _add_param_rows(rows: _Rows, codec: Arc1Codec, tool_name: str, param: ToolParam, text: str,
-                    value: Any, span: Optional[Tuple[int, int]], present: bool) -> None:
-    seq = codec.arg_seq(tool_name, param.name, param.type, param.description, param.required, text)
-    idx = rows.add(seq)
-    ptype = (param.type or "string").lower()
-    if ptype in ("boolean", "bool"):
-        rows.noul_idx.append(idx)
-        rows.noul_label.append(1.0 if bool(value) else 0.0)
+def _add_param_rows(rows: _Rows, codec: Arc1Codec, u: int, utt: Utterance, ttext: str, param: ToolParam,
+                    text: str, value: Any, span: Optional[Tuple[int, int]], present: bool) -> None:
+    ptext = param_text(param.name, param.type, param.description, param.required)
+    role = role_for(param.type, param.enum)
+    idx = rows.probe(u, ptext, ttext, role)
+    if role == ROLE_BOOL:
+        rows.fire(idx, 1.0 if bool(value) else 0.0)
         return
-    rows.noul_idx.append(idx)
-    rows.noul_label.append(1.0 if present else 0.0)
+    if not param.required:
+        rows.fire(idx, 1.0 if present else 0.0)
     if not present:
         return
     if param.enum:
-        group = [rows.add(codec.enum_seq(tool_name, param.name, param.description, str(o), text)) for o in param.enum]
-        rows.choice_groups.append(group)
-        rows.choice_label.append(list(param.enum).index(value))
-    elif ptype in SPAN_TYPES and span is not None:
-        tok = codec.char_span_to_tokens(seq, text, span)
+        hints = param.enum_descriptions or {}
+        group = [rows.probe(u, option_text(o, hints.get(str(o))), ptext, ROLE_OPTION) for o in param.enum]
+        rows.select_param.append(idx)
+        rows.select_options.append(group)
+        rows.select_label.append(list(param.enum).index(value))
+    elif (param.type or "string").lower() in SPAN_TYPES and span is not None:
+        tok = codec.char_span_to_tokens(utt, text, span)
         if tok is not None:
-            rows.span_idx.append(idx)
-            rows.span_start.append(tok[0])
-            rows.span_end.append(tok[1])
+            rows.anchor_idx.append(idx)
+            rows.anchor_start.append(tok[0])
+            rows.anchor_end.append(tok[1])
 
 
 def add_tool_example(rows: _Rows, codec: Arc1Codec, ex: Example) -> None:
+    utt = codec.utterance(ex.user)
+    u = rows.utter(utt)
     called = {c.tool: c for c in ex.calls}
     for spec in ex.tools:
-        idx = rows.add(codec.tool_seq(spec.name, spec.description, ex.user))
-        rows.noul_idx.append(idx)
-        rows.noul_label.append(1.0 if spec.name in called else 0.0)
+        rows.fire(rows.probe(u, tool_text(spec.name, spec.description), None, ROLE_TOOL),
+                  1.0 if spec.name in called else 0.0)
     for spec in ex.tools:
         call = called.get(spec.name)
         if call is None:
             continue
+        ttext = tool_text(spec.name, spec.description)
         for param in spec.parameters:
-            present = param.name in call.arguments
-            _add_param_rows(rows, codec, spec.name, param, ex.user, call.arguments.get(param.name),
-                            call.spans.get(param.name), present)
+            _add_param_rows(rows, codec, u, utt, ttext, param, ex.user, call.arguments.get(param.name),
+                            call.spans.get(param.name), param.name in call.arguments)
 
 
 def add_extract_example(rows: _Rows, codec: Arc1Codec, ex: ExtractExample) -> None:
+    utt = codec.utterance(ex.text)
+    u = rows.utter(utt)
     spec = extract_tool_spec(ex.schema)
+    ttext = tool_text(EXTRACT_TOOL_NAME, EXTRACT_TOOL_DESCRIPTION)
     for param in spec.parameters:
-        present = param.name in ex.record
-        _add_param_rows(rows, codec, EXTRACT_TOOL_NAME, param, ex.text, ex.record.get(param.name),
-                        ex.spans.get(param.name), present)
+        _add_param_rows(rows, codec, u, utt, ttext, param, ex.text, ex.record.get(param.name),
+                        ex.spans.get(param.name), param.name in ex.record)
+
+
+def add_classify_example(rows: _Rows, codec: Arc1Codec, ex: ClassifyExample) -> None:
+    utt = codec.utterance(ex.text)
+    u = rows.utter(utt)
+    spec = classify_tool_spec(ex.labels, ex.task, ex.descriptions)
+    _add_param_rows(rows, codec, u, utt, tool_text(spec.name, spec.description), spec.parameters[0],
+                    ex.text, ex.label, None, True)
 
 
 def add_embed_pairs(rows: _Rows, codec: Arc1Codec, rng: random.Random, lib, n_pairs: int, split: str = "train") -> None:
     names = [n for n in lib if n not in HELD_OUT_TOOLS]
     for gid, name in enumerate(rng.sample(names, min(n_pairs, len(names)))):
-        a, _ = _single(rng, lib[name], split)
-        b, _ = _single(rng, lib[name], split)
-        rows.embed_a.append(rows.add(codec.embed_seq(a)))
-        rows.embed_b.append(rows.add(codec.embed_seq(b)))
+        rows.embed_a.append(rows.utter(codec.utterance(_single(rng, lib[name], split)[0])))
+        rows.embed_b.append(rows.utter(codec.utterance(_single(rng, lib[name], split)[0])))
         rows.embed_group.append(gid)
 
 
-def rows_to_tensors(rows: _Rows, seq_len: int) -> Dict[str, np.ndarray]:
-    # Two length buckets (short half / long half) so short rows are not padded
-    # to the longest compound utterance; ``order`` restores original row order.
-    lengths = np.asarray([len(s.ids) for s in rows.seqs])
-    by_len = np.argsort(lengths, kind="stable")
-    half = max(1, len(by_len) // 2)
-    short, long_ = by_len[:half], by_len[half:]
-    if len(long_) == 0:
-        short, long_ = by_len[:-1], by_len[-1:]
-    ids_a = pad_batch([rows.seqs[i].ids for i in short], multiple=32, max_len=seq_len)
-    ids_b = pad_batch([rows.seqs[i].ids for i in long_], multiple=32, max_len=seq_len)
-    order = np.argsort(np.concatenate([short, long_]), kind="stable").astype(np.int32)
-    width = max(ids_a.shape[1], ids_b.shape[1])
-    span_mask = np.zeros((len(rows.span_idx), width), dtype=bool)
-    for r, idx in enumerate(rows.span_idx):
-        seq = rows.seqs[idx]
-        span_mask[r, seq.span_lo : min(seq.span_hi, width)] = True
-    kmax = max((len(g) for g in rows.choice_groups), default=1)
-    groups = np.full((len(rows.choice_groups), kmax), -1, dtype=np.int32)
-    for r, g in enumerate(rows.choice_groups):
-        groups[r, : len(g)] = g
-    embed_rows = rows.embed_a + rows.embed_b
-    pool_mask = np.zeros((len(embed_rows), width), dtype=bool)
-    for r, idx in enumerate(embed_rows):
-        seq = rows.seqs[idx]
-        pool_mask[r, seq.span_lo : min(seq.span_hi, width)] = True
+def rows_to_tensors(rows: _Rows, codec: Arc1Codec) -> Dict[str, np.ndarray]:
+    schema_texts = sorted(rows.schema_index, key=rows.schema_index.get)
+    kmax = max((len(g) for g in rows.select_options), default=1)
+    options = np.full((len(rows.select_options), kmax), -1, dtype=np.int32)
+    for r, g in enumerate(rows.select_options):
+        options[r, : len(g)] = g
+    i32 = lambda xs: np.asarray(xs, dtype=np.int32)  # noqa: E731
     return {
-        "ids_a": ids_a,
-        "ids_b": ids_b,
-        "order": order,
-        "noul_idx": np.asarray(rows.noul_idx, dtype=np.int32),
-        "noul_label": np.asarray(rows.noul_label, dtype=np.float32),
-        "span_idx": np.asarray(rows.span_idx, dtype=np.int32),
-        "span_start": np.asarray(rows.span_start, dtype=np.int32),
-        "span_end": np.asarray(rows.span_end, dtype=np.int32),
-        "span_mask": span_mask,
-        "choice_groups": groups,
-        "choice_label": np.asarray(rows.choice_label, dtype=np.int32),
-        "embed_rows": np.asarray(embed_rows, dtype=np.int32),
-        "embed_pool": pool_mask,
-        "embed_group": np.asarray(rows.embed_group, dtype=np.int32),
+        "utter_ids": pad_batch([u.ids for u in rows.utters], multiple=16, max_len=codec.seq_len),
+        "schema_ids": pad_batch([codec.schema(t) for t in schema_texts], multiple=16, max_len=codec.schema_len),
+        "probe_example": i32(rows.probe_example),
+        "probe_a": i32(rows.probe_a),
+        "probe_b": i32(rows.probe_b),
+        "probe_role": i32(rows.probe_role),
+        "fire_idx": i32(rows.fire_idx),
+        "fire_label": np.asarray(rows.fire_label, dtype=np.float32),
+        "anchor_idx": i32(rows.anchor_idx),
+        "anchor_start": i32(rows.anchor_start),
+        "anchor_end": i32(rows.anchor_end),
+        "select_param": i32(rows.select_param),
+        "select_options": options,
+        "select_label": i32(rows.select_label),
+        "embed_a": i32(rows.embed_a),
+        "embed_b": i32(rows.embed_b),
+        "embed_group": i32(rows.embed_group),
     }
 
 
 def sample_batch(rng: random.Random, codec: Arc1Codec, lib, n_tool: int, n_extract: int, n_embed: int,
-                 split: str = "train") -> Dict[str, np.ndarray]:
+                 split: str = "train", n_classify: int = 0) -> Dict[str, np.ndarray]:
     rows = _Rows()
     for _ in range(n_tool):
         add_tool_example(rows, codec, sample_tool_example(rng, lib, split))
     for _ in range(n_extract):
         add_extract_example(rows, codec, sample_extract_example(rng, split))
+    for _ in range(n_classify):
+        add_classify_example(rows, codec, sample_classify_example(rng, lib, split))
     if n_embed:
         add_embed_pairs(rows, codec, rng, lib, n_embed, split)
-    return rows_to_tensors(rows, codec.seq_len)
+    return rows_to_tensors(rows, codec)
 
 
 # -------------------------------------------------------------------- losses
 _NEG = -1e9
 
 BATCH_SIGNATURE = {
-    "ids_a": tf.TensorSpec([None, None], tf.int32),
-    "ids_b": tf.TensorSpec([None, None], tf.int32),
-    "order": tf.TensorSpec([None], tf.int32),
-    "noul_idx": tf.TensorSpec([None], tf.int32),
-    "noul_label": tf.TensorSpec([None], tf.float32),
-    "span_idx": tf.TensorSpec([None], tf.int32),
-    "span_start": tf.TensorSpec([None], tf.int32),
-    "span_end": tf.TensorSpec([None], tf.int32),
-    "span_mask": tf.TensorSpec([None, None], tf.bool),
-    "choice_groups": tf.TensorSpec([None, None], tf.int32),
-    "choice_label": tf.TensorSpec([None], tf.int32),
-    "embed_rows": tf.TensorSpec([None], tf.int32),
-    "embed_pool": tf.TensorSpec([None, None], tf.bool),
+    "utter_ids": tf.TensorSpec([None, None], tf.int32),
+    "schema_ids": tf.TensorSpec([None, None], tf.int32),
+    "probe_example": tf.TensorSpec([None], tf.int32),
+    "probe_a": tf.TensorSpec([None], tf.int32),
+    "probe_b": tf.TensorSpec([None], tf.int32),
+    "probe_role": tf.TensorSpec([None], tf.int32),
+    "fire_idx": tf.TensorSpec([None], tf.int32),
+    "fire_label": tf.TensorSpec([None], tf.float32),
+    "anchor_idx": tf.TensorSpec([None], tf.int32),
+    "anchor_start": tf.TensorSpec([None], tf.int32),
+    "anchor_end": tf.TensorSpec([None], tf.int32),
+    "select_param": tf.TensorSpec([None], tf.int32),
+    "select_options": tf.TensorSpec([None, None], tf.int32),
+    "select_label": tf.TensorSpec([None], tf.int32),
+    "embed_a": tf.TensorSpec([None], tf.int32),
+    "embed_b": tf.TensorSpec([None], tf.int32),
     "embed_group": tf.TensorSpec([None], tf.int32),
 }
 
@@ -205,78 +240,50 @@ def _safe_mean(x):
     return tf.math.divide_no_nan(tf.reduce_sum(x), tf.cast(tf.size(x), x.dtype))
 
 
-def _lm_sums(model: Arc1Model, ids, lm_logits):
-    target = ids[:, 1:]
-    mask = tf.cast(tf.not_equal(target, model.arc1_config.pad_id), tf.float32)
-    ce = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=target, logits=lm_logits[:, :-1])
-    return tf.reduce_sum(ce * mask), tf.reduce_sum(mask)
+def forward_batch(model: Arc1Model, batch, cycles: Optional[int], training: bool):
+    """Perceive schemas and utterances once, bind every probe; add enum logits."""
+    engrams = model.schema_engrams(batch["schema_ids"], training=training)
+    engram_a = tf.gather(engrams, batch["probe_a"])
+    has_b = batch["probe_b"] >= 0
+    engram_b = tf.where(has_b[:, None], tf.gather(engrams, tf.maximum(batch["probe_b"], 0)), 0.0)
+    out = model.decide(batch["utter_ids"], batch["probe_example"], engram_a, engram_b, batch["probe_role"],
+                       cycles=cycles, training=training, with_embedding=True)
+    options = batch["select_options"]
+    q = tf.gather(out["select_q"], batch["select_param"])[:, None, :]
+    k = tf.gather(out["select_k"], tf.maximum(options, 0))
+    out["select"] = tf.where(options >= 0, model.select_logits(q, k), _NEG)
+    return out
 
 
-def decide_buckets(model: Arc1Model, batch, depth: int, training: bool, with_lm: bool):
-    """Run both length buckets, re-pad to a shared width, restore row order."""
-    outs = [
-        model.decide(batch[key], training=training, depth=depth, with_lm=with_lm)
-        for key in ("ids_a", "ids_b")
-    ]
-    width = tf.maximum(tf.shape(batch["ids_a"])[1], tf.shape(batch["ids_b"])[1])
-    merged = {}
-    for key in ("noul", "choice"):
-        merged[key] = tf.gather(tf.concat([o[key] for o in outs], axis=0), batch["order"])
-    for key in ("span_start", "span_end", "hidden"):
-        parts = []
-        for o in outs:
-            t = o[key]
-            pad = width - tf.shape(t)[1]
-            paddings = [[0, 0], [0, pad]] + [[0, 0]] * (len(t.shape) - 2)
-            parts.append(tf.pad(t, paddings))
-        merged[key] = tf.gather(tf.concat(parts, axis=0), batch["order"])
-    if with_lm:
-        sums = [_lm_sums(model, batch[k], o["lm"]) for k, o in zip(("ids_a", "ids_b"), outs)]
-        merged["lm_loss"] = tf.math.divide_no_nan(sums[0][0] + sums[1][0], sums[0][1] + sums[1][1])
-    return merged
-
-
-def compute_losses(model: Arc1Model, batch, depth: int, training: bool, lm_weight: float = 0.0,
-                   embed_temperature: float = 0.05):
-    out = decide_buckets(model, batch, depth, training, with_lm=lm_weight > 0)
+def compute_losses(model: Arc1Model, batch, cycles: Optional[int], training: bool, embed_temperature: float = 0.05):
+    out = forward_batch(model, batch, cycles, training)
     losses = {}
+    fire = tf.gather(out["fire"], batch["fire_idx"])
+    losses["fire"] = _safe_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=batch["fire_label"], logits=fire))
 
-    noul = tf.gather(out["noul"], batch["noul_idx"])
-    losses["noul"] = _safe_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=batch["noul_label"], logits=noul))
-
-    def span_ce(logits, target):
-        rows = tf.gather(logits, batch["span_idx"])
-        rows = tf.where(batch["span_mask"], rows, _NEG)
+    def anchor_ce(logits, target):
+        rows = tf.gather(logits, batch["anchor_idx"])
         return _safe_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=target, logits=rows))
 
-    losses["span"] = 0.5 * (span_ce(out["span_start"], batch["span_start"]) + span_ce(out["span_end"], batch["span_end"]))
-
-    groups = batch["choice_groups"]
-    valid = groups >= 0
-    cand = tf.gather(out["choice"], tf.maximum(groups, 0))
-    cand = tf.where(valid, cand, _NEG)
-    losses["choice"] = _safe_mean(
-        tf.nn.sparse_softmax_cross_entropy_with_logits(labels=batch["choice_label"], logits=cand)
+    losses["anchor"] = 0.5 * (anchor_ce(out["anchor_start"], batch["anchor_start"])
+                              + anchor_ce(out["anchor_end"], batch["anchor_end"]))
+    losses["select"] = _safe_mean(
+        tf.nn.sparse_softmax_cross_entropy_with_logits(labels=batch["select_label"], logits=out["select"])
     )
 
+    emb = out["embedding"]
+    a = tf.gather(emb, batch["embed_a"])
+    b = tf.gather(emb, batch["embed_b"])
     n_pairs = tf.shape(batch["embed_group"])[0]
-    hidden = tf.gather(out["hidden"], batch["embed_rows"])
-    emb = model.pooled_embedding(hidden, batch["embed_pool"])
-    a, b = emb[:n_pairs], emb[n_pairs:]
     sim = tf.matmul(a, b, transpose_b=True) / embed_temperature
     same = tf.equal(batch["embed_group"][:, None], batch["embed_group"][None, :])
-    eye = tf.eye(n_pairs, dtype=tf.bool)
-    sim = tf.where(tf.logical_and(same, tf.logical_not(eye)), _NEG, sim)
+    sim = tf.where(tf.logical_and(same, tf.logical_not(tf.eye(n_pairs, dtype=tf.bool))), _NEG, sim)
     labels = tf.range(n_pairs)
     losses["embed"] = 0.5 * (
         _safe_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=sim))
         + _safe_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=tf.transpose(sim)))
     )
-
-    losses["lm"] = out["lm_loss"] if lm_weight > 0 else tf.constant(0.0)
-
-    total = losses["noul"] + losses["span"] + losses["choice"] + 0.5 * losses["embed"] + lm_weight * losses["lm"]
-    losses["total"] = total
+    losses["total"] = losses["fire"] + losses["anchor"] + losses["select"] + 0.5 * losses["embed"]
     return losses, out
 
 
@@ -331,47 +338,46 @@ def _enum_batch(rng: random.Random, codec: Arc1Codec, lib, n: int) -> Dict[str, 
             if any(p.enum and p.name in call.arguments for p in tool.params):
                 break
         add_tool_example(rows, codec, Example(text, [tool.spec()], [call]))
-    return rows_to_tensors(rows, codec.seq_len)
+    return rows_to_tensors(rows, codec)
 
 
 def calibrate(model: Arc1Model, codec: Arc1Codec, lib, n_batches: int = 12, seed: int = 99) -> Dict[str, Any]:
-    """Fit one temperature per head on held-out values (split='eval')."""
+    """Fit one temperature per readout on held-out values (split='eval')."""
     rng = random.Random(seed)
-    noul_l, noul_y, span_rows, span_y, choice_rows, choice_y = [], [], [], [], [], []
-    batches = [sample_batch(rng, codec, lib, n_tool=10, n_extract=4, n_embed=0, split="eval") for _ in range(n_batches)]
+    fire_l, fire_y, anchor_rows, anchor_y, select_rows, select_y = [], [], [], [], [], []
+    batches = [sample_batch(rng, codec, lib, n_tool=12, n_extract=6, n_embed=0, split="eval", n_classify=6)
+               for _ in range(n_batches)]
     batches += [_enum_batch(rng, codec, lib, 16) for _ in range(4)]
     for batch in batches:
-        out = decide_buckets(model, {k: tf.constant(v) for k, v in batch.items()}, None, False, with_lm=False)
-        noul = out["noul"].numpy()
-        noul_l.extend(noul[batch["noul_idx"]].tolist())
-        noul_y.extend(batch["noul_label"].tolist())
-        for key, tgt in (("span_start", "span_start"), ("span_end", "span_end")):
+        out = forward_batch(model, {k: tf.constant(v) for k, v in batch.items()}, None, False)
+        fire_l.extend(out["fire"].numpy()[batch["fire_idx"]].tolist())
+        fire_y.extend(batch["fire_label"].tolist())
+        for key in ("anchor_start", "anchor_end"):
             logits = out[key].numpy()
-            for r, idx in enumerate(batch["span_idx"]):
-                row = logits[idx][batch["span_mask"][r]]
-                lo = int(np.argmax(batch["span_mask"][r]))
-                span_rows.append(row)
-                span_y.append(int(batch[tgt][r]) - lo)
-        choice = out["choice"].numpy()
-        for g, y in zip(batch["choice_groups"], batch["choice_label"]):
-            g = g[g >= 0]
-            choice_rows.append(choice[g])
-            choice_y.append(int(y))
-    noul_l, noul_y = np.asarray(noul_l), np.asarray(noul_y)
+            for r, idx in enumerate(batch["anchor_idx"]):
+                row = logits[idx]
+                valid = row > _NEG / 2
+                anchor_rows.append(row[valid])
+                anchor_y.append(int(batch[key][r]) - int(np.argmax(valid)))
+        select = out["select"].numpy()
+        for row, g, y in zip(select, batch["select_options"], batch["select_label"]):
+            select_rows.append(row[g >= 0])
+            select_y.append(int(y))
+    fire_l, fire_y = np.asarray(fire_l), np.asarray(fire_y)
     temps = {
-        "noul": _fit_temperature(lambda t: _nll_sigmoid(noul_l, noul_y, t), len(noul_y)),
-        "span": _fit_temperature(lambda t: _nll_softmax(span_rows, span_y, t), len(span_y) // 2),
-        "choice": _fit_temperature(lambda t: _nll_softmax(choice_rows, choice_y, t), len(choice_y)),
+        "fire": _fit_temperature(lambda t: _nll_sigmoid(fire_l, fire_y, t), len(fire_y)),
+        "anchor": _fit_temperature(lambda t: _nll_softmax(anchor_rows, anchor_y, t), len(anchor_y) // 2),
+        "select": _fit_temperature(lambda t: _nll_softmax(select_rows, select_y, t), len(select_y)),
     }
-    raw_p = 1 / (1 + np.exp(-noul_l))
-    cal_p = 1 / (1 + np.exp(-noul_l / temps["noul"]))
+    raw_p = 1 / (1 + np.exp(-fire_l))
+    cal_p = 1 / (1 + np.exp(-fire_l / temps["fire"]))
     report = {
         "temperatures": temps,
-        "noul_ece_before": expected_calibration_error(raw_p, noul_y),
-        "noul_ece_after": expected_calibration_error(cal_p, noul_y),
-        "n_noul": int(len(noul_y)),
-        "n_span": int(len(span_y) // 2),
-        "n_choice": int(len(choice_y)),
+        "fire_ece_before": expected_calibration_error(raw_p, fire_y),
+        "fire_ece_after": expected_calibration_error(cal_p, fire_y),
+        "n_fire": int(len(fire_y)),
+        "n_anchor": int(len(anchor_y) // 2),
+        "n_select": int(len(select_y)),
     }
     model.arc1_config.calibration = dict(temps)
     return report
@@ -386,12 +392,12 @@ def _norm(v: Any) -> Any:
     return str(v).strip().lower()
 
 
-def evaluate_tools(agent: Arc1Agent, examples: Sequence[Example], depth: Optional[int] = None) -> Dict[str, float]:
+def evaluate_tools(agent: Arc1Agent, examples: Sequence[Example], cycles: Optional[int] = None) -> Dict[str, float]:
     n = len(examples)
     tool_ok = call_ok = none_n = none_ok = arg_total = arg_ok = 0
     latencies = []
     for ex in examples:
-        out = agent.run(ex.user, tools=ex.tools, execute=False, depth=depth)
+        out = agent.run(ex.user, tools=ex.tools, execute=False, cycles=cycles)
         latencies.append(out["latency_ms"])
         pred = {c["name"]: c["arguments"] for c in out["function_calls"]}
         gold = {c.tool: c.arguments for c in ex.calls}
@@ -410,20 +416,22 @@ def evaluate_tools(agent: Arc1Agent, examples: Sequence[Example], depth: Optiona
         if not gold:
             none_n += 1
             none_ok += not pred
+    warm = latencies[5:] or latencies  # first requests include tracing + schema encoding
     return {
         "n": n,
         "tool_selection_acc": tool_ok / max(n, 1),
         "exact_call_acc": call_ok / max(n, 1),
         "argument_acc": arg_ok / max(arg_total, 1),
         "no_tool_acc": none_ok / max(none_n, 1),
-        "latency_ms_p50": float(np.median(latencies)) if latencies else 0.0,
+        "latency_ms_p50": float(np.median(warm)) if warm else 0.0,
+        "latency_ms_p90": float(np.percentile(warm, 90)) if warm else 0.0,
     }
 
 
-def evaluate_extract(agent: Arc1Agent, examples: Sequence[ExtractExample], depth: Optional[int] = None) -> Dict[str, float]:
+def evaluate_extract(agent: Arc1Agent, examples: Sequence[ExtractExample], cycles: Optional[int] = None) -> Dict[str, float]:
     tp = fp = fn = exact = 0
     for ex in examples:
-        rec = agent.extract(ex.text, ex.schema, depth=depth)["record"]
+        rec = agent.extract(ex.text, ex.schema, cycles=cycles)["record"]
         gold = {k: _norm(v) for k, v in ex.record.items()}
         pred = {k: _norm(v) for k, v in rec.items()}
         for k, v in pred.items():
@@ -444,6 +452,23 @@ def evaluate_extract(agent: Arc1Agent, examples: Sequence[ExtractExample], depth
     }
 
 
+def evaluate_classify(agent: Arc1Agent, examples: Sequence[ClassifyExample], cycles: Optional[int] = None) -> Dict[str, Any]:
+    hits: Dict[str, List[bool]] = {}
+    latencies = []
+    for ex in examples:
+        out = agent.classify(ex.text, ex.labels, task=ex.task, cycles=cycles, descriptions=ex.descriptions)
+        latencies.append(out["latency_ms"])
+        hits.setdefault(ex.kind, []).append(_norm(out["label"]) == _norm(ex.label))
+    every = [h for v in hits.values() for h in v]
+    warm = latencies[5:] or latencies
+    return {
+        "n": len(examples),
+        "accuracy": float(np.mean(every)) if every else 0.0,
+        **{f"accuracy_{k}": float(np.mean(v)) for k, v in sorted(hits.items())},
+        "latency_ms_p50": float(np.median(warm)) if warm else 0.0,
+    }
+
+
 def evaluate_embeddings(agent: Arc1Agent, lib, n: int = 60, seed: int = 7) -> Dict[str, float]:
     """Retrieval@1: does a paraphrase's nearest neighbour share its intent?"""
     rng = random.Random(seed)
@@ -461,18 +486,22 @@ def evaluate_embeddings(agent: Arc1Agent, lib, n: int = 60, seed: int = 7) -> Di
 
 
 def full_evaluation(model: Arc1Model, tokenizer, n_tool: int = 300, n_extract: int = 150,
-                    depths: Optional[Sequence[int]] = None) -> Dict[str, Any]:
+                    cycles_list: Optional[Sequence[int]] = None) -> Dict[str, Any]:
     agent = Arc1Agent(model, tokenizer)
     lib = build_tool_library()
     eval_set = fixed_eval_set("eval", n_tool)
     unseen = fixed_eval_set("unseen_tools", max(n_tool // 2, 50))
     extract_set = fixed_extract_set(n_extract)
+    classify_set = fixed_classify_set("eval", n_extract)
+    classify_unseen = fixed_classify_set("unseen_tools", max(n_extract // 2, 50))
     report: Dict[str, Any] = {}
-    for depth in depths or [model.arc1_config.num_layers]:
-        report[f"depth_{depth}"] = {
-            "tools_heldout_values": evaluate_tools(agent, eval_set, depth),
-            "tools_unseen_tools": evaluate_tools(agent, unseen, depth),
-            "extraction_heldout_values": evaluate_extract(agent, extract_set, depth),
+    for cycles in cycles_list or [model.arc1_config.binding_cycles]:
+        report[f"cycles_{cycles}"] = {
+            "tools_heldout_values": evaluate_tools(agent, eval_set, cycles),
+            "tools_unseen_tools": evaluate_tools(agent, unseen, cycles),
+            "extraction_heldout_values": evaluate_extract(agent, extract_set, cycles),
+            "classify_heldout": evaluate_classify(agent, classify_set, cycles),
+            "classify_unseen_tools": evaluate_classify(agent, classify_unseen, cycles),
         }
     report["embeddings"] = evaluate_embeddings(agent, lib)
     return report
@@ -481,24 +510,23 @@ def full_evaluation(model: Arc1Model, tokenizer, n_tool: int = 300, n_extract: i
 # ------------------------------------------------------------------ training
 @dataclass
 class TrainConfig:
-    steps: int = 3000
-    learning_rate: float = 1e-3
-    warmup_steps: int = 150
+    steps: int = 4000
+    learning_rate: float = 2e-3
+    warmup_steps: int = 200
     weight_decay: float = 0.01
-    n_tool: int = 12
-    n_extract: int = 4
+    n_tool: int = 16
+    n_extract: int = 6
     n_embed: int = 8
-    lm_weight: float = 0.0
-    full_depth_prob: float = 0.6
-    log_every: int = 25
-    save_every: int = 250
+    n_classify: int = 6
+    full_cycles_prob: float = 0.6
+    log_every: int = 50
+    save_every: int = 500
     seed: int = 0
 
 
-def train(model: Arc1Model, tokenizer, tc: TrainConfig, out_prefix: str,
-          resume: bool = False) -> Dict[str, Any]:
+def train(model: Arc1Model, tokenizer, tc: TrainConfig, out_prefix: str, resume: bool = False) -> Dict[str, Any]:
     cfg = model.arc1_config
-    codec = Arc1Codec(tokenizer, cfg.seq_len)
+    codec = Arc1Codec(tokenizer, cfg.seq_len, cfg.schema_len)
     lib = build_tool_library()
     rng = random.Random(tc.seed)
     tf.random.set_seed(tc.seed)
@@ -511,21 +539,19 @@ def train(model: Arc1Model, tokenizer, tc: TrainConfig, out_prefix: str,
         warmup_steps=tc.warmup_steps,
     )
     opt = tf.keras.optimizers.AdamW(learning_rate=schedule, weight_decay=tc.weight_decay, clipnorm=1.0)
-    # Build on every variable: shallow ladder steps only produce gradients for a subset.
     opt.build(model.trainable_variables)
 
-    depths = sorted(set(int(d) for d in cfg.ladder_depths if 1 <= int(d) <= cfg.num_layers) | {cfg.num_layers})
+    full = cfg.binding_cycles
     step_fns = {}
 
-    def make_step(depth: int):
-        @tf.function(input_signature=[BATCH_SIGNATURE])
+    def make_step(cycles: int):
+        @tf.function(input_signature=[BATCH_SIGNATURE], reduce_retracing=True)
         def step(batch):
             with tf.GradientTape() as tape:
-                losses, _ = compute_losses(model, batch, depth, training=True, lm_weight=tc.lm_weight)
+                losses, _ = compute_losses(model, batch, cycles, training=True)
             variables = model.trainable_variables
             grads = tape.gradient(losses["total"], variables)
-            pairs = [(g, v) for g, v in zip(grads, variables) if g is not None]
-            opt.apply_gradients(pairs)
+            opt.apply_gradients([(g, v) for g, v in zip(grads, variables) if g is not None])
             return losses
         return step
 
@@ -536,11 +562,11 @@ def train(model: Arc1Model, tokenizer, tc: TrainConfig, out_prefix: str,
 
     history, running, t0 = [], {}, time.time()
     for step in range(1, tc.steps + 1):
-        depth = cfg.num_layers if rng.random() < tc.full_depth_prob or len(depths) == 1 else rng.choice(depths[:-1])
-        if depth not in step_fns:
-            step_fns[depth] = make_step(depth)
-        batch = sample_batch(rng, codec, lib, tc.n_tool, tc.n_extract, tc.n_embed)
-        losses = step_fns[depth]({k: tf.constant(v) for k, v in batch.items()})
+        cycles = full if full == 1 or rng.random() < tc.full_cycles_prob else rng.randint(1, full - 1)
+        if cycles not in step_fns:
+            step_fns[cycles] = make_step(cycles)
+        batch = sample_batch(rng, codec, lib, tc.n_tool, tc.n_extract, tc.n_embed, n_classify=tc.n_classify)
+        losses = step_fns[cycles]({k: tf.constant(v) for k, v in batch.items()})
         for k, v in losses.items():
             running[k] = running.get(k, 0.0) + float(v)
         if step % tc.log_every == 0:
@@ -550,7 +576,7 @@ def train(model: Arc1Model, tokenizer, tc: TrainConfig, out_prefix: str,
             eta = elapsed / step * (tc.steps - step)
             history.append({"step": step, **avg})
             print(
-                f"[arc1] step {step}/{tc.steps} depth {depth} "
+                f"[arc1] step {step}/{tc.steps} cycles {cycles} "
                 + " ".join(f"{k}={v:.3f}" for k, v in avg.items())
                 + f" | {elapsed / step:.2f}s/step eta {eta / 60:.1f}m",
                 flush=True,

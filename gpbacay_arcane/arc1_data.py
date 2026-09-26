@@ -214,7 +214,7 @@ COMMON_WORDS = [
     "pencil", "lantern", "velvet", "copper", "maple", "summit", "bridge", "castle", "violet", "falcon",
     "tiger", "coffee", "planet", "signal", "winter", "autumn", "museum", "island", "forest", "anchor",
     "basket", "candle", "desert", "engine", "fabric", "glacier", "hammer", "jungle", "kettle", "ladder",
-    "magnet", "needle", "oyster", "paddle", "quartz", "ribbon", "saddle", "tunnel", "umbrella", "wagon",
+    "magnet", "nectar", "oyster", "paddle", "quartz", "ribbon", "saddle", "tunnel", "umbrella", "wagon",
     "yellow", "zipper", "blue", "green", "quiet", "happy", "rapid", "golden", "little", "grand",
     "north", "south", "east", "west", "old", "new", "red", "black", "white", "bright",
     "report", "invoice", "photos", "tickets", "groceries", "laundry", "homework", "slides", "budget", "plants",
@@ -882,3 +882,229 @@ def fixed_eval_set(split: str, n: int, seed: int = 1234) -> List[Example]:
 def fixed_extract_set(n: int, seed: int = 4321) -> List[ExtractExample]:
     rng = random.Random(seed)
     return [sample_extract_example(rng, "eval") for _ in range(n)]
+
+
+# ------------------------------------------------------------ classification
+# Classification is an enum decision over a label set supplied at request time:
+# one synthetic "classify" tool whose single argument's options are the labels.
+# Each family holds out tools, label wordings, or sentence templates for eval.
+CLASSIFY_TOOL_NAME = "classify"
+CLASSIFY_TASKS = [
+    "Classify the text into one of the labels.",
+    "Which category does this message belong to?",
+    "Route the user request to the right team.",
+    "Label the intent of the request.",
+    "Pick the topic that best fits the text.",
+]
+CLASSIFY_LABEL_DESCRIPTION = "The label that best fits the text"
+
+# Label vocabularies are part of what the model learns, so every wording is used
+# in training; evaluation holds out the *texts* (values and sentence frames).
+# Zero-shot generalisation is measured separately on intents of held-out tools.
+DOMAIN_LABELS = {
+    "info": ["information lookup", "questions", "search", "general info"],
+    "home": ["smart home", "home control", "household devices", "house"],
+    "finance": ["finance", "money", "payments", "banking"],
+    "comms": ["messaging", "communication", "contacting people", "social"],
+    "time": ["scheduling", "reminders and alarms", "calendar", "time management"],
+    "media": ["media playback", "entertainment", "music and video", "audio"],
+    "travel": ["travel", "trips", "transportation", "commute"],
+    "shopping": ["shopping", "purchases", "buying things", "groceries"],
+    "productivity": ["productivity", "tasks and notes", "work", "to-do"],
+    "device": ["device settings", "phone settings", "hardware", "connectivity"],
+}
+
+# Sentiment is compositional: polarity words x sentence frames, so the model must
+# learn which words carry sentiment instead of memorising whole sentences.
+POSITIVE_WORDS = [
+    "great", "amazing", "excellent", "fantastic", "wonderful", "perfect", "awesome", "lovely", "brilliant",
+    "superb", "outstanding", "impressive", "delightful", "flawless", "reliable", "fast", "helpful", "friendly",
+    "smooth", "beautiful", "incredible", "top notch", "a joy to use", "worth every penny", "better than expected",
+    "really good", "so good", "pleasant", "solid", "comfortable", "easy to use", "spot on", "first class",
+    "exactly what I needed", "a lifesaver", "fun", "nice", "useful", "stellar", "the best",
+]
+NEGATIVE_WORDS = [
+    "terrible", "awful", "horrible", "broken", "useless", "disappointing", "slow", "faulty", "rude", "annoying",
+    "frustrating", "unreliable", "cheap and flimsy", "a waste of money", "worse than expected", "defective",
+    "painful to use", "buggy", "overpriced", "damaged", "dirty", "late again", "a nightmare", "really bad",
+    "so bad", "unacceptable", "poor", "noisy", "confusing", "unusable", "the worst", "a scam", "dreadful",
+    "falling apart", "garbage", "infuriating", "sloppy", "cold and stale", "leaking", "unhelpful",
+]
+POSITIVE_VERBS = ["love", "adore", "really like", "am thrilled with", "am so happy with", "can't stop using",
+                  "highly recommend", "am impressed by", "am grateful for", "enjoy"]
+NEGATIVE_VERBS = ["hate", "can't stand", "regret buying", "am fed up with", "am disappointed with",
+                  "am sick of", "want a refund for", "am angry about", "am upset about", "dislike"]
+_POLAR_FRAMES = _split_pool([
+    "the {x} is {w}", "honestly the {x} was {w}", "my new {x} is {w}", "wow, the {x} is {w}",
+    "this {x} is {w}", "the {x} you sent me is {w}", "I think the {x} is {w}", "{w}, that is how the {x} feels",
+    "the {x} turned out {w}", "your {x} service was {w}", "so far the {x} has been {w}",
+    "overall the {x} is {w}", "the {x} looks {w}", "I have to say the {x} is {w}",
+    "the {x} at your store was {w}", "just got the {x} and it is {w}",
+])
+_POLAR_VERB_FRAMES = _split_pool([
+    "I {v} the {x}", "I {v} this {x}", "honestly I {v} my {x}", "we {v} the new {x}",
+    "I really {v} the {x} you sent", "my family and I {v} the {x}", "I {v} your {x}", "I {v} that {x}",
+])
+_NEUTRAL_FRAMES = _split_pool([
+    "the {x} arrived today", "what time does the {x} shop open", "I ordered a {x} yesterday",
+    "the {x} is on the table", "is the {x} available in blue", "my {x} is in the other room",
+    "I will pick up the {x} tomorrow", "the {x} comes in two sizes", "where can I find the {x}",
+    "the {x} weighs about two kilos", "can you ship the {x} to my office", "the {x} is next to the door",
+    "how many {x}s are in stock", "I moved the {x} to the kitchen", "the {x} manual is in the box",
+    "please send me the {x} receipt",
+])
+SENTIMENT_LABELS = [
+    {"positive": "positive", "negative": "negative", "neutral": "neutral"},
+    {"positive": "happy", "negative": "unhappy", "neutral": "neutral"},
+    {"positive": "praise", "negative": "complaint", "neutral": "other"},
+    {"positive": "good", "negative": "bad", "neutral": "neither"},
+    {"positive": "satisfied", "negative": "dissatisfied", "neutral": "no opinion"},
+    {"positive": "pleased", "negative": "angry", "neutral": "informational"},
+]
+# Customer-support routing: frames per team; held-out frames are used for eval.
+SUPPORT_CLASSES = {
+    "billing": (["billing", "payments", "invoices"], "charges, invoices, refunds, payments", _split_pool([
+        "I was billed twice for the {x}", "why is my invoice so high this month", "I need a refund for the {x}",
+        "the payment for my {x} failed", "can I get a copy of my last invoice", "you charged me the wrong amount for the {x}",
+        "please update the credit card on file", "there is a double charge on my statement",
+        "my subscription fee went up without notice", "I want my money back for the {x}",
+        "the {x} charge on my bank statement looks wrong", "I was charged after I cancelled",
+    ])),
+    "technical": (["technical support", "tech issues", "bugs"], "crashes, errors, login problems, bugs", _split_pool([
+        "the app crashes when I open the {x} page", "I can't log in to my account", "the {x} keeps showing an error",
+        "the website won't load on my phone", "my {x} stopped syncing", "I get error code 500 when I save",
+        "the {x} freezes after the update", "the password reset email never arrives",
+        "the app is stuck on the loading screen", "notifications stopped working", "I can't upload files anymore",
+        "the {x} button does nothing when I tap it",
+    ])),
+    "sales": (["sales", "pricing", "new business"], "pricing, discounts, plans, quotes", _split_pool([
+        "how much does the {x} plan cost", "I want to upgrade to the premium plan", "can I get a quote for {n} licenses",
+        "is there a student discount", "what is included in the business plan", "I'd like to buy the {x} for my company",
+        "do you have annual pricing", "can someone demo the {x} for my team", "are there bulk prices for {n} units",
+        "do you offer a discount for {n} seats", "what does the enterprise tier include", "is there a free trial of the {x}",
+    ])),
+    "account": (["cancel account", "account changes", "account"], "close, delete, or update an account", _split_pool([
+        "delete my profile and all my data", "I want to cancel my subscription", "how do I change the email on my account",
+        "remove my account permanently", "I'd like to deactivate my account", "please unsubscribe me and close the account",
+        "change my username", "merge my two accounts", "update the phone number on my profile",
+        "I no longer want an account with you", "how do I close my account", "turn off my membership",
+    ])),
+    "shipping": (["shipping", "delivery", "orders"], "delivery, tracking, late or missing packages", _split_pool([
+        "where is my {x} order", "my package hasn't arrived yet", "the {x} was delivered to the wrong address",
+        "can I track my shipment", "my order is two weeks late", "the box arrived damaged", "when will my {x} ship",
+        "the courier lost my parcel", "can I change the delivery address for my order", "the tracking number doesn't work",
+        "the {x} I ordered never showed up", "the delivery driver left my {x} outside in the rain",
+    ])),
+}
+
+REQUEST_LABELS = [("request", "small talk"), ("task", "chit-chat"), ("actionable", "not actionable"),
+                  ("command", "conversation"), ("needs action", "just chatting")]
+
+
+def _sentiment_text(rng: random.Random, polarity: str, split: str) -> str:
+    thing = rng.choice(ITEMS[split] + COMMON_WORDS[:40])
+    if polarity == "neutral":
+        return rng.choice(_NEUTRAL_FRAMES[split]).replace("{x}", thing)
+    words, verbs = (POSITIVE_WORDS, POSITIVE_VERBS) if polarity == "positive" else (NEGATIVE_WORDS, NEGATIVE_VERBS)
+    if rng.random() < 0.3:
+        return rng.choice(_POLAR_VERB_FRAMES[split]).replace("{v}", rng.choice(verbs)).replace("{x}", thing)
+    return rng.choice(_POLAR_FRAMES[split]).replace("{w}", rng.choice(words)).replace("{x}", thing)
+
+
+@dataclass
+class ClassifyExample:
+    text: str
+    labels: List[str]
+    label: str
+    task: str
+    kind: str
+    descriptions: Dict[str, str] = field(default_factory=dict)
+
+
+def _humanize(name: str) -> str:
+    return name.replace("_", " ")
+
+
+def sample_classify_example(rng: random.Random, lib: Dict[str, ToolDef], split: str = "train") -> ClassifyExample:
+    """``split`` = train | eval (held-out values, wordings, templates) | unseen_tools."""
+    task = rng.choice(CLASSIFY_TASKS)
+    text_split = "train" if split == "train" else "eval"
+    kind = "intent_tool" if split == "unseen_tools" else rng.choice(
+        ["intent_tool", "intent_domain", "sentiment", "sentiment", "request", "support", "support"])
+    hints: Dict[str, str] = {}
+    use_hints = rng.random() < 0.5
+    if kind == "intent_tool":
+        names = [n for n in lib if (n in HELD_OUT_TOOLS) == (split == "unseen_tools")]
+        others = [n for n in lib if n not in HELD_OUT_TOOLS]
+        gold = rng.choice(names)
+        text, _ = _single(rng, lib[gold], text_split)
+        distract = rng.sample([n for n in others if n != gold and lib[n].domain != lib[gold].domain or
+                               (n != gold and rng.random() < 0.3)], rng.randint(2, 5))
+        labels = [_humanize(n) for n in [gold] + distract]
+        label = _humanize(gold)
+        if use_hints:
+            hints = {_humanize(n): rng.choice(lib[n].descriptions) for n in [gold] + distract}
+    elif kind == "intent_domain":
+        names = [n for n in lib if n not in HELD_OUT_TOOLS]
+        gold = rng.choice(names)
+        text, _ = _single(rng, lib[gold], text_split)
+        domains = [d for d in DOMAIN_LABELS if d != lib[gold].domain]
+        chosen = [lib[gold].domain] + rng.sample(domains, rng.randint(2, 5))
+        labels = [rng.choice(DOMAIN_LABELS[d]) for d in chosen]
+        label = labels[0]
+        if use_hints:
+            train_tools = [n for n in lib if n not in HELD_OUT_TOOLS]
+            for d, lab in zip(chosen, labels):
+                pool_d = [_humanize(n) for n in train_tools if lib[n].domain == d]
+                hints[lab] = ", ".join(rng.sample(pool_d, min(3, len(pool_d))))
+    elif kind == "sentiment":
+        wording = rng.choice(SENTIMENT_LABELS)
+        polarity = rng.choice(["positive", "negative", "neutral"])
+        text = _sentiment_text(rng, polarity, text_split)
+        keys = list(wording) if rng.random() < 0.7 else ["positive", "negative"]
+        if polarity not in keys:
+            keys.append(polarity)
+        labels = [wording[k] for k in keys]
+        label = wording[polarity]
+        if use_hints:
+            hint_words = {"positive": POSITIVE_WORDS, "negative": NEGATIVE_WORDS}
+            for k in keys:
+                hints[wording[k]] = (", ".join(rng.sample(hint_words[k], 4)) if k in hint_words
+                                     else "facts, questions, no opinion")
+    elif kind == "support":
+        chosen = [rng.choice(list(SUPPORT_CLASSES))]
+        chosen += rng.sample([c for c in SUPPORT_CLASSES if c != chosen[0]], rng.randint(2, 4))
+        names = {c: rng.choice(SUPPORT_CLASSES[c][0]) for c in chosen}
+        frame = rng.choice(SUPPORT_CLASSES[chosen[0]][2][text_split])
+        text = frame.replace("{x}", rng.choice(ITEMS[text_split])).replace("{n}", str(rng.choice([5, 12, 20, 50, 200])))
+        labels = [names[c] for c in chosen]
+        label = labels[0]
+        if use_hints:
+            hints = {names[c]: SUPPORT_CLASSES[c][1] for c in chosen}
+    else:
+        pair = rng.choice(REQUEST_LABELS)
+        if rng.random() < 0.5:
+            text, label = rng.choice(CHITCHAT), pair[1]
+        else:
+            name = rng.choice([n for n in lib if n not in HELD_OUT_TOOLS])
+            text, label = _single(rng, lib[name], text_split)[0], pair[0]
+        labels = list(pair)
+    text = _surface_noise(rng, text)
+    rng.shuffle(labels)
+    return ClassifyExample(text, labels, label, task, kind, hints)
+
+
+def classify_tool_spec(labels: Sequence[str], task: Optional[str] = None,
+                       descriptions: Optional[Dict[str, str]] = None) -> ToolSpec:
+    return ToolSpec(
+        name=CLASSIFY_TOOL_NAME,
+        description=task or CLASSIFY_TASKS[0],
+        parameters=[ToolParam("label", "string", CLASSIFY_LABEL_DESCRIPTION, True, [str(x) for x in labels],
+                              enum_descriptions=dict(descriptions or {}) or None)],
+    )
+
+
+def fixed_classify_set(split: str, n: int, seed: int = 2468) -> List[ClassifyExample]:
+    rng = random.Random(seed + {"eval": 1, "unseen_tools": 2}.get(split, 0))
+    lib = build_tool_library()
+    return [sample_classify_example(rng, lib, split) for _ in range(n)]

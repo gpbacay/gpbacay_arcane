@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Train ARC 1's decision heads, calibrate them, and evaluate end to end.
+"""Train ARC 1 (Resonant Schema Binding), calibrate it, and evaluate end to end.
 
-Trains noul (tool relevance / presence / booleans), span (copied arguments),
-choice (enums), and echo embeddings on synthetic tool-calling and extraction
-data, samples a ladder depth per step, fits per-head temperatures on held-out
-values, and writes weights, config (with calibration), tokenizer, and metrics.
+Trains the fire (tool fires / optional argument present / boolean), anchor
+(grounded copy pointer), and select (enum / classification label) readouts plus
+utterance embeddings on synthetic tool-calling, extraction, and classification data. A binding cycle count is
+sampled per step, readout temperatures are fitted on held-out values, and
+weights, config (with calibration), tokenizer, and metrics are written.
 
-  python examples/train_arc1.py --preset arc1-tiny --steps 3000
+  python examples/train_arc1.py --preset arc1-tiny --steps 4000
   python examples/train_arc1.py --eval-only            # re-evaluate saved weights
 """
 
@@ -20,9 +21,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+# oneDNN speeds up batched training (~1.8x) but slows single-request inference (~2x) at
+# this size, so evaluation, whose latency numbers should match serving, runs without it.
+if "--eval-only" in sys.argv:
+    os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 
 from gpbacay_arcane.arc1 import Arc1Config, Arc1Model
-from gpbacay_arcane.arc1_codec import Arc1Codec
+from gpbacay_arcane.arc1_codec import Arc1Codec, tool_text
 from gpbacay_arcane.arc1_data import build_tool_library, sample_extract_example, sample_tool_example
 from gpbacay_arcane.arc1_train import TrainConfig, calibrate, full_evaluation, save_artifacts, train
 from gpbacay_arcane.tokenization import BASE_VOCAB, BytePairTokenizer
@@ -31,15 +36,17 @@ from gpbacay_arcane.tokenization import BASE_VOCAB, BytePairTokenizer
 def parse_args():
     p = argparse.ArgumentParser(description="Train ARC 1 automation model")
     p.add_argument("--preset", default="arc1-tiny", choices=["arc1-tiny", "arc1"])
-    p.add_argument("--steps", type=int, default=3000)
-    p.add_argument("--learning-rate", type=float, default=1e-3)
-    p.add_argument("--n-tool", type=int, default=12, help="Tool-calling examples per step")
-    p.add_argument("--n-extract", type=int, default=4, help="Extraction examples per step")
+    p.add_argument("--steps", type=int, default=4000)
+    p.add_argument("--learning-rate", type=float, default=2e-3)
+    p.add_argument("--n-tool", type=int, default=16, help="Tool-calling examples per step")
+    p.add_argument("--n-extract", type=int, default=6, help="Extraction examples per step")
     p.add_argument("--n-embed", type=int, default=8, help="Embedding paraphrase pairs per step")
+    p.add_argument("--n-classify", type=int, default=6, help="Classification examples per step")
     p.add_argument("--out-dir", default="Models")
     p.add_argument("--resume", action="store_true", help="Continue from saved weights")
     p.add_argument("--eval-only", action="store_true", help="Skip training; calibrate + evaluate saved weights")
     p.add_argument("--build-only", action="store_true")
+    p.add_argument("--skip-eval", action="store_true", help="Train and save only; run --eval-only afterwards")
     p.add_argument("--eval-examples", type=int, default=300)
     p.add_argument("--seed", type=int, default=0)
     return p.parse_args()
@@ -52,7 +59,7 @@ def make_tokenizer(config: Arc1Config) -> BytePairTokenizer:
         rng, lib = random.Random(0), build_tool_library()
         texts = [sample_tool_example(rng, lib).user for _ in range(3000)]
         texts += [sample_extract_example(rng).text for _ in range(1000)]
-        texts += [f"TOOL {t.name}: {d}" for t in lib.values() for d in t.descriptions]
+        texts += [tool_text(t.name, d) for t in lib.values() for d in t.descriptions]
         tokenizer.train(["\n".join(texts)], max_chars=200_000)
     return tokenizer
 
@@ -73,7 +80,7 @@ def main():
     model.build_model()
     print("=== ARC 1 ===")
     print(f"preset: {args.preset}  parameters: {model.count_params():,}")
-    print(f"ladder: { {d: config.ladder_block_indices(d) for d in config.ladder_depths} }")
+    print(f"architecture: Resonant Schema Binding  layers={config.num_layers}  cycles={config.binding_cycles}")
     if args.build_only:
         return
 
@@ -87,19 +94,26 @@ def main():
             n_tool=args.n_tool,
             n_extract=args.n_extract,
             n_embed=args.n_embed,
+            n_classify=args.n_classify,
             seed=args.seed,
         )
         tokenizer.save(tok_path)
         train_info = train(model, tokenizer, tc, prefix, resume=args.resume)
+        if args.skip_eval:
+            model.save_weights(prefix + ".weights.h5")
+            print(f"saved weights: {prefix}.weights.h5 (run --eval-only to calibrate + evaluate)")
+            return
 
     lib = build_tool_library()
-    calibration = calibrate(model, Arc1Codec(tokenizer, config.seq_len), lib)
+    calibration = calibrate(model, Arc1Codec(tokenizer, config.seq_len, config.schema_len), lib)
     print(f"[arc1] calibration: {json.dumps(calibration)}", flush=True)
-    evaluation = full_evaluation(model, tokenizer, n_tool=args.eval_examples, depths=sorted(set(config.ladder_depths)))
+    evaluation = full_evaluation(model, tokenizer, n_tool=args.eval_examples,
+                                 cycles_list=sorted({1, config.binding_cycles}))
     print(json.dumps(evaluation, indent=2), flush=True)
 
     metrics = {
         "preset": args.preset,
+        "architecture": "Resonant Schema Binding",
         "parameters": int(model.count_params()),
         "calibration": calibration,
         "evaluation": evaluation,

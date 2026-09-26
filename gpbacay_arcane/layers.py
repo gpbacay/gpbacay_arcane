@@ -9,6 +9,8 @@ from .mechanisms import (
     ResonantSequenceMixer,
     SpatioTemporalSummaryMixingLayer,
     ConceptEngram,
+    FieldAttention,
+    FieldResonance,
 )
 
 class ExpandDimensionLayer(tf.keras.layers.Layer):
@@ -935,121 +937,105 @@ class ResonantChannelMixer(tf.keras.layers.Layer):
         return config
 
 
-class Arc1DecoderBlock(tf.keras.layers.Layer):
-    """ARC 1 block: causal attn → ResonantChannelMixer → ConceptEngram → resonance."""
+class Arc1PerceptionBlock(tf.keras.layers.Layer):
+    """ARC 1 perception block over a padded, bidirectional token field.
+
+    ``x += FieldAttention(norm x)`` → ``x += ResonantChannelMixer(norm x)`` →
+    optional ``ConceptEngram`` lexical memory → ``FieldResonance``. Every
+    stage is pad-masked, so a request reads the same with or without padding.
+    """
 
     def __init__(
         self,
         d_model,
         num_heads,
-        dropout_rate=0.1,
+        dropout_rate=0.0,
         resonance_factor=0.15,
         resonance_cycles=3,
         spike_threshold=0.4,
         leak_rate=0.1,
-        attention_type="linear",
         use_rope=True,
-        rope_base=10000.0,
-        max_position=2048,
-        chunk_size=64,
-        use_decay=True,
-        reweight_centered=True,
+        max_position=1024,
         gate_normalize=True,
-        norm_type="rms",
-        mixer_rank_div=4,
+        mixer_rank_div=2,
+        use_engram=False,
         engram_table_size=4096,
-        engram_rows=8,
+        engram_rows=4,
         ngram_sizes=(2, 3),
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.d_model = d_model
-        self.num_heads = num_heads
-        self.dropout_rate = dropout_rate
-        self.resonance_factor = resonance_factor
-        self.resonance_cycles = resonance_cycles
-        self.spike_threshold = spike_threshold
-        self.leak_rate = leak_rate
-        self.attention_type = attention_type
-        self.use_rope = use_rope
-        self.rope_base = rope_base
-        self.max_position = max_position
-        self.chunk_size = chunk_size
-        self.use_decay = use_decay
-        self.reweight_centered = reweight_centered
-        self.gate_normalize = gate_normalize
-        self.norm_type = norm_type
-        self.mixer_rank_div = mixer_rank_div
-        self.engram_table_size = engram_table_size
-        self.engram_rows = engram_rows
-        self.ngram_sizes = tuple(ngram_sizes)
+        self.d_model = int(d_model)
+        self.num_heads = int(num_heads)
+        self.dropout_rate = float(dropout_rate)
+        self.resonance_factor = float(resonance_factor)
+        self.resonance_cycles = int(resonance_cycles)
+        self.spike_threshold = float(spike_threshold)
+        self.leak_rate = float(leak_rate)
+        self.use_rope = bool(use_rope)
+        self.max_position = int(max_position)
+        self.gate_normalize = bool(gate_normalize)
+        self.mixer_rank_div = int(mixer_rank_div)
+        self.use_engram = bool(use_engram)
+        self.engram_table_size = int(engram_table_size)
+        self.engram_rows = int(engram_rows)
+        self.ngram_sizes = tuple(int(n) for n in ngram_sizes)
 
-        if attention_type == "softmax":
-            self.attn = CausalSoftmaxSelfAttention(
-                d_model=d_model,
-                num_heads=num_heads,
-                dropout_rate=dropout_rate,
-                use_rope=use_rope,
-                rope_base=rope_base,
-                max_position=max_position,
-                name="causal_softmax_attn",
-            )
-        elif attention_type == "linear":
-            self.attn = CausalLinearSelfAttention(
-                d_model=d_model,
-                num_heads=num_heads,
-                dropout_rate=dropout_rate,
-                chunk_size=chunk_size,
-                use_decay=use_decay,
-                use_rope=use_rope,
-                rope_base=rope_base,
-                max_position=max_position,
-                reweight_centered=reweight_centered,
-                name="causal_linear_attn",
-            )
-        else:
-            raise ValueError(f"attention_type must be 'linear' or 'softmax', got {attention_type!r}")
-
+        self.attn_norm = RMSNorm(eps=1e-6, name="attn_norm")
+        self.attn = FieldAttention(
+            d_model=self.d_model,
+            num_heads=self.num_heads,
+            dropout_rate=self.dropout_rate,
+            use_rope=self.use_rope,
+            max_position=self.max_position,
+            name="field_attention",
+        )
+        self.mix_norm = RMSNorm(eps=1e-6, name="mix_norm")
         self.mixer = ResonantChannelMixer(
-            d_model=d_model,
-            rank_div=mixer_rank_div,
-            leak_rate=leak_rate,
-            spike_threshold=spike_threshold,
-            dropout_rate=dropout_rate,
-            gate_normalize=gate_normalize,
+            d_model=self.d_model,
+            rank_div=self.mixer_rank_div,
+            leak_rate=self.leak_rate,
+            spike_threshold=self.spike_threshold,
+            dropout_rate=self.dropout_rate,
+            gate_normalize=self.gate_normalize,
             name="channel_mixer",
         )
-        self.engram = ConceptEngram(
-            d_model=d_model,
-            table_size=engram_table_size,
-            ngram_sizes=self.ngram_sizes,
-            rows_per_token=engram_rows,
-            leak_rate=leak_rate,
-            spike_threshold=spike_threshold,
-            name="concept_engram",
+        self.engram = (
+            ConceptEngram(
+                d_model=self.d_model,
+                table_size=self.engram_table_size,
+                ngram_sizes=self.ngram_sizes,
+                rows_per_token=self.engram_rows,
+                leak_rate=self.leak_rate,
+                spike_threshold=self.spike_threshold,
+                name="concept_engram",
+            )
+            if self.use_engram
+            else None
         )
-        self.resonance = ResonantSequenceMixer(
-            d_model=d_model,
-            resonance_factor=resonance_factor,
-            resonance_cycles=resonance_cycles,
-            spike_threshold=spike_threshold,
-            name="resonant_mixer",
+        self.resonance = FieldResonance(
+            d_model=self.d_model,
+            resonance_factor=self.resonance_factor,
+            resonance_cycles=self.resonance_cycles,
+            spike_threshold=self.spike_threshold,
+            name="field_resonance",
         )
-        self.mix_norm = (
-            RMSNorm(eps=1e-6) if norm_type == "rms"
-            else tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        )
-        self.engram_norm = (
-            RMSNorm(eps=1e-6) if norm_type == "rms"
-            else tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        )
+        self.out_norm = RMSNorm(eps=1e-6, name="out_norm")
 
-    def call(self, inputs, token_ids=None, training=False):
-        x = self.attn(inputs, training=training)
-        h = self.mixer(x, training=training)
-        x = self.mix_norm(x + h)
-        x = self.engram_norm(self.engram(x, token_ids=token_ids, training=training))
-        return self.resonance(x, training=training)
+    def build(self, input_shape):
+        for layer in (self.attn_norm, self.attn, self.mix_norm, self.mixer, self.resonance, self.out_norm):
+            layer.build(input_shape)
+        if self.engram is not None:
+            self.engram.build(input_shape)
+        super().build(input_shape)
+
+    def call(self, inputs, token_ids=None, token_mask=None, training=False):
+        x = inputs + self.attn(self.attn_norm(inputs), token_mask=token_mask, training=training)
+        x = x + self.mixer(self.mix_norm(x), training=training)
+        if self.engram is not None:
+            x = self.engram(x, token_ids=token_ids, training=training)
+        x = x + self.resonance(x, token_mask=token_mask, training=training)
+        return self.out_norm(x)
 
     def get_config(self):
         config = super().get_config()
@@ -1062,16 +1048,11 @@ class Arc1DecoderBlock(tf.keras.layers.Layer):
                 "resonance_cycles": self.resonance_cycles,
                 "spike_threshold": self.spike_threshold,
                 "leak_rate": self.leak_rate,
-                "attention_type": self.attention_type,
                 "use_rope": self.use_rope,
-                "rope_base": self.rope_base,
                 "max_position": self.max_position,
-                "chunk_size": self.chunk_size,
-                "use_decay": self.use_decay,
-                "reweight_centered": self.reweight_centered,
                 "gate_normalize": self.gate_normalize,
-                "norm_type": self.norm_type,
                 "mixer_rank_div": self.mixer_rank_div,
+                "use_engram": self.use_engram,
                 "engram_table_size": self.engram_table_size,
                 "engram_rows": self.engram_rows,
                 "ngram_sizes": self.ngram_sizes,

@@ -39,11 +39,12 @@ def list_models():
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  1. Arc1Model  ⭐ NEW — Automation foundation (tools / extract / embed)         │
-│     Laddered decoder + Laya-style noul/span/choice heads, calibrated.        │
-│     Presets: arc1-tiny, arc1. Depth ladder: agent.run(..., depth=N).        │
+│     Resonant Schema Binding: perceive once, bind every schema probe, read    │
+│     out fire / anchor / select. One pass per request, calibrated.            │
+│     Presets: arc1-tiny, arc1. Speed knob: agent.run(..., cycles=N).          │
 │     Train: python examples/train_arc1.py --preset arc1-tiny                  │
 │     Serve: python examples/serve_arc1_api.py  (port 8002)                    │
-│     Export: python examples/export_arc1.py --tflite --layers 2               │
+│     Export: python examples/export_arc1.py --tflite --cycles 2               │
 │                                                                              │
 │  2. ArcaneSmallLanguageModel                                                  │
 │     Causal decoder LM (~100M with the 100m preset). Linear attention,        │
@@ -108,7 +109,8 @@ def list_layers():
 │  19. SpatioTemporalSummarization        - Wrapper around the mixing layer    │
 │  20. ResonantChannelMixer               - Cheap ARC 1 FFN (low-rank+GSER)    │
 │  21. ConceptEngram                      - Hashed n-gram gather memory        │
-│  22. Arc1DecoderBlock                   - Attn + mixer + engram + resonance  │
+│  22. Arc1PerceptionBlock                - Bidirectional field perception     │
+│  23. ResonantBinding                    - Schema probes resonate with text   │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
     """)

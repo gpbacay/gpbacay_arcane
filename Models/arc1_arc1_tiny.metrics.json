@@ -1,67 +1,104 @@
 {
   "preset": "arc1-tiny",
-  "parameters": 2829966,
+  "architecture": "Resonant Schema Binding",
+  "parameters": 1320067,
   "calibration": {
     "temperatures": {
-      "noul": 0.9337807760058026,
-      "span": 1.4894891113061028,
-      "choice": 0.2
+      "fire": 1.29479081973234,
+      "anchor": 1.6352938878415428,
+      "select": 3.0007232182309935
     },
-    "noul_ece_before": 0.023308836308354265,
-    "noul_ece_after": 0.01811431950728984,
-    "n_noul": 801,
-    "n_span": 306,
-    "n_choice": 75
+    "fire_ece_before": 0.009473739809061103,
+    "fire_ece_after": 0.00936292339294883,
+    "n_fire": 752,
+    "n_anchor": 387,
+    "n_select": 144
   },
   "evaluation": {
-    "depth_2": {
+    "cycles_1": {
       "tools_heldout_values": {
         "n": 300,
-        "tool_selection_acc": 0.8833333333333333,
-        "exact_call_acc": 0.6833333333333333,
-        "argument_acc": 0.6919060052219321,
+        "tool_selection_acc": 0.9733333333333334,
+        "exact_call_acc": 0.8966666666666666,
+        "argument_acc": 0.9112271540469974,
         "no_tool_acc": 0.9682539682539683,
-        "latency_ms_p50": 198.8
+        "latency_ms_p50": 5.4,
+        "latency_ms_p90": 8.948
       },
       "tools_unseen_tools": {
         "n": 150,
-        "tool_selection_acc": 0.30666666666666664,
-        "exact_call_acc": 0.20666666666666667,
-        "argument_acc": 0.06989247311827956,
-        "no_tool_acc": 0.8055555555555556,
-        "latency_ms_p50": 96.25
+        "tool_selection_acc": 0.4533333333333333,
+        "exact_call_acc": 0.3333333333333333,
+        "argument_acc": 0.23118279569892472,
+        "no_tool_acc": 0.9722222222222222,
+        "latency_ms_p50": 5.13,
+        "latency_ms_p90": 8.556000000000001
       },
       "extraction_heldout_values": {
         "n": 150,
-        "field_precision": 0.6613995485327314,
-        "field_recall": 0.6992840095465394,
-        "field_f1": 0.6798143851508122,
-        "exact_record_acc": 0.3333333333333333
+        "field_precision": 0.9806763285024155,
+        "field_recall": 0.9689737470167065,
+        "field_f1": 0.9747899159663866,
+        "exact_record_acc": 0.9133333333333333
+      },
+      "classify_heldout": {
+        "n": 150,
+        "accuracy": 0.7333333333333333,
+        "accuracy_intent_domain": 1.0,
+        "accuracy_intent_tool": 0.9444444444444444,
+        "accuracy_request": 1.0,
+        "accuracy_sentiment": 0.673469387755102,
+        "accuracy_support": 0.4888888888888889,
+        "latency_ms_p50": 7.79
+      },
+      "classify_unseen_tools": {
+        "n": 75,
+        "accuracy": 0.4533333333333333,
+        "accuracy_intent_tool": 0.4533333333333333,
+        "latency_ms_p50": 5.675000000000001
       }
     },
-    "depth_4": {
+    "cycles_3": {
       "tools_heldout_values": {
         "n": 300,
-        "tool_selection_acc": 0.8933333333333333,
-        "exact_call_acc": 0.7033333333333334,
-        "argument_acc": 0.7154046997389034,
-        "no_tool_acc": 0.9682539682539683,
-        "latency_ms_p50": 374.9
+        "tool_selection_acc": 0.98,
+        "exact_call_acc": 0.8933333333333333,
+        "argument_acc": 0.9112271540469974,
+        "no_tool_acc": 0.9841269841269841,
+        "latency_ms_p50": 5.62,
+        "latency_ms_p90": 9.006
       },
       "tools_unseen_tools": {
         "n": 150,
-        "tool_selection_acc": 0.3,
-        "exact_call_acc": 0.20666666666666667,
-        "argument_acc": 0.06989247311827956,
-        "no_tool_acc": 0.8055555555555556,
-        "latency_ms_p50": 202.2
+        "tool_selection_acc": 0.44,
+        "exact_call_acc": 0.31333333333333335,
+        "argument_acc": 0.21505376344086022,
+        "no_tool_acc": 0.9722222222222222,
+        "latency_ms_p50": 4.8,
+        "latency_ms_p90": 8.288
       },
       "extraction_heldout_values": {
         "n": 150,
-        "field_precision": 0.6845637583892618,
-        "field_recall": 0.7303102625298329,
-        "field_f1": 0.7066974595842956,
-        "exact_record_acc": 0.34
+        "field_precision": 0.9757869249394673,
+        "field_recall": 0.9618138424821002,
+        "field_f1": 0.96875,
+        "exact_record_acc": 0.8933333333333333
+      },
+      "classify_heldout": {
+        "n": 150,
+        "accuracy": 0.7266666666666667,
+        "accuracy_intent_domain": 1.0,
+        "accuracy_intent_tool": 0.9444444444444444,
+        "accuracy_request": 1.0,
+        "accuracy_sentiment": 0.673469387755102,
+        "accuracy_support": 0.4666666666666667,
+        "latency_ms_p50": 5.05
+      },
+      "classify_unseen_tools": {
+        "n": 75,
+        "accuracy": 0.48,
+        "accuracy_intent_tool": 0.48,
+        "latency_ms_p50": 5.55
       }
     },
     "embeddings": {
@@ -69,54 +106,6 @@
       "intent_retrieval_at_1": 1.0
     }
   },
-  "train": {
-    "train_seconds": 8916.785732030869
-  },
-  "history_tail": [
-    {
-      "step": 2900,
-      "noul": 0.16707048445940018,
-      "span": 0.24034894168376922,
-      "choice": 9.341982308342267e-05,
-      "embed": 0.0011780335978255607,
-      "lm": 0.0,
-      "total": 0.40810186564922335
-    },
-    {
-      "step": 2925,
-      "noul": 0.17246123179793357,
-      "span": 0.19710784330964087,
-      "choice": 0.01623282921831077,
-      "embed": 0.0023869901444413697,
-      "lm": 0.0,
-      "total": 0.38699539840221403
-    },
-    {
-      "step": 2950,
-      "noul": 0.16896917194128036,
-      "span": 0.20671818345785142,
-      "choice": 6.948825937797665e-05,
-      "embed": 0.004120851985717309,
-      "lm": 0.0,
-      "total": 0.377817268371582
-    },
-    {
-      "step": 2975,
-      "noul": 0.17880351930856705,
-      "span": 0.18060410737991334,
-      "choice": 6.522993165162916e-05,
-      "embed": 0.0017919174036069307,
-      "lm": 0.0,
-      "total": 0.3603688132762909
-    },
-    {
-      "step": 3000,
-      "noul": 0.18162366718053818,
-      "span": 0.20617134556174277,
-      "choice": 0.042227071423833425,
-      "embed": 0.013537975630679284,
-      "lm": 0.0,
-      "total": 0.4367910724878311
-    }
-  ]
+  "train": {},
+  "history_tail": []
 }

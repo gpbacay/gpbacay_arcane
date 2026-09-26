@@ -1,18 +1,14 @@
-"""Sequence formats shared by ARC 1 training and inference.
+"""Text formats shared by ARC 1 training and inference.
 
-Every decision is one short sequence scored by the model; all candidates for a
-request are padded into one batch and read in a single forward pass (Laya-style
-batched option scoring). Formats:
+ARC 1 reads two kinds of text:
 
-* tool   ``TOOL name: description / USER: text / APPLIES?``       → noul
-* arg    ``ARG p (type): desc / IN tool / USER: text / COPY: text / VALUE?``
-         → span over the COPY tokens, noul for presence (optional params) or
-           for the value itself (boolean params)
-* enum   ``ARG p: desc / IN tool / USER: text / VALUE = option``   → choice
-* embed  ``TEXT: text / COPY: text``                               → mean pool over COPY
+* the **utterance** — ``[BOS] + user tokens``, perceived once per request.
+  Byte offsets of every token are kept so an anchored span maps back to the
+  exact characters the user typed.
+* **schema texts** — one short line per tool, parameter, and enum option.
+  Each is perceived once, pooled into a schema engram, and cached.
 
-The COPY ("echo") repeat lets a causal model see the whole utterance before
-the tokens it points at — a causal stand-in for Laya's bidirectional encoder.
+Probe roles tell the binding which readout a probe feeds.
 """
 
 from __future__ import annotations
@@ -26,82 +22,83 @@ from .tokenization import BOS_ID, PAD_ID, BytePairTokenizer
 
 SPAN_TYPES = ("string", "integer", "number")
 
+ROLE_TOOL = 0      # does this tool fire for the utterance?
+ROLE_SPAN = 1      # string / number argument: anchored copy (+ presence when optional)
+ROLE_BOOL = 2      # boolean argument: fire = value is true
+ROLE_ENUM = 3      # enum argument: select over its option probes (+ presence)
+ROLE_OPTION = 4    # one enum option
+NUM_ROLES = 5
+
+
+def role_for(ptype: str, enum: Optional[Sequence[str]]) -> int:
+    if enum:
+        return ROLE_ENUM
+    if (ptype or "string").lower() in ("boolean", "bool"):
+        return ROLE_BOOL
+    return ROLE_SPAN
+
+
+def _humanize(name: str) -> str:
+    return str(name).replace("_", " ").replace("-", " ").strip()
+
+
+def tool_text(name: str, description: str) -> str:
+    return f"{_humanize(name)}. {description}".strip()
+
+
+def param_text(name: str, ptype: str, description: str, required: bool) -> str:
+    req = "" if required else ", optional"
+    return f"{_humanize(name)} ({ptype or 'string'}{req}). {description}".strip()
+
+
+def option_text(value: str, description: Optional[str] = None) -> str:
+    text = _humanize(str(value))
+    return f"{text}: {description.strip()}" if description and description.strip() else text
+
 
 @dataclass
-class EncodedSeq:
-    ids: List[int]
-    span_lo: int = -1  # first COPY token index (inclusive)
-    span_hi: int = -1  # last COPY token index + 1
-    offsets: Optional[List[Tuple[int, int]]] = None  # byte ranges of COPY tokens in user text
-    user_bytes: bytes = b""
+class Utterance:
+    ids: List[int]                       # [BOS] + tokens
+    offsets: List[Tuple[int, int]]       # byte range of ids[1:] in ``raw``
+    raw: bytes
+
+    @property
+    def lo(self) -> int:
+        return 1
+
+    @property
+    def hi(self) -> int:
+        return len(self.ids)
 
 
 class Arc1Codec:
-    def __init__(self, tokenizer: BytePairTokenizer, seq_len: int):
+    def __init__(self, tokenizer: BytePairTokenizer, seq_len: int, schema_len: int = 64):
         self.tok = tokenizer
         self.seq_len = int(seq_len)
+        self.schema_len = int(schema_len)
 
-    # ---------------------------------------------------------------- helpers
-    def _ids(self, text: str) -> List[int]:
-        return self.tok.encode(text)
-
-    def _user(self, user: str, budget: int) -> Tuple[List[int], List[Tuple[int, int]], bytes]:
-        ids, offsets = self.tok.encode_with_offsets(user)
-        budget = max(budget, 1)
+    def utterance(self, text: str) -> Utterance:
+        ids, offsets = self.tok.encode_with_offsets(text)
+        budget = max(self.seq_len - 1, 1)
         ids, offsets = ids[:budget], offsets[:budget]
-        raw = user.encode("utf-8")[: offsets[-1][1] if offsets else 0]
-        return ids, offsets, raw
+        raw = text.encode("utf-8")[: offsets[-1][1] if offsets else 0]
+        return Utterance([BOS_ID] + ids, offsets, raw)
 
-    def _fit(self, prefix: List[int], suffix: List[int], user: str, copies: int):
-        budget = (self.seq_len - len(prefix) - len(suffix) - 1 - 8 * copies) // max(copies, 1)
-        return self._user(user, budget)
-
-    # ---------------------------------------------------------------- formats
-    def tool_seq(self, name: str, description: str, user: str) -> EncodedSeq:
-        prefix = self._ids(f"TOOL {name}: {description}\nUSER: ")
-        suffix = self._ids("\nAPPLIES?")
-        uids, _, _ = self._fit(prefix, suffix, user, 1)
-        return EncodedSeq([BOS_ID] + prefix + uids + suffix)
-
-    def arg_seq(self, tool_name: str, pname: str, ptype: str, pdesc: str, required: bool, user: str) -> EncodedSeq:
-        req = "" if required else ", optional"
-        prefix = self._ids(f"ARG {pname} ({ptype}{req}): {pdesc}\nIN {tool_name}\nUSER: ")
-        mid = self._ids("\nCOPY: ")
-        suffix = self._ids("\nVALUE?")
-        uids, offsets, raw = self._fit(prefix + mid, suffix, user, 2)
-        ids = [BOS_ID] + prefix + uids + mid
-        lo = len(ids)
-        ids = ids + uids
-        hi = len(ids)
-        return EncodedSeq(ids + suffix, lo, hi, offsets, raw)
-
-    def enum_seq(self, tool_name: str, pname: str, pdesc: str, value: str, user: str) -> EncodedSeq:
-        prefix = self._ids(f"ARG {pname}: {pdesc}\nIN {tool_name}\nUSER: ")
-        suffix = self._ids(f"\nVALUE = {value}")
-        uids, _, _ = self._fit(prefix, suffix, user, 1)
-        return EncodedSeq([BOS_ID] + prefix + uids + suffix)
-
-    def embed_seq(self, text: str) -> EncodedSeq:
-        prefix = self._ids("TEXT: ")
-        mid = self._ids("\nCOPY: ")
-        uids, offsets, raw = self._fit(prefix + mid, [], text, 2)
-        ids = [BOS_ID] + prefix + uids + mid
-        lo = len(ids)
-        ids = ids + uids
-        return EncodedSeq(ids, lo, len(ids), offsets, raw)
+    def schema(self, text: str) -> List[int]:
+        return [BOS_ID] + self.tok.encode(text)[: self.schema_len - 1]
 
     # ------------------------------------------------------------------ spans
     @staticmethod
-    def char_span_to_tokens(seq: EncodedSeq, user: str, span: Tuple[int, int]) -> Optional[Tuple[int, int]]:
-        """Map a ``[char_start, char_end)`` span to absolute (start_tok, end_tok) inclusive."""
-        if seq.offsets is None or not seq.offsets:
+    def char_span_to_tokens(utt: Utterance, text: str, span: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+        """Map a ``[char_start, char_end)`` span to (start_tok, end_tok) inclusive, in ``utt.ids``."""
+        if not utt.offsets:
             return None
-        b0 = len(user[: span[0]].encode("utf-8"))
-        b1 = len(user[: span[1]].encode("utf-8"))
-        if b1 <= b0 or b1 > seq.offsets[-1][1]:
+        b0 = len(text[: span[0]].encode("utf-8"))
+        b1 = len(text[: span[1]].encode("utf-8"))
+        if b1 <= b0 or b1 > utt.offsets[-1][1]:
             return None  # truncated away
         start = end = None
-        for i, (a, b) in enumerate(seq.offsets):
+        for i, (a, b) in enumerate(utt.offsets):
             if start is None and a <= b0 < b:
                 start = i
             if a < b1 <= b:
@@ -109,20 +106,30 @@ class Arc1Codec:
                 break
         if start is None or end is None or end < start:
             return None
-        return seq.span_lo + start, seq.span_lo + end
+        return utt.lo + start, utt.lo + end
 
     @staticmethod
-    def tokens_to_text(seq: EncodedSeq, start: int, end: int) -> str:
-        a = seq.offsets[start - seq.span_lo][0]
-        b = seq.offsets[end - seq.span_lo][1]
-        text = seq.user_bytes[a:b].decode("utf-8", errors="ignore")
+    def tokens_to_text(utt: Utterance, start: int, end: int) -> str:
+        a = utt.offsets[start - utt.lo][0]
+        b = utt.offsets[end - utt.lo][1]
+        text = utt.raw[a:b].decode("utf-8", errors="ignore")
         return text.strip().strip("\"'").strip(" .,!?;:")
 
+    @staticmethod
+    def tokens_to_char_span(utt: Utterance, start: int, end: int) -> Tuple[int, int]:
+        """``[char_start, char_end)`` of the trimmed anchored surface in the original text."""
+        a = utt.offsets[start - utt.lo][0]
+        b = utt.offsets[end - utt.lo][1]
+        piece = utt.raw[a:b].decode("utf-8", errors="ignore")
+        core = piece.strip().strip("\"'").strip(" .,!?;:")
+        c0 = len(utt.raw[:a].decode("utf-8", errors="ignore")) + max(piece.find(core), 0)
+        return c0, c0 + len(core)
 
-def pad_batch(seqs: Sequence[Sequence[int]], multiple: int = 16, max_len: Optional[int] = None) -> np.ndarray:
-    """Right-pad to a shared length rounded up to ``multiple`` (limits retracing)."""
+
+def pad_batch(seqs: Sequence[Sequence[int]], multiple: int = 8, max_len: Optional[int] = None) -> np.ndarray:
+    """Right-pad to a shared length rounded up to ``multiple``."""
     longest = max((len(s) for s in seqs), default=1)
-    width = int(np.ceil(longest / multiple) * multiple)
+    width = max(int(np.ceil(longest / multiple) * multiple), multiple)
     if max_len is not None:
         width = min(width, int(max_len))
     out = np.full((len(seqs), width), PAD_ID, dtype=np.int32)
@@ -133,7 +140,7 @@ def pad_batch(seqs: Sequence[Sequence[int]], multiple: int = 16, max_len: Option
 
 
 def best_span(start_logits: np.ndarray, end_logits: np.ndarray, lo: int, hi: int,
-              temperature: float = 1.0, max_width: int = 96) -> Tuple[int, int, float]:
+              temperature: float = 1.0, max_width: int = 64) -> Tuple[int, int, float]:
     """Highest-probability (start <= end) span inside [lo, hi); returns calibrated P."""
     s = start_logits[lo:hi].astype(np.float64) / temperature
     e = end_logits[lo:hi].astype(np.float64) / temperature

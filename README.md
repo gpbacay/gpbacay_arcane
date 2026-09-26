@@ -131,16 +131,24 @@ print(model.count_params())  # ~100M trainable + bioplastic kernels
 
 ### ARC 1 — Automation Foundation Model
 
-A small laddered ARCANE decoder (`ResonantChannelMixer`, `ConceptEngram`, resonance) that does
-tool calling, structured extraction and embeddings through Laya-style typed decision heads
-rather than free-form JSON generation:
+ARC 1 is an ultra-compact, non-autoregressive "System 1" decision model. In a single forward pass
+it turns text into calibrated, typed output (tool calls, extracted records, classification labels,
+or embeddings) in milliseconds. It never generates prose. Its architecture, **Resonant Schema
+Binding**, is built from ARCANE mechanisms:
 
-- **noul**: calibrated P(tool applies / optional argument present / boolean is true)
-- **span**: copies string and number arguments from the user text (grounded, never invented)
-- **choice**: softmax over enum options
+1. **Perceive once**: the utterance is read a single time by bidirectional `Arc1PerceptionBlock`s
+   (`FieldAttention` → `ResonantChannelMixer` → `ConceptEngram` → `FieldResonance`).
+2. **Schema engrams**: every tool, argument, enum option, and label is pooled into one vector by the
+   same blocks. New schema texts are perceived in the same batch as the utterance, then cached by
+   `SchemaMemory`, so a request is always exactly one forward pass.
+3. **Resonant binding**: each engram is a probe that resonates with the utterance field for a few
+   shared-weight cycles through a GSER spiking gate (`ResonantBinding`). All probes bind in parallel.
+4. **Readouts**: `fire` (tool applies / optional argument present / boolean), `anchor` (start/end
+   pointer that copies strings and numbers from the user's words), `select` (enum option or
+   classification label), embedding.
 
-Every head has a temperature fitted on held-out data, so `confidence` is calibrated. Each training
-step samples a ladder depth, so shallow slices of the same weights stay usable.
+A request is one forward pass. Every readout has a temperature fitted on held-out data, so
+`confidence` is calibrated. `cycles` trades accuracy for speed with the same weights.
 
 ```python
 from gpbacay_arcane import Arc1Agent, Arc1Config, Arc1Model, BytePairTokenizer, ToolParam, ToolSpec
@@ -152,20 +160,27 @@ model.load_weights("Models/arc1_arc1_tiny.weights.h5")
 agent = Arc1Agent(model, BytePairTokenizer.load("Models/arc1_arc1_tiny_tokenizer.json"))
 
 weather = ToolSpec("get_weather", "Get the current weather for a city.", [ToolParam("city", description="City name")])
-agent.run("is it raining in Tokyo?", tools=[weather], depth=2)
-# {"function_calls": [{"name": "get_weather", "arguments": {"city": "Tokyo"}}], "confidence": ..., ...}
+agent.run("is it raining in Tokyo?", tools=[weather], cycles=2)
+# {"function_calls": [{"name": "get_weather", "arguments": {"city": "Tokyo"}}], "confidence": ..., "latency_ms": ...}
+
+agent.classify("my card was charged twice", ["billing", "technical support", "sales"],
+               task="Route the support ticket to the right team.",
+               descriptions={"billing": "charges, invoices, refunds"})  # hints are optional
+# {"label": "billing", "confidence": ..., "distribution": {...}, "latency_ms": ...}
 ```
 
 ```bash
-python examples/train_arc1.py --preset arc1-tiny --steps 3000   # train + calibrate + evaluate
-python examples/serve_arc1_api.py          # port 8002
-python examples/export_arc1.py --config Models/arc1_arc1_tiny.config.json     --weights Models/arc1_arc1_tiny.weights.h5 --layers 2 --tflite
-# Docs demo: cd arcane-docs-web && npm run dev:with-arc1  →  /docs/arc-1
+python examples/train_arc1.py --preset arc1-tiny --steps 4000   # train + calibrate + evaluate
+python examples/serve_arc1_api.py                                # port 8002: /run /extract /classify /embed
+python examples/export_arc1.py --config Models/arc1_arc1_tiny.config.json     --weights Models/arc1_arc1_tiny.weights.h5 --cycles 2 --tflite
+# Docs sandbox: cd arcane-docs-web && npm run dev:with-arc1  →  /docs/arc-1
 ```
 
-Held-out metrics are written to `Models/arc1_arc1_tiny.metrics.json`. They cover unseen argument
-values, tools never seen in training, extraction field F1, and ECE before and after calibration.
-Limits: one call per tool per request, and the user text is truncated to fit `seq_len`.
+Held-out metrics are written to `Models/arc1_arc1_tiny.metrics.json`: unseen argument values, tools
+never seen in training, extraction field F1, classification accuracy (held-out wordings and unseen
+tool intents), latency, and calibration error before and after temperature fitting. Limits: one call per tool per request, long text is truncated to `seq_len`, and
+with no pretrained language knowledge, classification is strongest when labels relate to the words in
+the text (intent, sentiment) and weak on paraphrases unlike its training data (support-ticket routing).
 
 ### Distilling Qwen2.5-0.5B into ARCANE
 

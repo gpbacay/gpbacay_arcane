@@ -36,7 +36,7 @@ from .layers import (
     SpatioTemporalSummarization,
     ArcaneDecoderBlock,
     ResonantChannelMixer,
-    Arc1DecoderBlock,
+    Arc1PerceptionBlock,
 )
 
 # Convenience re-exports for activations
@@ -64,6 +64,9 @@ from .mechanisms import (
     AttentionResidual,
     BlockAttentionResidual,
     ConceptEngram,
+    FieldAttention,
+    FieldResonance,
+    ResonantBinding,
 )
 
 
@@ -86,7 +89,6 @@ from .language_model import (
 from .arc1 import (
     Arc1Config,
     Arc1Model,
-    nested_ladder_indices,
 )
 
 from .tools import (
@@ -94,6 +96,7 @@ from .tools import (
     ToolSpec,
     tool,
     Arc1Agent,
+    SchemaMemory,
     parse_agent_json,
     format_tools_prompt,
     coerce_value,
@@ -179,8 +182,11 @@ __all__ = [
     "ResonantSequenceMixer",
     "ArcaneDecoderBlock",
     "ResonantChannelMixer",
-    "Arc1DecoderBlock",
+    "Arc1PerceptionBlock",
     "ConceptEngram",
+    "FieldAttention",
+    "FieldResonance",
+    "ResonantBinding",
     # Activations
     "straight_through_spike",
     "resonant_spike",
@@ -193,8 +199,8 @@ __all__ = [
     "ArcaneSmallLanguageModel",
     "Arc1Model",
     "Arc1Config",
-    "nested_ladder_indices",
     "Arc1Agent",
+    "SchemaMemory",
     "ToolParam",
     "ToolSpec",
     "tool",

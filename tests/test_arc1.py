@@ -1,4 +1,4 @@
-"""Tests for ARC 1 layers, ladder, decision heads, codec, data, and agent."""
+"""Tests for ARC 1 (Resonant Schema Binding): mechanisms, model, codec, data, training, agent."""
 
 from __future__ import annotations
 
@@ -11,12 +11,21 @@ import tensorflow as tf
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from gpbacay_arcane.arc1 import Arc1Config, Arc1Model, nested_ladder_indices
-from gpbacay_arcane.arc1_codec import Arc1Codec, best_span, pad_batch
+from gpbacay_arcane.arc1 import Arc1Config, Arc1Model
+from gpbacay_arcane.arc1_codec import (
+    ROLE_BOOL,
+    ROLE_ENUM,
+    ROLE_SPAN,
+    ROLE_TOOL,
+    Arc1Codec,
+    best_span,
+    pad_batch,
+    role_for,
+)
 from gpbacay_arcane.arc1_data import build_tool_library, sample_extract_example, sample_tool_example
 from gpbacay_arcane.arc1_train import BATCH_SIGNATURE, compute_losses, sample_batch
-from gpbacay_arcane.layers import Arc1DecoderBlock, ResonantChannelMixer
-from gpbacay_arcane.mechanisms import ConceptEngram
+from gpbacay_arcane.layers import Arc1PerceptionBlock, ResonantChannelMixer
+from gpbacay_arcane.mechanisms import ConceptEngram, FieldAttention, FieldResonance, ResonantBinding
 from gpbacay_arcane.tokenization import BytePairTokenizer
 from gpbacay_arcane.tools import (
     Arc1Agent,
@@ -28,32 +37,70 @@ from gpbacay_arcane.tools import (
     validate_calls_against_tools,
 )
 
-SMALL = dict(vocab_size=512, d_model=32, num_layers=2, num_heads=2, seq_len=256,
-             engram_table_size=256, engram_rows=2, dropout_rate=0.0, ladder_depths=(1, 2), softmax_every=2)
+SMALL = dict(vocab_size=512, d_model=32, num_layers=2, num_heads=2, seq_len=128, schema_len=48,
+             engram_table_size=256, engram_rows=2, dropout_rate=0.0, binding_heads=2, binding_cycles=2)
 
 
 def _small_model():
-    model = Arc1Model(Arc1Config(**SMALL))
-    model.build_model()
-    return model
+    return Arc1Model(Arc1Config(**SMALL)).build_model()
 
 
-def test_nested_ladder_nests_and_spreads():
-    s2 = nested_ladder_indices(12, 2)
-    s4 = nested_ladder_indices(12, 4)
-    s12 = nested_ladder_indices(12, 12)
-    assert s2 == [0, 11]
-    assert set(s2).issubset(s4)
-    assert set(s4).issubset(s12)
-    assert s12 == list(range(12))
-    assert max(s4) == 11 and min(s4) == 0
+def _probe_inputs(model, n=3):
+    d = model.arc1_config.d_model
+    rng = np.random.RandomState(0)
+    a = tf.constant(rng.randn(n, d).astype(np.float32))
+    b = tf.constant(rng.randn(n, d).astype(np.float32))
+    roles = tf.constant([ROLE_TOOL, ROLE_SPAN, ROLE_BOOL][:n], dtype=tf.int32)
+    return a, b, roles
 
 
-def test_concept_engram_forward_shape():
-    layer = ConceptEngram(d_model=32, table_size=128, rows_per_token=4, ngram_sizes=(2, 3))
-    x = tf.random.normal((2, 8, 32))
-    ids = tf.constant(np.random.randint(0, 50, size=(2, 8)), dtype=tf.int32)
-    assert layer(x, token_ids=ids).shape == (2, 8, 32)
+# ------------------------------------------------------------------ mechanisms
+def test_field_attention_is_bidirectional_and_pad_invariant():
+    layer = FieldAttention(d_model=16, num_heads=2)
+    x = tf.random.normal((1, 6, 16), seed=1)
+    mask = tf.constant([[True] * 6])
+    y = layer(x, token_mask=mask)
+    # Changing the last token changes the first token's output (no causal mask).
+    x2 = tf.concat([x[:, :-1], x[:, -1:] + 1.0], axis=1)
+    assert not np.allclose(y[0, 0].numpy(), layer(x2, token_mask=mask)[0, 0].numpy())
+    padded = tf.concat([x, tf.random.normal((1, 4, 16))], axis=1)
+    pmask = tf.constant([[True] * 6 + [False] * 4])
+    np.testing.assert_allclose(y.numpy(), layer(padded, token_mask=pmask)[:, :6].numpy(), atol=1e-5)
+
+
+def test_field_resonance_ignores_padding():
+    layer = FieldResonance(d_model=8)
+    x = tf.random.normal((1, 5, 8), seed=2)
+    y = layer(x, token_mask=tf.constant([[True] * 5]))
+    padded = tf.concat([x, 100.0 * tf.ones((1, 3, 8))], axis=1)
+    y2 = layer(padded, token_mask=tf.constant([[True] * 5 + [False] * 3]))
+    np.testing.assert_allclose(y.numpy(), y2[:, :5].numpy(), atol=1e-5)
+
+
+def test_resonant_binding_shapes_and_cycles_change_state():
+    bind = ResonantBinding(d_model=16, num_heads=2, cycles=3)
+    field = tf.random.normal((2, 7, 16), seed=3)
+    mask = tf.constant([[True] * 7, [True] * 4 + [False] * 3])
+    keys, values = bind.field_memory(field)
+    probes = tf.random.normal((5, 16), seed=4)
+    example = tf.constant([0, 0, 1, 1, 1])
+    p3, heard, peak = bind(probes, keys, values, mask, example, cycles=3)
+    p1, _, _ = bind(probes, keys, values, mask, example, cycles=1)
+    assert p3.shape == (5, 16) and heard.shape == (5, 16) and peak.shape == (5, 2)
+    assert not np.allclose(p1.numpy(), p3.numpy())
+
+
+def test_resonant_binding_never_hears_padding():
+    bind = ResonantBinding(d_model=16, num_heads=2, cycles=2)
+    field = tf.random.normal((1, 4, 16), seed=5)
+    probes = tf.random.normal((2, 16), seed=6)
+    example = tf.zeros((2,), tf.int32)
+    k, v = bind.field_memory(field)
+    short = bind(probes, k, v, tf.constant([[True] * 4]), example)[0]
+    padded = tf.concat([field, 50.0 * tf.ones((1, 3, 16))], axis=1)
+    k2, v2 = bind.field_memory(padded)
+    long = bind(probes, k2, v2, tf.constant([[True] * 4 + [False] * 3]), example)[0]
+    np.testing.assert_allclose(short.numpy(), long.numpy(), atol=1e-4)
 
 
 def test_concept_engram_rows_are_independent_hashes():
@@ -61,87 +108,118 @@ def test_concept_engram_rows_are_independent_hashes():
     ids = tf.constant(np.random.RandomState(0).randint(4, 260, size=(1, 64)), dtype=tf.int32)
     keys = layer._lookup_keys(ids).numpy()[0]  # (T, R)
     assert keys.min() >= 0 and keys.max() < 4096
-    # Old scheme used base+i (adjacent slots); independent hashes should not.
-    gaps = np.abs(np.diff(keys, axis=-1))
-    assert np.mean(gaps <= 3) < 0.05
+    assert np.mean(np.abs(np.diff(keys, axis=-1)) <= 3) < 0.05
 
 
-def test_resonant_channel_mixer_forward():
-    mix = ResonantChannelMixer(d_model=32, rank_div=4)
-    assert mix(tf.random.normal((2, 8, 32))).shape == (2, 8, 32)
-
-
-def test_arc1_decoder_block_smoke():
-    block = Arc1DecoderBlock(d_model=32, num_heads=4, engram_table_size=64, engram_rows=2,
-                             dropout_rate=0.0, use_rope=True, use_decay=False, chunk_size=32)
-    y = block(tf.random.normal((1, 8, 32)), token_ids=tf.zeros((1, 8), dtype=tf.int32), training=False)
+def test_perception_block_and_mixer_shapes():
+    assert ResonantChannelMixer(d_model=32, rank_div=4)(tf.random.normal((2, 8, 32))).shape == (2, 8, 32)
+    block = Arc1PerceptionBlock(d_model=32, num_heads=4, use_engram=True, engram_table_size=64, engram_rows=2)
+    ids = tf.constant([[3, 10, 11, 12, 0, 0, 0, 0]])
+    y = block(tf.random.normal((1, 8, 32)), token_ids=ids, token_mask=tf.not_equal(ids, 0))
     assert y.shape == (1, 8, 32)
 
 
-def test_arc1_heads_shapes_and_embedding_norm():
+# ----------------------------------------------------------------------- model
+def test_model_readout_shapes_and_embedding_norm():
     model = _small_model()
-    ids = tf.constant(pad_batch([[3, 10, 11, 12], [3, 20, 21]]))
-    out = model.decide(ids, with_lm=True)
-    assert out["noul"].shape == (2,)
-    assert out["choice"].shape == (2,)
-    assert out["span_start"].shape == ids.shape
-    assert out["lm"].shape[-1] == model.arc1_config.vocab_size
-    assert model.confidence(ids).shape == (2,)
-    emb = model.embed_text(ids)
-    assert emb.shape == (2, model.arc1_config.d_model)
+    utter = tf.constant(pad_batch([[3, 10, 11, 12, 13]]))
+    a, b, roles = _probe_inputs(model)
+    out = model.decide(utter, tf.zeros((3,), tf.int32), a, b, roles, with_embedding=True)
+    assert out["fire"].shape == (3,)
+    assert out["anchor_start"].shape == (3, utter.shape[1])
+    assert out["select_q"].shape == (3, model.arc1_config.d_model)
+    emb = model.embed_text(utter)
     np.testing.assert_allclose(tf.norm(emb, axis=-1).numpy(), 1.0, atol=1e-4)
+    eng = model.schema_engrams(tf.constant(pad_batch([[3, 20, 21], [3, 30]])))
+    assert eng.shape == (2, model.arc1_config.d_model)
+
+
+def test_anchors_never_point_at_bos_or_padding():
+    model = _small_model()
+    utter = tf.constant([[3, 10, 11, 12, 0, 0, 0, 0]])
+    a, b, roles = _probe_inputs(model)
+    out = model.decide(utter, tf.zeros((3,), tf.int32), a, b, roles)
+    start = out["anchor_start"].numpy()
+    assert (start[:, 0] < -1e8).all() and (start[:, 4:] < -1e8).all()
+    assert (start[:, 1:4] > -1e8).all()
 
 
 def test_decisions_ignore_right_padding():
     model = _small_model()
+    a, b, roles = _probe_inputs(model)
     seq = [3, 40, 41, 42, 43, 44]
-    short = model.decide(tf.constant([seq]))
-    padded = model.decide(tf.constant([seq + [0] * 26]))
-    np.testing.assert_allclose(short["noul"].numpy(), padded["noul"].numpy(), atol=1e-4)
+    short = model.decide(tf.constant([seq]), tf.zeros((3,), tf.int32), a, b, roles)
+    padded = model.decide(tf.constant([seq + [0] * 26]), tf.zeros((3,), tf.int32), a, b, roles)
+    np.testing.assert_allclose(short["fire"].numpy(), padded["fire"].numpy(), atol=1e-4)
+    np.testing.assert_allclose(short["anchor_start"].numpy(), padded["anchor_start"].numpy()[:, :6], atol=1e-3)
     e1 = model.embed_text(tf.constant([seq])).numpy()
     e2 = model.embed_text(tf.constant([seq + [0] * 26])).numpy()
     np.testing.assert_allclose(e1, e2, atol=1e-4)
+    s1 = model.schema_engrams(tf.constant([seq])).numpy()
+    s2 = model.schema_engrams(tf.constant([seq + [0] * 10])).numpy()
+    np.testing.assert_allclose(s1, s2, atol=1e-4)
 
 
-def test_ladder_depth_is_per_call_and_stateless():
+def test_cycles_are_per_call_and_stateless():
     model = _small_model()
-    ids = tf.constant([[3, 5, 6, 7]])
-    assert model.arc1_config.ladder_block_indices(1) == [0]
-    full = model.decide(ids)["noul"].numpy()
-    shallow = model.decide(ids, depth=1)["noul"].numpy()
-    assert not np.allclose(full, shallow)
-    assert model.arc1_config.resolve_depth() == model.arc1_config.num_layers  # not mutated
-    model.select_ladder_depth(1)
-    assert model.arc1_config.resolve_depth() == 1
+    utter = tf.constant([[3, 5, 6, 7]])
+    a, b, roles = _probe_inputs(model)
+    full = model.decide(utter, tf.zeros((3,), tf.int32), a, b, roles)["fire"].numpy()
+    fast = model.decide(utter, tf.zeros((3,), tf.int32), a, b, roles, cycles=1)["fire"].numpy()
+    assert not np.allclose(full, fast)
+    assert model.arc1_config.resolve_cycles() == model.arc1_config.binding_cycles
+    assert model.arc1_config.resolve_cycles(99) == model.arc1_config.binding_cycles
+    assert model.arc1_config.with_cycles(1).resolve_cycles() == 1
+
+
+def test_probes_of_different_utterances_are_independent():
+    model = _small_model()
+    utter = tf.constant(pad_batch([[3, 10, 11, 12], [3, 50, 51, 52, 53, 54]]))
+    a, b, roles = _probe_inputs(model, 2)
+    both = model.decide(utter, tf.constant([0, 1]), a, b, roles)["fire"].numpy()
+    first = model.decide(utter[:1, :4], tf.constant([0]), a[:1], b[:1], roles[:1])["fire"].numpy()
+    np.testing.assert_allclose(both[0], first[0], atol=1e-4)
 
 
 def test_config_roundtrip_keeps_calibration():
     cfg = Arc1Config(**SMALL)
-    cfg.calibration = {"noul": 1.7, "choice": 2.0, "span": 0.9}
+    cfg.calibration = {"fire": 1.7, "select": 2.0, "anchor": 0.9}
     again = Arc1Config.from_dict(cfg.to_dict())
     assert again.calibration == cfg.calibration
-    assert again.ladder_depths == (1, 2)
+    assert again.binding_cycles == 2
     assert Arc1Config.from_dict({"d_model": 32, "unknown_key": 1}).d_model == 32
 
 
+def test_model_is_lightweight():
+    model = Arc1Model.from_preset("arc1-tiny").build_model()
+    assert model.count_params() < 2_000_000
+
+
+# ----------------------------------------------------------------------- codec
 def test_codec_span_roundtrip_with_bpe():
     tok = BytePairTokenizer(vocab_size=320).train(["weather in San Francisco and weather in Lagos " * 20])
     codec = Arc1Codec(tok, 256)
     user = "what's the weather in San Francisco today?"
     a = user.index("San Francisco")
-    seq = codec.arg_seq("get_weather", "city", "string", "City name", True, user)
-    s, e = codec.char_span_to_tokens(seq, user, (a, a + len("San Francisco")))
-    assert seq.span_lo <= s <= e < seq.span_hi
-    assert codec.tokens_to_text(seq, s, e) == "San Francisco"
+    utt = codec.utterance(user)
+    s, e = codec.char_span_to_tokens(utt, user, (a, a + len("San Francisco")))
+    assert utt.lo <= s <= e < utt.hi
+    assert codec.tokens_to_text(utt, s, e) == "San Francisco"
+    c0, c1 = codec.tokens_to_char_span(utt, s, e)
+    assert user[c0:c1] == "San Francisco"
 
 
-def test_best_span_respects_order():
+def test_roles_and_best_span():
+    assert role_for("string", None) == ROLE_SPAN
+    assert role_for("boolean", None) == ROLE_BOOL
+    assert role_for("string", ["a", "b"]) == ROLE_ENUM
     start = np.array([0, 5, 0, 0], dtype=np.float32)
     end = np.array([9, 0, 0, 6], dtype=np.float32)  # end 0 is before start 1
     s, e, p = best_span(start, end, 0, 4)
     assert s <= e and 0 < p <= 1
 
 
+# ------------------------------------------------------------------------ data
 def test_synthetic_spans_match_arguments():
     lib = build_tool_library()
     rng = random.Random(3)
@@ -170,7 +248,6 @@ def test_synthesized_values_keep_shape_and_eval_stays_real():
         out = synthesize_like(rng, value)
         assert len(out.split()) == len(value.split())
         assert [c.isdigit() for c in out if not c.isalpha()] == [c.isdigit() for c in value if not c.isalpha()]
-    # Held-out evaluation never sees synthesized values: every city comes from the real eval pool.
     lib = build_tool_library()
     for ex in fixed_eval_set("eval", 200):
         for call in ex.calls:
@@ -180,7 +257,7 @@ def test_synthesized_values_keep_shape_and_eval_stays_real():
 
 
 def test_procedural_tools_have_grounded_spans():
-    from gpbacay_arcane.arc1_data import procedural_library, _single
+    from gpbacay_arcane.arc1_data import _single, procedural_library
 
     rng = random.Random(5)
     for _ in range(40):
@@ -191,9 +268,22 @@ def test_procedural_tools_have_grounded_spans():
                 assert text[a:b] == value if isinstance(value, str) else coerce_value("number", text[a:b])[0]
 
 
+def test_batch_labels_point_inside_their_utterance():
+    tok = BytePairTokenizer(512)
+    codec = Arc1Codec(tok, 128, 48)
+    batch = sample_batch(random.Random(1), codec, build_tool_library(), n_tool=8, n_extract=4, n_embed=3)
+    ids = batch["utter_ids"]
+    for idx, s, e in zip(batch["anchor_idx"], batch["anchor_start"], batch["anchor_end"]):
+        row = ids[batch["probe_example"][idx]]
+        assert 1 <= s <= e < int((row != 0).sum())
+    assert batch["probe_a"].max() < len(batch["schema_ids"])
+    assert (batch["probe_b"] < len(batch["schema_ids"])).all()
+
+
+# -------------------------------------------------------------------- training
 def test_training_step_reduces_loss_on_fixed_batch():
     model = _small_model()
-    codec = Arc1Codec(BytePairTokenizer(512), model.arc1_config.seq_len)
+    codec = Arc1Codec(BytePairTokenizer(512), model.arc1_config.seq_len, model.arc1_config.schema_len)
     batch = sample_batch(random.Random(0), codec, build_tool_library(), n_tool=3, n_extract=1, n_embed=3)
     batch = {k: tf.constant(v) for k, v in batch.items()}
     opt = tf.keras.optimizers.Adam(3e-3)
@@ -202,7 +292,7 @@ def test_training_step_reduces_loss_on_fixed_batch():
     @tf.function(input_signature=[BATCH_SIGNATURE])
     def step(b):
         with tf.GradientTape() as tape:
-            losses, _ = compute_losses(model, b, depth=2, training=True)
+            losses, _ = compute_losses(model, b, cycles=2, training=True)
         grads = tape.gradient(losses["total"], model.trainable_variables)
         opt.apply_gradients([(g, v) for g, v in zip(grads, model.trainable_variables) if g is not None])
         return losses["total"]
@@ -213,6 +303,7 @@ def test_training_step_reduces_loss_on_fixed_batch():
     assert last < first * 0.7, (first, last)
 
 
+# ----------------------------------------------------------------------- agent
 def test_agent_output_is_schema_valid_even_untrained():
     model = _small_model()
     agent = Arc1Agent(model, BytePairTokenizer(512))
@@ -220,8 +311,8 @@ def test_agent_output_is_schema_valid_even_untrained():
         ToolSpec("get_weather", "Get the weather.", [ToolParam("city")], handler=lambda city: {"city": city}),
         ToolSpec("set_mode", "Set mode.", [ToolParam("mode", enum=["a", "b"]), ToolParam("on", type="boolean")]),
     ]
-    agent.tool_threshold = 0.0  # force every tool through argument filling
-    out = agent.run("what's the weather in Lagos?", tools=tools, execute=False, depth=1)
+    agent.tool_threshold = 0.0  # force every tool through argument reading
+    out = agent.run("what's the weather in Lagos?", tools=tools, execute=False, cycles=1)
     assert out["source"] == "model"
     assert set(out["decisions"]["tools"]) == {"get_weather", "set_mode"}
     assert validate_calls_against_tools(out["function_calls"], tools) == out["function_calls"]
@@ -229,10 +320,99 @@ def test_agent_output_is_schema_valid_even_untrained():
         if call["name"] == "set_mode":
             assert call["arguments"]["mode"] in ("a", "b")
             assert isinstance(call["arguments"]["on"], bool)
+        if call["name"] == "get_weather":
+            assert call["arguments"]["city"] in "what's the weather in Lagos?"  # anchored, not invented
     assert 0.0 <= out["confidence"] <= 1.0
+    assert out["stats"]["probes"] == 2 + 1 + 2 + 2  # 2 tools, city, mode + 2 options, on
     ext = agent.extract("Name: Maya Santos. I live in Cebu.", {"name": {"type": "string"}})
     assert set(ext["record"]) <= {"name"}
     assert len(agent.embed("hello")) == model.arc1_config.d_model
+
+
+def test_schema_memory_caches_engrams():
+    model = _small_model()
+    agent = Arc1Agent(model, BytePairTokenizer(512))
+    tools = [ToolSpec("get_weather", "Get the weather.", [ToolParam("city")])]
+    first = agent.run("weather in Lagos", tools=tools, execute=False)
+    second = agent.run("weather in Paris", tools=tools, execute=False)
+    assert first["stats"]["schema_encoded"] > 0
+    assert second["stats"]["schema_encoded"] == 0
+    assert second["stats"]["schema_cached"] == first["stats"]["schema_encoded"] + first["stats"]["schema_cached"]
+
+
+def test_exclusive_anchoring_resolves_overlaps():
+    from gpbacay_arcane.tools import _Probe
+
+    model = _small_model()
+    agent = Arc1Agent(model, BytePairTokenizer(512))  # byte-level: one token per character
+    text = "Ada Okonkwo in Lagos"
+    utt = agent.codec.utterance(text)
+    width, d = len(utt.ids), model.arc1_config.d_model
+    name_tok = (1, 11)                     # "Ada Okonkwo"
+    city_tok = (1 + text.index("Lagos"), 1 + text.index("Lagos") + 4)
+
+    def peak(span, strength):
+        start, end = np.full(width, -5.0), np.full(width, -5.0)
+        start[span[0]], end[span[1]] = strength, strength
+        return start, end
+
+    rows = [peak(name_tok, 12.0),          # name: confident
+            peak(name_tok, 4.0),           # company (optional): same tokens, weaker -> dropped
+            peak(name_tok, 3.0)]           # place (required): same tokens, weaker -> re-anchored
+    rows[2][0][city_tok[0]] = rows[2][1][city_tok[1]] = 2.5  # runner-up: "Lagos"
+    out = {"anchor_start": np.stack([r[0] for r in rows]), "anchor_end": np.stack([r[1] for r in rows]),
+           "select_q": np.zeros((3, d)), "select_k": np.zeros((3, d))}
+    probes = [_Probe(ROLE_SPAN, "", None, "t", ToolParam("name", required=False)),
+              _Probe(ROLE_SPAN, "", None, "t", ToolParam("company", required=False)),
+              _Probe(ROLE_SPAN, "", None, "t", ToolParam("place", required=True))]
+    got = {x["param"]: x for x in agent._read_arguments(utt, probes, out, np.array([0.99, 0.95, 1.0]))}
+    assert got["name"]["present"] and got["name"]["value"] == "Ada Okonkwo"
+    assert not got["company"]["present"]
+    assert got["place"]["present"] and got["place"]["value"] == "Lagos"
+
+
+def test_new_schemas_are_encoded_inside_the_same_pass():
+    model = _small_model()
+    agent = Arc1Agent(model, BytePairTokenizer(512))
+    tools = [ToolSpec("set_mode", "Set mode.", [ToolParam("mode", enum=["eco", "turbo"]), ToolParam("room")])]
+    cold = agent.run("turbo mode in the den", tools=tools, execute=False)  # every schema text is new
+    warm = agent.run("turbo mode in the den", tools=tools, execute=False)  # every schema text is cached
+    assert cold["stats"]["forward_passes"] == warm["stats"]["forward_passes"] == 1
+    assert cold["stats"]["schema_encoded"] > 0 and warm["stats"]["schema_encoded"] == 0
+    np.testing.assert_allclose(cold["decisions"]["tools"]["set_mode"], warm["decisions"]["tools"]["set_mode"], atol=1e-5)
+    # The engram computed inside the joint pass equals a standalone schema encoding.
+    text = next(iter(agent.memory._store))
+    alone = model.schema_engrams(tf.constant(pad_batch([agent.codec.schema(text)]))).numpy()[0]
+    np.testing.assert_allclose(agent.memory.get(text), alone, atol=1e-4)
+
+
+def test_classify_returns_calibrated_distribution():
+    model = _small_model()
+    agent = Arc1Agent(model, BytePairTokenizer(512))
+    labels = ["billing", "technical support", "sales"]
+    out = agent.classify("my invoice is wrong", labels, task="Route the ticket to a team.")
+    assert out["label"] in labels
+    assert set(out["distribution"]) == set(labels)
+    assert abs(sum(out["distribution"].values()) - 1.0) < 1e-6
+    assert out["confidence"] == max(out["distribution"].values())
+    assert out["stats"]["forward_passes"] == 1
+
+
+def test_classification_examples_are_well_formed():
+    from gpbacay_arcane.arc1_data import HELD_OUT_TOOLS, sample_classify_example
+
+    lib = build_tool_library()
+    rng = random.Random(4)
+    for split in ("train", "eval", "unseen_tools"):
+        for _ in range(100):
+            ex = sample_classify_example(rng, lib, split)
+            assert ex.label in ex.labels and len(set(ex.labels)) == len(ex.labels)
+            if split == "unseen_tools":
+                assert ex.label.replace(" ", "_") in HELD_OUT_TOOLS
+    codec = Arc1Codec(BytePairTokenizer(512), 128, 48)
+    batch = sample_batch(random.Random(2), codec, lib, n_tool=0, n_extract=0, n_embed=0, n_classify=5)
+    assert len(batch["select_param"]) == 5
+    assert (batch["select_label"] < (batch["select_options"] >= 0).sum(axis=1)).all()
 
 
 def test_coerce_value():

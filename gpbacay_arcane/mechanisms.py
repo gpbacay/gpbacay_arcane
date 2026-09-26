@@ -726,8 +726,9 @@ def apply_rope(x, cos, sin):
     # tf.function ``seq_len`` is a Tensor, which numpy cannot slice with.
     cos_t = tf.convert_to_tensor(cos, dtype=x.dtype)
     sin_t = tf.convert_to_tensor(sin, dtype=x.dtype)
-    c = cos_t[:seq_len][None, None, :, :]
-    s = sin_t[:seq_len][None, None, :, :]
+    # expand_dims rather than [None, None]: new-axis slicing has no TFLite builtin.
+    c = tf.expand_dims(tf.expand_dims(cos_t[:seq_len], 0), 0)
+    s = tf.expand_dims(tf.expand_dims(sin_t[:seq_len], 0), 0)
     x1, x2 = tf.split(x, 2, axis=-1)
     return tf.concat([x1 * c - x2 * s, x2 * c + x1 * s], axis=-1)
 
@@ -1525,4 +1526,228 @@ class ConceptEngram(Layer):
                 "spike_threshold": self.spike_threshold,
             }
         )
+        return config
+
+
+
+# ---------------------------------------------------------------------------
+# ARC 1 — Resonant Schema Binding mechanisms
+# ---------------------------------------------------------------------------
+_MASK_NEG = -1e9
+
+
+class FieldAttention(Layer):
+    """Bidirectional, pad-aware multi-head attention with RoPE.
+
+    ARC 1 perceives a short utterance as one standing "field": every token may
+    attend to every other real token (no causal mask), and right padding is
+    masked out as keys so outputs are identical with or without padding.
+    """
+
+    def __init__(self, d_model, num_heads, dropout_rate=0.0, use_rope=True,
+                 rope_base=10000.0, max_position=1024, **kwargs):
+        super().__init__(**kwargs)
+        if d_model % num_heads != 0:
+            raise ValueError("d_model must be divisible by num_heads")
+        self.d_model = int(d_model)
+        self.num_heads = int(num_heads)
+        self.depth = self.d_model // self.num_heads
+        if use_rope and self.depth % 2 != 0:
+            raise ValueError("RoPE requires an even head dimension")
+        self.dropout_rate = float(dropout_rate)
+        self.use_rope = bool(use_rope)
+        self.rope_base = float(rope_base)
+        self.max_position = int(max_position)
+        self.qkv = Dense(3 * self.d_model, name="qkv")
+        self.out = Dense(self.d_model, name="out")
+        self.dropout = Dropout(self.dropout_rate)
+
+    def build(self, input_shape):
+        self.qkv.build(input_shape)
+        self.out.build(input_shape)
+        if self.use_rope:
+            self.rope_cos, self.rope_sin = build_rope_cache(self.max_position, self.depth, self.rope_base)
+        super().build(input_shape)
+
+    def call(self, inputs, token_mask=None, training=False):
+        batch = tf.shape(inputs)[0]
+        seq = tf.shape(inputs)[1]
+        qkv = tf.reshape(self.qkv(inputs), (batch, seq, 3, self.num_heads, self.depth))
+        qkv = tf.transpose(qkv, perm=[2, 0, 3, 1, 4])  # (3, B, H, T, dh)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+        if self.use_rope:
+            q = apply_rope(q, self.rope_cos, self.rope_sin)
+            k = apply_rope(k, self.rope_cos, self.rope_sin)
+        scores = tf.matmul(q, k, transpose_b=True) / tf.sqrt(tf.cast(self.depth, inputs.dtype))
+        if token_mask is not None:
+            keys = tf.reshape(tf.cast(token_mask, tf.bool), (batch, 1, 1, seq))
+            scores = tf.where(keys, scores, tf.cast(_MASK_NEG, inputs.dtype))
+        weights = self.dropout(tf.nn.softmax(scores, axis=-1), training=training)
+        context = tf.transpose(tf.matmul(weights, v), perm=[0, 2, 1, 3])
+        context = tf.reshape(context, (batch, seq, self.d_model))
+        return self.dropout(self.out(context), training=training)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "d_model": self.d_model, "num_heads": self.num_heads, "dropout_rate": self.dropout_rate,
+            "use_rope": self.use_rope, "rope_base": self.rope_base, "max_position": self.max_position,
+        })
+        return config
+
+
+class FieldResonance(Layer):
+    """Global (bidirectional) resonance over a padded token field.
+
+    Every real token is harmonized toward the field prototype (the projected,
+    masked mean of all real tokens) for ``resonance_cycles`` closed-form cycles,
+    then passes a straight-through spike with subtractive reset. Padding never
+    enters the prototype, so the layer is invariant to right padding.
+    """
+
+    def __init__(self, d_model, resonance_factor=0.15, resonance_cycles=3, spike_threshold=0.4,
+                 **kwargs):
+        super().__init__(**kwargs)
+        self.d_model = int(d_model)
+        self.resonance_factor = float(resonance_factor)
+        self.resonance_cycles = int(resonance_cycles)
+        self.spike_threshold = float(spike_threshold)
+
+    def build(self, input_shape):
+        self.projection_kernel = self.add_weight(
+            name="projection_kernel", shape=(self.d_model, self.d_model),
+            initializer="glorot_uniform", trainable=True)
+        self.resonance_gate = self.add_weight(
+            name="resonance_gate", shape=(self.d_model,),
+            initializer=tf.keras.initializers.Constant(1.0), trainable=True)
+        self.resonance_bias = self.add_weight(
+            name="resonance_bias", shape=(self.d_model,), initializer="zeros", trainable=True)
+        super().build(input_shape)
+
+    def call(self, inputs, token_mask=None, training=False):
+        dtype = inputs.dtype
+        if token_mask is None:
+            token_mask = tf.ones(tf.shape(inputs)[:2], dtype=tf.bool)
+        m = tf.expand_dims(tf.cast(token_mask, dtype), -1)
+        prototype = tf.reduce_sum(inputs * m, axis=1, keepdims=True) / tf.maximum(
+            tf.reduce_sum(m, axis=1, keepdims=True), 1.0)
+        prototype = tf.matmul(prototype, self.projection_kernel)
+        alpha = tf.clip_by_value(tf.cast(self.resonance_factor, dtype), 0.0, 0.99)
+        decay = tf.pow(1.0 - alpha, tf.cast(self.resonance_cycles, dtype))
+        h = decay * inputs + (1.0 - decay) * prototype
+        h = h * (1.0 + tf.sigmoid(self.resonance_gate) * alpha) + self.resonance_bias
+        spikes = straight_through_spike(h, self.spike_threshold)
+        return h - spikes * tf.cast(self.spike_threshold, dtype)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "d_model": self.d_model, "resonance_factor": self.resonance_factor,
+            "resonance_cycles": self.resonance_cycles, "spike_threshold": self.spike_threshold,
+        })
+        return config
+
+
+class ResonantBinding(Layer):
+    """Bind schema probes to an utterance field through iterative resonance.
+
+    Each probe ``p`` (a tool, parameter, or enum-option engram) listens to the
+    utterance field ``U`` for ``cycles`` rounds with shared weights:
+
+        a_c = softmax_t( (W_q p_{c-1}) . (W_k U_t) )           where it resonates
+        r_c = W_l sum_t a_c[t] W_v U_t                         what it hears
+        g_c = sigmoid( (W_g [p_{c-1}; r_c] - theta) / leak )   GSER spiking gate
+        p_c = p' + Mixer(p'),   p' = p_{c-1} + g_c * r_c
+
+    Keys and values are computed once per utterance and shared by all probes,
+    so binding P probes costs O(P * T * d) on top of a single encoder pass.
+    Fewer cycles means less compute, and every cycle count is trained.
+
+    Returns the settled probe state, the last heard signal, and the peak
+    per-head resonance score (a direct "something here matches me" signal).
+    """
+
+    def __init__(self, d_model, num_heads=4, cycles=3, leak_rate=0.1, spike_threshold=0.4,
+                 mixer_rank_div=2, dropout_rate=0.0, **kwargs):
+        super().__init__(**kwargs)
+        if d_model % num_heads != 0:
+            raise ValueError("d_model must be divisible by num_heads")
+        self.d_model = int(d_model)
+        self.num_heads = int(num_heads)
+        self.depth = self.d_model // self.num_heads
+        self.cycles = int(cycles)
+        self.leak_rate = float(leak_rate)
+        self.spike_threshold = float(spike_threshold)
+        self.mixer_rank_div = int(mixer_rank_div)
+        self.dropout_rate = float(dropout_rate)
+        self.inner = max(self.d_model // max(self.mixer_rank_div, 1), 16)
+        self.q_norm = RMSNorm(name="probe_norm")
+        self.query = Dense(self.d_model, use_bias=False, name="query")
+        self.key = Dense(self.d_model, use_bias=False, name="key")
+        self.value = Dense(self.d_model, use_bias=False, name="value")
+        self.listen = Dense(self.d_model, name="listen")
+        self.gate = Dense(self.d_model, name="gate")
+        self.mix_down = Dense(self.inner, activation="gelu", name="mix_down")
+        self.mix_up = Dense(self.d_model, name="mix_up")
+        self.mix_norm = RMSNorm(name="mix_norm")
+        self.dropout = Dropout(self.dropout_rate)
+
+    def build(self, input_shape):
+        d = self.d_model
+        for layer, width in ((self.q_norm, d), (self.query, d), (self.key, d), (self.value, d),
+                             (self.listen, d), (self.gate, 2 * d), (self.mix_down, d),
+                             (self.mix_up, self.inner), (self.mix_norm, d)):
+            if not layer.built:  # field_memory() may already have built key/value
+                layer.build((None, width))
+        self.gate_threshold = self.add_weight(
+            name="gate_threshold", shape=(d,),
+            initializer=tf.keras.initializers.Constant(self.spike_threshold), trainable=True)
+        super().build(input_shape)
+
+    def field_memory(self, field):
+        """Per-utterance keys/values ``(B, H, T, dh)`` shared by every probe."""
+        batch = tf.shape(field)[0]
+        seq = tf.shape(field)[1]
+
+        def heads(x):
+            return tf.transpose(tf.reshape(x, (batch, seq, self.num_heads, self.depth)), [0, 2, 1, 3])
+
+        return heads(self.key(field)), heads(self.value(field))
+
+    def call(self, probes, keys, values, token_mask, probe_example, cycles=None, training=False):
+        """``probes`` (P, D); ``keys``/``values`` (B, H, T, dh); ``token_mask`` (B, T);
+        ``probe_example`` (P,) int, the utterance each probe binds to."""
+        cycles = self.cycles if cycles is None else int(max(1, min(int(cycles), self.cycles)))
+        dtype = probes.dtype
+        k = tf.gather(keys, probe_example)      # (P, H, T, dh)
+        v = tf.gather(values, probe_example)
+        mask = tf.expand_dims(tf.gather(tf.cast(token_mask, tf.bool), probe_example), 1)  # (P, 1, T)
+        n_probe = tf.shape(probes)[0]
+        scale = tf.sqrt(tf.cast(self.depth, dtype))
+        sharp = 1.0 / tf.maximum(tf.cast(self.leak_rate, dtype), 1e-3)
+        p = probes
+        heard = tf.zeros_like(probes)
+        peak = tf.zeros((n_probe, self.num_heads), dtype=dtype)
+        for _ in range(cycles):
+            q = tf.reshape(self.query(self.q_norm(p)), (n_probe, self.num_heads, 1, self.depth))
+            scores = tf.squeeze(tf.matmul(q, k, transpose_b=True), axis=2) / scale  # (P, H, T)
+            scores = tf.where(mask, scores, tf.cast(_MASK_NEG, dtype))
+            peak = tf.reduce_max(scores, axis=-1)
+            attn = self.dropout(tf.nn.softmax(scores, axis=-1), training=training)
+            ctx = tf.reshape(tf.matmul(tf.expand_dims(attn, 2), v), (n_probe, self.d_model))
+            heard = self.listen(ctx)
+            g = self.gate(tf.concat([p, heard], axis=-1))
+            g_scale = tf.sqrt(tf.reduce_mean(tf.square(g), axis=-1, keepdims=True) + 1e-6)
+            g = tf.sigmoid(sharp * (g / g_scale - self.gate_threshold))
+            p = p + g * heard
+            p = p + self.dropout(self.mix_up(self.mix_down(self.mix_norm(p))), training=training)
+        return p, heard, peak
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "d_model": self.d_model, "num_heads": self.num_heads, "cycles": self.cycles,
+            "leak_rate": self.leak_rate, "spike_threshold": self.spike_threshold,
+            "mixer_rank_div": self.mixer_rank_div, "dropout_rate": self.dropout_rate,
+        })
         return config

@@ -1,10 +1,11 @@
-"""Tool calling and structured extraction for ARC 1."""
+"""Tool specs, validation, and the ARC 1 agent (tool calling, extraction, embeddings)."""
 
 from __future__ import annotations
 
 import json
 import re
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -20,6 +21,8 @@ class ToolParam:
     description: str = ""
     required: bool = True
     enum: Optional[List[str]] = None
+    # Optional plain-language hint per enum option ("billing": "charges, invoices, refunds").
+    enum_descriptions: Optional[Dict[str, str]] = None
 
 
 @dataclass
@@ -225,9 +228,9 @@ def heuristic_tool_match(prompt: str, tools: Sequence[ToolSpec]) -> List[Dict[st
         w in text for w in ("weather", "temperature", "forecast", "how's it", "hows it")
     ):
         city = None
-        for needle in (" in ", " for ", " at "):
-            if needle in text:
-                city = text.split(needle, 1)[1].strip(" ?.!,")
+        for marker in (" in ", " for ", " at "):
+            if marker in text:
+                city = text.split(marker, 1)[1].strip(" ?.!,")
                 city = city.split()[0].strip(",.").title() if city else None
                 break
         if not city:
@@ -336,13 +339,6 @@ def coerce_value(ptype: str, text: str) -> Tuple[bool, Any]:
     return bool(text), text
 
 
-def json_token_allowlist(tokenizer: BytePairTokenizer, vocab_size: int) -> List[int]:
-    """Prefer printable / JSON-ish tokens for constrained decode."""
-    if hasattr(tokenizer, "generation_ids"):
-        return list(tokenizer.generation_ids(printable_only=True))
-    return list(range(2, min(vocab_size, 512)))
-
-
 def _sigmoid(x, t: float) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-np.asarray(x, dtype=np.float64) / t))
 
@@ -353,14 +349,61 @@ def _softmax(x, t: float) -> np.ndarray:
     return z / z.sum()
 
 
-class Arc1Agent:
-    """Tool calling, extraction, and embeddings over ``Arc1Model`` decision heads.
+class SchemaMemory:
+    """Cache of schema engrams keyed by schema text.
 
-    Each request is two batched forward passes: (1) one ``noul`` sequence per
-    offered tool decides which tools apply; (2) one sequence per argument of the
-    selected tools fills values — copied spans for strings/numbers, ``choice``
-    over enum options, ``noul`` for booleans and optional-argument presence.
-    Output is always schema-valid; probabilities are temperature-calibrated.
+    Tool, parameter, and option texts rarely change between requests, so ARC 1
+    keeps the engram of each text it has perceived. Texts not yet cached are
+    perceived inside the same forward pass as the utterance (see
+    ``Arc1Model.decide_joint``) and stored here afterwards. Call ``clear()``
+    after changing weights.
+    """
+
+    def __init__(self, capacity: int = 8192):
+        self.capacity = int(capacity)
+        self._store: "OrderedDict[str, np.ndarray]" = OrderedDict()
+        self.hits = 0
+        self.misses = 0
+
+    def __len__(self) -> int:
+        return len(self._store)
+
+    def __contains__(self, text: str) -> bool:
+        return text in self._store
+
+    def clear(self) -> None:
+        self._store.clear()
+
+    def get(self, text: str) -> np.ndarray:
+        self._store.move_to_end(text)
+        return self._store[text]
+
+    def put(self, texts: Sequence[str], vectors: np.ndarray) -> None:
+        for text, vec in zip(texts, vectors):
+            self._store[text] = vec
+        while len(self._store) > self.capacity:
+            self._store.popitem(last=False)
+
+
+@dataclass
+class _Probe:
+    role: int
+    text_a: str
+    text_b: Optional[str]
+    tool: str
+    param: Optional[ToolParam] = None
+    option: Optional[str] = None
+
+
+class Arc1Agent:
+    """Tool calling, extraction, and embeddings with ARC 1 Resonant Schema Binding.
+
+    A request is **one** forward pass: the utterance (plus any schema text not
+    yet cached) is perceived once, every offered tool, parameter, and enum
+    option binds to it in parallel, and the readouts are assembled into
+    schema-valid calls or a classification label. Strings and numbers are
+    anchored in the user's words; enums are selected; booleans and optional
+    arguments fire or stay silent. Probabilities are temperature-calibrated.
     """
 
     def __init__(
@@ -369,114 +412,192 @@ class Arc1Agent:
         tokenizer: BytePairTokenizer,
         tools: Optional[Sequence[ToolSpec]] = None,
         system: str = "",
-        temperature: float = 0.2,
-        max_new_tokens: int = 96,
         allow_heuristic: bool = False,
         tool_threshold: float = 0.5,
         presence_threshold: float = 0.5,
     ):
+        import tensorflow as tf
+
         from .arc1_codec import Arc1Codec
 
         self.model = model
         self.tokenizer = tokenizer
         self.tools = list(tools or [])
         self.system = system
-        self.temperature = temperature
-        self.max_new_tokens = max_new_tokens
         self.allow_heuristic = allow_heuristic
         self.tool_threshold = tool_threshold
         self.presence_threshold = presence_threshold
-        self.codec = Arc1Codec(tokenizer, model.arc1_config.seq_len)
+        cfg = model.arc1_config
+        self.codec = Arc1Codec(tokenizer, cfg.seq_len, cfg.schema_len)
+        self.memory = SchemaMemory()
+        self._joint_fns: Dict[int, Callable] = {}
+        d = cfg.d_model
+
+        @tf.function(input_signature=[tf.TensorSpec([None, None], tf.int32)], reduce_retracing=True)
+        def embed(ids):
+            return model.embed_text(ids, training=False)
+
+        self._embed_fn = embed
+        self._signature = [
+            tf.TensorSpec([None, None], tf.int32),   # row 0 utterance, rows 1.. uncached schema texts
+            tf.TensorSpec([None, d], tf.float32),    # cached engrams used by this request
+            tf.TensorSpec([None], tf.int32),         # probe_a index into [cached; new]
+            tf.TensorSpec([None], tf.int32),         # probe_b index, -1 = no context
+            tf.TensorSpec([None], tf.int32),         # roles
+        ]
 
     # ------------------------------------------------------------ primitives
-    def _forward(self, seqs, depth: Optional[int]) -> Dict[str, np.ndarray]:
+    def _temp(self, readout: str) -> float:
+        return self.model.arc1_config.temperature(readout)
+
+    def _joint_fn(self, cycles: int) -> Callable:
+        fn = self._joint_fns.get(cycles)
+        if fn is None:
+            import tensorflow as tf
+
+            model = self.model
+
+            @tf.function(input_signature=self._signature, reduce_retracing=True)
+            def fn(ids, bank, probe_a, probe_b, roles):
+                return model.decide_joint(ids, bank, probe_a, probe_b, roles, cycles=cycles, training=False)
+
+            self._joint_fns[cycles] = fn
+        return fn
+
+    @staticmethod
+    def _plan(tools: Sequence[ToolSpec], with_tool_probes: bool = True) -> List[_Probe]:
+        from .arc1_codec import ROLE_OPTION, ROLE_TOOL, option_text, param_text, role_for, tool_text
+
+        probes: List[_Probe] = []
+        for t in tools:
+            ttext = tool_text(t.name, t.description)
+            if with_tool_probes:
+                probes.append(_Probe(ROLE_TOOL, ttext, None, t.name))
+            for p in t.parameters:
+                ptext = param_text(p.name, p.type, p.description, p.required)
+                probes.append(_Probe(role_for(p.type, p.enum), ptext, ttext, t.name, p))
+                hints = p.enum_descriptions or {}
+                for opt in p.enum or []:
+                    probes.append(_Probe(ROLE_OPTION, option_text(opt, hints.get(str(opt))), ptext, t.name, p, str(opt)))
+        return probes
+
+    def _bind(self, text: str, probes: List[_Probe], cycles: Optional[int]):
+        """One forward pass: perceive ``text`` and any uncached schema texts together,
+        then bind every probe. Returns (utterance, outputs, stats)."""
         import tensorflow as tf
 
         from .arc1_codec import pad_batch
 
-        batch = pad_batch([s.ids for s in seqs], max_len=self.model.arc1_config.seq_len)
-        out = self.model.decide(tf.constant(batch), training=False, depth=depth)
-        return {k: v.numpy() for k, v in out.items() if k != "hidden"}
+        cfg = self.model.arc1_config
+        cycles = cfg.resolve_cycles(cycles)
+        utt = self.codec.utterance(text)
+        needed = list(dict.fromkeys([p.text_a for p in probes] + [p.text_b for p in probes if p.text_b]))
+        cached = [t for t in needed if t in self.memory]
+        missing = [t for t in needed if t not in self.memory]
+        index = {t: i for i, t in enumerate(cached + missing)}
+        d = cfg.d_model
+        bank = np.stack([self.memory.get(t) for t in cached]) if cached else np.zeros((0, d), np.float32)
+        ids = pad_batch([utt.ids] + [self.codec.schema(t) for t in missing], max_len=cfg.seq_len)
+        probe_a = np.asarray([index[p.text_a] for p in probes], dtype=np.int32)
+        probe_b = np.asarray([index[p.text_b] if p.text_b else -1 for p in probes], dtype=np.int32)
+        roles = np.asarray([p.role for p in probes], dtype=np.int32)
+        out = self._joint_fn(cycles)(
+            tf.constant(ids), tf.constant(bank, tf.float32), tf.constant(probe_a), tf.constant(probe_b),
+            tf.constant(roles),
+        )
+        out = {k: v.numpy() for k, v in out.items()}
+        self.memory.put(missing, out.pop("new_engrams"))
+        self.memory.hits += len(cached)
+        self.memory.misses += len(missing)
+        stats = {"tokens": len(utt.ids), "probes": len(probes), "cycles": cycles, "forward_passes": 1,
+                 "schema_encoded": len(missing), "schema_cached": len(cached)}
+        return utt, out, stats
 
-    def _temp(self, head: str) -> float:
-        return self.model.arc1_config.temperature(head)
-
-    def score_tools(self, prompt: str, tools: Sequence[ToolSpec], depth: Optional[int] = None) -> Dict[str, float]:
-        """Laya ``noul`` per tool: calibrated P(tool applies to the prompt)."""
-        if not tools:
-            return {}
-        seqs = [self.codec.tool_seq(t.name, t.description, prompt) for t in tools]
-        probs = _sigmoid(self._forward(seqs, depth)["noul"], self._temp("noul"))
-        return {t.name: float(p) for t, p in zip(tools, probs)}
-
-    def fill_arguments(
-        self,
-        text: str,
-        requests: Sequence[Tuple[str, ToolParam]],
-        depth: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
-        """Decide every (tool_name, param) in one batch.
-
-        Returns one dict per request with ``present``, ``value``, ``p`` (calibrated
-        probability of the value), ``p_present``, and ``kind``.
-        """
+    def _anchor(self, utt, i: int, out: Dict[str, np.ndarray], ptype: str,
+                blocked: Optional[np.ndarray] = None) -> Dict[str, Any]:
+        """Best grounded span for probe ``i``, skipping ``blocked`` token positions."""
         from .arc1_codec import best_span
 
-        seqs, enum_by_idx = [], {}
-        for tool_name, param in requests:
-            seqs.append(
-                self.codec.arg_seq(tool_name, param.name, param.type, param.description, param.required, text)
-            )
-        for idx, (tool_name, param) in enumerate(requests):
-            if param.enum:
-                start = len(seqs)
-                for option in param.enum:
-                    seqs.append(self.codec.enum_seq(tool_name, param.name, param.description, str(option), text))
-                enum_by_idx[idx] = (start, len(seqs))
-        if not seqs:
-            return []
-        out = self._forward(seqs, depth)
-        p_noul = _sigmoid(out["noul"], self._temp("noul"))
+        start, end = out["anchor_start"][i], out["anchor_end"][i]
+        if blocked is not None:
+            start = np.where(blocked, -1e9, start)
+            end = np.where(blocked, -1e9, end)
+            if not (~blocked[utt.lo:utt.hi]).any():
+                return {"ok": False, "value": None, "p": 0.0}
+        s, e, p_span = best_span(start, end, utt.lo, utt.hi, temperature=self._temp("anchor"))
+        surface = self.codec.tokens_to_text(utt, s, e)
+        ok, value = coerce_value(ptype, surface)
+        return {"ok": ok, "value": value, "surface": surface, "tokens": (s, e),
+                "span": self.codec.tokens_to_char_span(utt, s, e), "p": p_span if ok else 0.0}
 
-        decisions = []
-        for idx, (tool_name, param) in enumerate(requests):
-            seq = seqs[idx]
+    def _read_arguments(self, utt, probes: List[_Probe], out: Dict[str, np.ndarray],
+                        p_fire: np.ndarray) -> List[Dict[str, Any]]:
+        """Decode every parameter probe into a typed, grounded decision."""
+        from .arc1_codec import ROLE_BOOL, ROLE_ENUM, ROLE_OPTION, ROLE_SPAN
+
+        options: Dict[Tuple[str, str], List[int]] = {}
+        for i, p in enumerate(probes):
+            if p.role == ROLE_OPTION:
+                options.setdefault((p.tool, p.param.name), []).append(i)
+        d = out["select_q"].shape[-1]
+        decisions, anchored = [], []
+        for i, pr in enumerate(probes):
+            if pr.role not in (ROLE_SPAN, ROLE_BOOL, ROLE_ENUM):
+                continue
+            param = pr.param
             ptype = (param.type or "string").lower()
-            p_present = 1.0 if param.required else float(p_noul[idx])
-            decision: Dict[str, Any] = {"tool": tool_name, "param": param.name, "p_present": p_present}
-            if ptype in ("boolean", "bool"):
-                p_true = float(p_noul[idx])
-                decision.update(kind="noul", present=True, value=p_true >= 0.5,
+            p_present = 1.0 if param.required else float(p_fire[i])
+            decision: Dict[str, Any] = {"tool": pr.tool, "param": param.name, "p_present": p_present}
+            if pr.role == ROLE_BOOL:
+                p_true = float(p_fire[i])
+                decision.update(kind="fire", present=True, value=p_true >= 0.5,
                                 p=max(p_true, 1.0 - p_true), p_true=p_true, p_present=1.0)
-            elif param.enum:
-                a, b = enum_by_idx[idx]
-                probs = _softmax(out["choice"][a:b], self._temp("choice"))
+            elif pr.role == ROLE_ENUM:
+                idx = options.get((pr.tool, param.name), [])
+                logits = out["select_k"][idx] @ out["select_q"][i] / np.sqrt(d)
+                probs = _softmax(logits, self._temp("select"))
                 best = int(np.argmax(probs))
                 decision.update(
-                    kind="choice",
+                    kind="select",
                     present=p_present >= self.presence_threshold,
                     value=str(param.enum[best]),
                     p=float(probs[best]),
                     distribution={str(o): float(p) for o, p in zip(param.enum, probs)},
                 )
-            elif seq.span_hi <= seq.span_lo:
-                decision.update(kind="span", present=False, value=None, p=0.0)
+            elif utt.hi <= utt.lo:
+                decision.update(kind="anchor", present=False, value=None, p=0.0)
             else:
-                s, e, p_span = best_span(
-                    out["span_start"][idx], out["span_end"][idx], seq.span_lo, seq.span_hi,
-                    temperature=self._temp("span"),
-                )
-                surface = self.codec.tokens_to_text(seq, s, e)
-                ok, value = coerce_value(ptype, surface)
-                decision.update(
-                    kind="span",
-                    present=ok and p_present >= self.presence_threshold,
-                    value=value,
-                    surface=surface,
-                    p=p_span if ok else 0.0,
-                )
+                a = self._anchor(utt, i, out, ptype)
+                decision.update(kind="anchor", present=a["ok"] and p_present >= self.presence_threshold,
+                                value=a["value"], surface=a.get("surface"), span=a.get("span"), p=a["p"])
+                anchored.append((decision, i, ptype, param.required, a.get("tokens")))
             decisions.append(decision)
+        self._exclusive_anchoring(utt, out, anchored)
         return decisions
+
+    def _exclusive_anchoring(self, utt, out: Dict[str, np.ndarray], anchored) -> None:
+        """Within one call a token belongs to at most one argument.
+
+        The most confident anchors claim their tokens first. A later optional
+        argument whose span collides is dropped; a required one is re-anchored
+        on the tokens that are still free.
+        """
+        width = out["anchor_start"].shape[-1]
+        claimed: Dict[str, np.ndarray] = {}
+        live = [x for x in anchored if x[0]["present"] and x[4] is not None]
+        for decision, i, ptype, required, (s, e) in sorted(live, key=lambda x: -x[0]["p"] * x[0]["p_present"]):
+            taken = claimed.setdefault(decision["tool"], np.zeros(width, dtype=bool))
+            if taken[s:e + 1].any():
+                if not required:
+                    decision.update(present=False, note="span already anchored by a stronger argument")
+                    continue
+                a = self._anchor(utt, i, out, ptype, blocked=taken)
+                decision.update(present=a["ok"], value=a["value"], surface=a.get("surface"),
+                                span=a.get("span"), p=a["p"], note="re-anchored on unclaimed tokens")
+                if not a["ok"]:
+                    continue
+                s, e = a["tokens"]
+            taken[s:e + 1] = True
 
     # ------------------------------------------------------------- products
     def run(
@@ -484,17 +605,31 @@ class Arc1Agent:
         prompt: str,
         tools: Optional[Sequence[ToolSpec]] = None,
         execute: bool = True,
-        depth: Optional[int] = None,
+        cycles: Optional[int] = None,
     ) -> Dict[str, Any]:
+        from .arc1_codec import ROLE_TOOL
+
         t0 = time.perf_counter()
         active = list(tools if tools is not None else self.tools)
-        tool_probs = self.score_tools(prompt, active, depth)
+        probes = self._plan(active)
+        tool_probs: Dict[str, float] = {}
+        decisions: List[Dict[str, Any]] = []
+        stats: Dict[str, Any] = {"tokens": 0, "probes": 0, "cycles": self.model.arc1_config.resolve_cycles(cycles)}
+        if probes:
+            utt, out, stats = self._bind(prompt, probes, cycles)
+            p_fire = _sigmoid(out["fire"], self._temp("fire"))
+            tool_probs = {p.tool: float(p_fire[i]) for i, p in enumerate(probes) if p.role == ROLE_TOOL}
+            fired = {name for name, p in tool_probs.items() if p >= self.tool_threshold}
+            keep = [p.tool in fired for p in probes]
+            decisions = self._read_arguments(
+                utt, [p for p, k in zip(probes, keep) if k],
+                {k: v[np.asarray(keep)] for k, v in out.items()},
+                p_fire[np.asarray(keep)],
+            ) if fired else []
         selected = sorted(
             (t for t in active if tool_probs.get(t.name, 0.0) >= self.tool_threshold),
             key=lambda t: -tool_probs[t.name],
         )
-        requests = [(t.name, p) for t in selected for p in t.parameters]
-        decisions = self.fill_arguments(prompt, requests, depth) if requests else []
 
         by_tool: Dict[str, List[Dict[str, Any]]] = {}
         for d in decisions:
@@ -503,7 +638,7 @@ class Arc1Agent:
         for t in selected:
             params = {p.name: p for p in t.parameters}
             args, conf, missing = {}, tool_probs[t.name], []
-            parts = [f"{t.name} applies (p={tool_probs[t.name]:.2f})"]
+            parts = [f"{t.name} fires (p={tool_probs[t.name]:.2f})"]
             for d in by_tool.get(t.name, []):
                 required = params[d["param"]].required
                 if d["present"]:
@@ -515,7 +650,7 @@ class Arc1Agent:
                 else:
                     conf *= 1.0 - d["p_present"]
             if missing:
-                notes.append(f"{t.name} skipped: could not ground required {', '.join(missing)}")
+                notes.append(f"{t.name} held back: could not anchor required {', '.join(missing)}")
                 continue
             calls.append({"name": t.name, "arguments": args})
             call_conf.append(conf)
@@ -535,7 +670,7 @@ class Arc1Agent:
             confidence = None  # heuristic calls carry no calibrated probability
         else:
             confidence = float(1.0 - max(tool_probs.values(), default=0.0))
-            notes.append("no offered tool applies")
+            notes.append("no offered tool fires")
 
         results = execute_tools(calls, active) if execute else []
         payload = {"tools": tool_probs, "arguments": decisions}
@@ -547,12 +682,13 @@ class Arc1Agent:
             "raw": json.dumps(payload, default=str),
             "decisions": payload,
             "source": source,
-            "depth": self.model.arc1_config.resolve_depth(depth),
-            "latency_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+            "cycles": stats["cycles"],
+            "stats": stats,
+            "latency_ms": round((time.perf_counter() - t0) * 1000.0, 2),
         }
 
-    def extract(self, text: str, record_schema: Dict[str, Any], depth: Optional[int] = None) -> Dict[str, Any]:
-        from .arc1_data import EXTRACT_TOOL_NAME
+    def extract(self, text: str, record_schema: Dict[str, Any], cycles: Optional[int] = None) -> Dict[str, Any]:
+        from .arc1_data import EXTRACT_TOOL_DESCRIPTION, EXTRACT_TOOL_NAME
 
         t0 = time.perf_counter()
         params = []
@@ -567,7 +703,12 @@ class Arc1Agent:
                     enum=spec.get("enum"),
                 )
             )
-        decisions = self.fill_arguments(text, [(EXTRACT_TOOL_NAME, p) for p in params], depth)
+        spec = ToolSpec(EXTRACT_TOOL_NAME, EXTRACT_TOOL_DESCRIPTION, params)
+        probes = self._plan([spec], with_tool_probes=False)
+        decisions, stats = [], {"tokens": 0, "probes": 0, "cycles": self.model.arc1_config.resolve_cycles(cycles)}
+        if probes:
+            utt, out, stats = self._bind(text, probes, cycles)
+            decisions = self._read_arguments(utt, probes, out, _sigmoid(out["fire"], self._temp("fire")))
         record, confs, notes = {}, [], []
         for d in decisions:
             if d["present"]:
@@ -586,20 +727,50 @@ class Arc1Agent:
             "raw": json.dumps(decisions, default=str),
             "decisions": decisions,
             "source": "model",
-            "latency_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+            "cycles": stats["cycles"],
+            "stats": stats,
+            "latency_ms": round((time.perf_counter() - t0) * 1000.0, 2),
         }
 
-    def embed(self, text: str, depth: Optional[int] = None) -> List[float]:
-        """Echo embedding: mean-pool over the COPY half of ``TEXT: x / COPY: x``."""
+    def classify(self, text: str, labels: Sequence[str], task: Optional[str] = None,
+                 cycles: Optional[int] = None, descriptions: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """Pick one of ``labels`` for ``text`` in one forward pass.
+
+        The label set is a classification schema: one argument whose options are
+        the labels, so each label is a probe that resonates with the text and
+        the ``select`` readout returns a calibrated distribution over them.
+        ``task`` optionally says what the labels mean ("Route the ticket to a team"), and
+        ``descriptions`` optionally gives each label a hint ({"billing": "charges, refunds"}).
+        """
+        from .arc1_data import classify_tool_spec
+
+        t0 = time.perf_counter()
+        labels = [str(x) for x in dict.fromkeys(labels) if str(x).strip()]
+        if not labels:
+            raise ValueError("classify() needs at least one label")
+        spec = classify_tool_spec(labels, task, descriptions)
+        utt, out, stats = self._bind(text, self._plan([spec], with_tool_probes=False), cycles)
+        decision = self._read_arguments(utt, self._plan([spec], with_tool_probes=False), out,
+                                        _sigmoid(out["fire"], self._temp("fire")))[0]
+        dist = decision["distribution"]
+        ranked = sorted(dist.items(), key=lambda kv: -kv[1])
+        return {
+            "label": decision["value"],
+            "confidence": float(decision["p"]),
+            "distribution": dict(ranked),
+            "reasoning": ", ".join(f"{k} (p={v:.2f})" for k, v in ranked[:3]) + ".",
+            "source": "model",
+            "cycles": stats["cycles"],
+            "stats": stats,
+            "latency_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+        }
+
+    def embed(self, text: str) -> List[float]:
+        """Attention-pooled utterance field, L2-normalised."""
         import tensorflow as tf
 
         from .arc1_codec import pad_batch
 
-        seq = self.codec.embed_seq(text)
-        ids = pad_batch([seq.ids])
-        mask = np.zeros_like(ids, dtype=bool)
-        mask[0, seq.span_lo : seq.span_hi] = True
-        vec = self.model.embed_text(tf.constant(ids), training=False, depth=depth, pool_mask=tf.constant(mask))
+        ids = pad_batch([self.codec.utterance(text).ids], max_len=self.model.arc1_config.seq_len)
+        vec = self._embed_fn(tf.constant(ids))
         return [float(x) for x in vec.numpy()[0].tolist()]
-
-

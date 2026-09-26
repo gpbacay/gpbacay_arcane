@@ -1,151 +1,118 @@
-"""ARC 1 — ARCANE Automation Foundation Model.
+"""ARC 1 — ARCANE Automation Foundation Model (Resonant Schema Binding).
 
-A laddered ARCANE decoder (ResonantChannelMixer, ConceptEngram,
-ResonantSequenceMixer, causal linear/softmax attention) with Laya-style typed
-decision heads on top instead of free-form JSON generation:
+ARC 1 is an ultra-compact, non-autoregressive "System 1" decision model: it
+maps text plus a schema (tools, a record, or a label set) to typed, grounded,
+calibrated decisions in one forward pass. It does not generate text.
 
-* ``noul``   — calibrated P(true) for a yes/no question read at the last token
-              (does this tool apply? is this argument present? boolean value).
-* ``choice`` — one logit per candidate sequence; softmax over a candidate group
-              (enum values, record labels).
-* ``span``   — start/end pointer over the user-text tokens, so string/number
-              arguments are copied from the input and never invented.
+Pipeline
+--------
+1. **Perceive once.** The utterance is read a single time by a stack of
+   bidirectional ``Arc1PerceptionBlock`` layers (FieldAttention →
+   ResonantChannelMixer → ConceptEngram lexical memory → FieldResonance).
+   The result is the *utterance field* ``U`` (T x D).
+2. **Schema engrams.** Every tool, parameter, enum option, and label is
+   perceived by the same blocks and attention-pooled into one vector. Texts
+   not yet cached are perceived in the same batch as the utterance
+   (``decide_joint``), so a request is always exactly one forward pass.
+3. **Resonant binding.** Each engram becomes a *probe* (composed with its
+   context engram and a role embedding) that resonates with ``U`` for a few
+   shared-weight cycles through a GSER spiking gate (``ResonantBinding``).
+   All probes for a request bind in parallel against the same field.
+4. **Readouts** on the settled probes:
 
-Every head has a scalar temperature fit on held-out data (``calibration``),
-so reported probabilities are calibrated. The LM head is kept for generation
-and as an auxiliary training signal.
+   * ``fire``   — P(probe fires): a tool applies, an optional argument is
+                  present, or a boolean argument is true.
+   * ``anchor`` — start/end pointer over utterance tokens, so strings and
+                  numbers are copied from the user's words, never invented.
+   * ``select`` — an enum argument (or a classification label set) picks the
+                  option probe it resonates with most (``q_param . k_option``).
+   * embedding  — attention-pooled field, L2-normalised.
+
+Each readout has a temperature fitted on held-out data (``calibration``).
+``cycles`` trades accuracy for compute at inference with the same weights.
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, Optional, Tuple
 
 import tensorflow as tf
 
-from .layers import Arc1DecoderBlock
-from .mechanisms import AttentionResidual, RMSNorm
-from .language_model import _sample_logits
+from .arc1_codec import NUM_ROLES
+from .layers import Arc1PerceptionBlock
+from .mechanisms import RMSNorm, ResonantBinding
 
-
-def nested_ladder_indices(num_layers: int, depth: int) -> List[int]:
-    """Needle-style nested midpoint block sets.
-
-    ``S_2 = {0, L-1}``, then repeatedly insert the midpoint of the widest gap
-    until ``|S_d| = depth``. Sets nest: ``S_2 ⊂ S_3 ⊂ … ⊂ S_L``.
-    """
-    if num_layers < 1:
-        raise ValueError("num_layers must be >= 1")
-    depth = int(max(1, min(depth, num_layers)))
-    if depth == 1:
-        return [0]
-    selected = {0, num_layers - 1}
-    while len(selected) < depth:
-        ordered = sorted(selected)
-        best_gap = -1
-        best_mid = None
-        for a, b in zip(ordered, ordered[1:]):
-            gap = b - a
-            if gap > best_gap and gap > 1:
-                best_gap = gap
-                best_mid = (a + b) // 2
-        if best_mid is None or best_mid in selected:
-            # Fill any remaining holes left-to-right.
-            for i in range(num_layers):
-                if i not in selected:
-                    selected.add(i)
-                    break
-        else:
-            selected.add(best_mid)
-    return sorted(selected)
-
+_NEG = -1e9
 
 ARC1_PRESETS: Dict[str, Dict] = {
     "arc1-tiny": {
         "vocab_size": 512,
         "d_model": 128,
-        "num_layers": 4,
+        "num_layers": 3,
         "num_heads": 4,
-        "seq_len": 384,
-        "dropout_rate": 0.05,
+        "seq_len": 160,
         "engram_table_size": 4096,
         "engram_rows": 4,
-        "mixer_rank_div": 2,
-        "ladder_depths": (2, 4),
-        "softmax_every": 2,
+        "binding_heads": 4,
+        "binding_cycles": 3,
     },
     "arc1": {
-        "vocab_size": 8000,
+        "vocab_size": 2048,
         "d_model": 256,
-        "num_layers": 12,
+        "num_layers": 6,
         "num_heads": 8,
-        "seq_len": 512,
-        "dropout_rate": 0.05,
+        "seq_len": 256,
         "engram_table_size": 16384,
         "engram_rows": 8,
-        "mixer_rank_div": 4,
-        "ladder_depths": (2, 4, 6, 8, 12),
-        "softmax_every": 4,
+        "binding_heads": 8,
+        "binding_cycles": 4,
     },
 }
 
-HEAD_NAMES = ("noul", "choice", "span")
+READOUTS = ("fire", "anchor", "select")
 
 
 def _default_calibration() -> Dict[str, float]:
-    return {name: 1.0 for name in HEAD_NAMES}
+    return {name: 1.0 for name in READOUTS}
 
 
 @dataclass
 class Arc1Config:
-    """Width/depth/engram geometry and head calibration for ``Arc1Model``."""
+    """Geometry, binding, and readout calibration for ``Arc1Model``."""
 
-    vocab_size: int = 8000
-    d_model: int = 256
-    num_layers: int = 12
-    num_heads: int = 8
-    seq_len: int = 512
+    vocab_size: int = 512
+    d_model: int = 128
+    num_layers: int = 3
+    num_heads: int = 4
+    seq_len: int = 160
+    schema_len: int = 64
     dropout_rate: float = 0.05
     resonance_factor: float = 0.15
     resonance_cycles: int = 3
     spike_threshold: float = 0.4
     leak_rate: float = 0.1
     pad_id: int = 0
-    softmax_every: int = 0
     use_rope: bool = True
-    use_decay: bool = True
-    chunk_size: int = 64
-    reweight_centered: bool = True
     gate_normalize: bool = True
-    norm_type: str = "rms"
-    mixer_rank_div: int = 4
-    engram_table_size: int = 16384
-    engram_rows: int = 8
+    mixer_rank_div: int = 2
+    engram_table_size: int = 4096
+    engram_rows: int = 4
     ngram_sizes: Tuple[int, ...] = (2, 3)
-    ladder_depths: Tuple[int, ...] = (2, 4, 6, 8, 12)
-    active_depth: Optional[int] = None  # None = full num_layers
+    binding_heads: int = 4
+    binding_cycles: int = 3
+    active_cycles: Optional[int] = None  # None = binding_cycles
     calibration: Dict[str, float] = field(default_factory=_default_calibration)
 
-    def attention_types(self) -> List[str]:
-        if not self.softmax_every:
-            return ["linear"] * self.num_layers
-        return [
-            "softmax" if (i + 1) % self.softmax_every == 0 else "linear"
-            for i in range(self.num_layers)
-        ]
+    def resolve_cycles(self, cycles: Optional[int] = None) -> int:
+        if cycles is None:
+            cycles = self.active_cycles
+        if cycles is None:
+            return self.binding_cycles
+        return int(max(1, min(int(cycles), self.binding_cycles)))
 
-    def resolve_depth(self, depth: Optional[int] = None) -> int:
-        if depth is None:
-            depth = self.active_depth
-        if depth is None:
-            return self.num_layers
-        return int(max(1, min(depth, self.num_layers)))
-
-    def ladder_block_indices(self, depth: Optional[int] = None) -> List[int]:
-        return nested_ladder_indices(self.num_layers, self.resolve_depth(depth))
-
-    def temperature(self, head: str) -> float:
-        return float(max((self.calibration or {}).get(head, 1.0), 1e-3))
+    def temperature(self, readout: str) -> float:
+        return float(max((self.calibration or {}).get(readout, 1.0), 1e-3))
 
     @classmethod
     def from_preset(cls, name: str, **overrides) -> "Arc1Config":
@@ -161,216 +128,208 @@ class Arc1Config:
         """Build from a saved JSON dict, ignoring unknown keys."""
         known = set(cls.__dataclass_fields__)
         data = {k: v for k, v in dict(payload).items() if k in known}
-        for key in ("ngram_sizes", "ladder_depths"):
-            if key in data:
-                data[key] = tuple(data[key])
+        if "ngram_sizes" in data:
+            data["ngram_sizes"] = tuple(data["ngram_sizes"])
         if "calibration" in data:
             merged = _default_calibration()
-            merged.update({k: float(v) for k, v in (data["calibration"] or {}).items()})
+            merged.update({k: float(v) for k, v in (data["calibration"] or {}).items() if k in merged})
             data["calibration"] = merged
         return cls(**data)
 
     def to_dict(self) -> Dict:
         data = asdict(self)
         data["ngram_sizes"] = list(self.ngram_sizes)
-        data["ladder_depths"] = list(self.ladder_depths)
         data["calibration"] = dict(self.calibration)
         return data
 
-    def with_depth(self, depth: Optional[int]) -> "Arc1Config":
+    def with_cycles(self, cycles: Optional[int]) -> "Arc1Config":
         data = self.to_dict()
-        data["active_depth"] = None if depth is None else int(depth)
+        data["active_cycles"] = None if cycles is None else int(cycles)
         return Arc1Config.from_dict(data)
 
 
-def _head_mlp(d_model: int, units: int, name: str) -> tf.keras.Sequential:
-    return tf.keras.Sequential(
-        [
-            tf.keras.layers.Dense(d_model, activation="gelu", name=f"{name}_hidden"),
-            tf.keras.layers.Dense(units, name=f"{name}_out"),
-        ],
-        name=name,
-    )
-
-
 class Arc1Model(tf.keras.Model):
-    """Decoder-only ARC 1 with LM, decision, span, and embedding heads.
-
-    Inputs are right-padded with ``pad_id``; every head reads real tokens only.
-    ``depth`` selects a nested ladder slice per call without mutating state.
-    """
+    """Resonant Schema Binding model: perceive once, bind every schema probe, read out."""
 
     def __init__(self, config: Optional[Arc1Config] = None, **kwargs):
         super().__init__(**kwargs)
         self.arc1_config = config or Arc1Config.from_preset("arc1-tiny")
         cfg = self.arc1_config
-        if cfg.d_model % cfg.num_heads != 0:
-            raise ValueError("d_model must be divisible by num_heads")
+        if cfg.d_model % cfg.num_heads or cfg.d_model % cfg.binding_heads:
+            raise ValueError("d_model must be divisible by num_heads and binding_heads")
+        d = cfg.d_model
 
-        self.token_embedding = tf.keras.layers.Embedding(
-            cfg.vocab_size,
-            cfg.d_model,
-            name="token_embedding",
-        )
+        self.token_embedding = tf.keras.layers.Embedding(cfg.vocab_size, d, name="token_embedding")
         self.embed_dropout = tf.keras.layers.Dropout(cfg.dropout_rate)
-        self.depth_residuals = [
-            AttentionResidual(cfg.d_model, name=f"attnres_{i}")
-            for i in range(cfg.num_layers)
-        ]
         self.blocks = [
-            Arc1DecoderBlock(
-                d_model=cfg.d_model,
+            Arc1PerceptionBlock(
+                d_model=d,
                 num_heads=cfg.num_heads,
                 dropout_rate=cfg.dropout_rate,
                 resonance_factor=cfg.resonance_factor,
                 resonance_cycles=cfg.resonance_cycles,
                 spike_threshold=cfg.spike_threshold,
                 leak_rate=cfg.leak_rate,
-                attention_type=kind,
                 use_rope=cfg.use_rope,
-                max_position=max(cfg.seq_len, 2048),
-                chunk_size=cfg.chunk_size,
-                use_decay=cfg.use_decay,
-                reweight_centered=cfg.reweight_centered,
+                max_position=max(cfg.seq_len, cfg.schema_len, 128),
                 gate_normalize=cfg.gate_normalize,
-                norm_type=cfg.norm_type,
                 mixer_rank_div=cfg.mixer_rank_div,
+                use_engram=(i == 0),  # one lexical memory at the bottom of the stack
                 engram_table_size=cfg.engram_table_size,
                 engram_rows=cfg.engram_rows,
                 ngram_sizes=cfg.ngram_sizes,
-                name=f"arc1_block_{i}",
+                name=f"perception_{i}",
             )
-            for i, kind in enumerate(cfg.attention_types())
+            for i in range(cfg.num_layers)
         ]
-        self.final_norm = (
-            RMSNorm(eps=1e-6, name="final_norm")
-            if cfg.norm_type == "rms"
-            else tf.keras.layers.LayerNormalization(epsilon=1e-6, name="final_norm")
+        # Attention pooling: one score per token, separately for schemas and utterances.
+        self.schema_pool = tf.keras.layers.Dense(1, name="schema_pool")
+        self.schema_proj = tf.keras.layers.Dense(d, name="schema_proj")
+        self.utter_pool = tf.keras.layers.Dense(1, name="utter_pool")
+        self.utter_proj = tf.keras.layers.Dense(d, name="utter_proj")
+
+        self.role_embedding = tf.keras.layers.Embedding(NUM_ROLES, d, name="role_embedding")
+        self.compose = tf.keras.layers.Dense(d, name="compose")
+        self.compose_norm = RMSNorm(name="compose_norm")
+        self.binding = ResonantBinding(
+            d_model=d,
+            num_heads=cfg.binding_heads,
+            cycles=cfg.binding_cycles,
+            leak_rate=cfg.leak_rate,
+            spike_threshold=cfg.spike_threshold,
+            mixer_rank_div=cfg.mixer_rank_div,
+            dropout_rate=cfg.dropout_rate,
+            name="resonant_binding",
         )
-        self.noul_head = _head_mlp(cfg.d_model, 1, "noul_head")
-        self.choice_head = _head_mlp(cfg.d_model, 1, "choice_head")
-        self.span_head = _head_mlp(cfg.d_model, 2, "span_head")
-        self.embed_pool = tf.keras.layers.Dense(cfg.d_model, name="embed_pool")
+        self.settle_norm = RMSNorm(name="settle_norm")
+        self.fire_hidden = tf.keras.layers.Dense(d, activation="gelu", name="fire_hidden")
+        self.fire_out = tf.keras.layers.Dense(1, name="fire_out")
+        self.anchor_query = tf.keras.layers.Dense(2 * d, name="anchor_query")
+        self.anchor_key = tf.keras.layers.Dense(2 * d, name="anchor_key")
+        self.select_query = tf.keras.layers.Dense(d, name="select_query")
+        self.select_key = tf.keras.layers.Dense(d, name="select_key")
 
     @classmethod
     def from_preset(cls, name: str = "arc1-tiny", **overrides) -> "Arc1Model":
         return cls(Arc1Config.from_preset(name, **overrides))
 
-    def select_ladder_depth(self, depth: Optional[int]) -> "Arc1Model":
-        """Set the default ladder depth (same weights). Prefer ``depth=`` per call."""
-        self.arc1_config = self.arc1_config.with_depth(depth)
-        return self
-
-    # ------------------------------------------------------------------ encoder
-    def _encode(self, token_ids, training=False, depth=None):
-        cfg = self.arc1_config
-        active = set(cfg.ladder_block_indices(depth))
-        x = self.token_embedding(token_ids)
-        x = self.embed_dropout(x, training=training)
-        history = [x]
-        for i, (residual, block) in enumerate(zip(self.depth_residuals, self.blocks)):
-            if i not in active:
-                continue
-            x = residual(history)
-            x = block(x, token_ids=token_ids, training=training)
-            history.append(x)
-        return self.final_norm(x)
-
-    def _last_hidden(self, hidden, token_ids):
-        """Hidden state at the last non-pad position (sees the whole causal prefix)."""
-        mask = tf.cast(tf.not_equal(token_ids, self.arc1_config.pad_id), tf.int32)
-        last = tf.maximum(tf.reduce_sum(mask, axis=1) - 1, 0)
-        return tf.gather(hidden, last, batch_dims=1)
+    # --------------------------------------------------------------- perceive
+    def perceive(self, token_ids, training=False):
+        """Utterance / schema field ``(B, T, D)`` and its real-token mask ``(B, T)``."""
+        mask = tf.not_equal(token_ids, self.arc1_config.pad_id)
+        x = self.embed_dropout(self.token_embedding(token_ids), training=training)
+        for block in self.blocks:
+            x = block(x, token_ids=token_ids, token_mask=mask, training=training)
+        return x, mask
 
     @staticmethod
-    def _masked_mean(hidden, mask):
-        mask = tf.cast(mask, hidden.dtype)[..., None]
-        total = tf.reduce_sum(hidden * mask, axis=1)
-        return total / tf.maximum(tf.reduce_sum(mask, axis=1), 1.0)
+    def _attention_pool(field, mask, scorer):
+        scores = tf.squeeze(scorer(field), axis=-1)
+        scores = tf.where(mask, scores, _NEG)
+        weights = tf.nn.softmax(scores, axis=-1)
+        return tf.reduce_sum(field * tf.expand_dims(weights, -1), axis=1)
 
-    # -------------------------------------------------------------------- heads
-    def call(self, token_ids, training=False, depth=None):
-        hidden = self._encode(token_ids, training=training, depth=depth)
-        return tf.matmul(hidden, self.token_embedding.embeddings, transpose_b=True)
+    def schema_engrams(self, token_ids, training=False):
+        """One engram ``(S, D)`` per schema text (tool, parameter, or option)."""
+        field, mask = self.perceive(token_ids, training=training)
+        return self.schema_proj(self._attention_pool(field, mask, self.schema_pool))
 
-    def decide(self, token_ids, training=False, depth=None, with_lm=False):
-        """One encoder pass → raw (uncalibrated) logits for every decision head.
-
-        Returns ``noul`` (B,), ``choice`` (B,), ``span_start``/``span_end`` (B, T),
-        and ``hidden`` (B, T, D); plus ``lm`` (B, T, V) when ``with_lm``.
-        """
-        hidden = self._encode(token_ids, training=training, depth=depth)
-        last = self._last_hidden(hidden, token_ids)
-        span = self.span_head(hidden)
-        out = {
-            "hidden": hidden,
-            "noul": tf.squeeze(self.noul_head(last), axis=-1),
-            "choice": tf.squeeze(self.choice_head(last), axis=-1),
-            "span_start": span[..., 0],
-            "span_end": span[..., 1],
-        }
-        if with_lm:
-            out["lm"] = tf.matmul(hidden, self.token_embedding.embeddings, transpose_b=True)
-        return out
-
-    def pooled_embedding(self, hidden, pool_mask):
-        vec = self.embed_pool(self._masked_mean(hidden, pool_mask))
+    def pooled_embedding(self, field, mask):
+        vec = self.utter_proj(self._attention_pool(field, mask, self.utter_pool))
         return tf.nn.l2_normalize(vec, axis=-1)
 
-    def confidence(self, token_ids, training=False, depth=None):
-        """Calibrated noul probability read at the last real token."""
-        logits = self.decide(token_ids, training=training, depth=depth)["noul"]
-        return tf.sigmoid(logits / self.arc1_config.temperature("noul"))
+    def embed_text(self, token_ids, training=False):
+        field, mask = self.perceive(token_ids, training=training)
+        return self.pooled_embedding(field, mask)
 
-    def embed_text(self, token_ids, training=False, depth=None, pool_mask=None):
-        hidden = self._encode(token_ids, training=training, depth=depth)
-        if pool_mask is None:
-            pool_mask = tf.not_equal(token_ids, self.arc1_config.pad_id)
-        return self.pooled_embedding(hidden, pool_mask)
+    def call(self, token_ids, training=False):
+        return self.embed_text(token_ids, training=training)
 
-    def build_model(self) -> "Arc1Model":
-        dummy = tf.zeros((1, 16), dtype=tf.int32) + 4
-        self(dummy, training=False)  # Keras 3 marks the model built only via __call__
-        self.decide(dummy, training=False, with_lm=True)
-        self.embed_text(dummy, training=False)
-        return self
+    # ------------------------------------------------------------------- bind
+    def compose_probes(self, engram_a, engram_b, roles):
+        """Probe = its own engram + its context engram (tool for a parameter,
+        parameter for an option; zeros for a tool) + a role embedding."""
+        p = self.compose(tf.concat([engram_a, engram_b], axis=-1)) + self.role_embedding(roles)
+        return self.compose_norm(p)
 
-    def compile_model(self, learning_rate=3e-4):
-        self.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate, clipnorm=1.0),
-            loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-            metrics=["accuracy"],
+    def bind(self, field, mask, probes, probe_example, cycles=None, training=False):
+        """Resonate every probe with its utterance field and read out all heads.
+
+        Returns raw (uncalibrated) logits: ``fire`` (P,), ``anchor_start`` /
+        ``anchor_end`` (P, T), plus ``select_q`` / ``select_k`` (P, D).
+        """
+        cycles = self.arc1_config.resolve_cycles(cycles)
+        keys, values = self.binding.field_memory(field)
+        settled, heard, peak = self.binding(
+            probes, keys, values, mask, probe_example, cycles=cycles, training=training
         )
-        return self
+        settled = self.settle_norm(settled)
+        fire = self.fire_out(self.fire_hidden(tf.concat([settled, probes * heard, peak], axis=-1)))
 
-    def generate(
-        self,
-        token_ids: Sequence[int],
-        max_new_tokens: int = 64,
-        temperature: float = 0.2,
-        top_k: int = 40,
-        eos_id: Optional[int] = 1,
-        allowed_token_ids: Optional[Sequence[int]] = None,
-        depth: Optional[int] = None,
-    ) -> List[int]:
-        cfg = self.arc1_config
-        tokens = [int(t) for t in token_ids] or [cfg.pad_id]
-        allowed = None if allowed_token_ids is None else [int(i) for i in allowed_token_ids]
-        for _ in range(max_new_tokens):
-            window = tokens[-cfg.seq_len :]
-            logits = self(tf.constant([window], dtype=tf.int32), training=False, depth=depth)[0, -1]
-            next_id = int(
-                _sample_logits(
-                    logits,
-                    temperature=temperature,
-                    top_k=top_k,
-                    allowed_ids=allowed,
-                )
-            )
-            tokens.append(next_id)
-            if eos_id is not None and next_id == eos_id:
-                break
-        return tokens
+        d = self.arc1_config.d_model
+        anchor_keys = tf.gather(self.anchor_key(field), probe_example)  # (P, T, 2D)
+        aq = self.anchor_query(settled)
+        scale = tf.sqrt(tf.cast(d, field.dtype))
+        start = tf.einsum("pd,ptd->pt", aq[:, :d], anchor_keys[..., :d]) / scale
+        end = tf.einsum("pd,ptd->pt", aq[:, d:], anchor_keys[..., d:]) / scale
+        # Anchors land on real utterance tokens only (never BOS or padding).
+        seq = tf.shape(mask)[1]
+        not_bos = tf.range(seq) > 0
+        anchor_mask = tf.logical_and(tf.gather(mask, probe_example), tf.expand_dims(not_bos, 0))
+        return {
+            "fire": tf.squeeze(fire, axis=-1),
+            "anchor_start": tf.where(anchor_mask, start, _NEG),
+            "anchor_end": tf.where(anchor_mask, end, _NEG),
+            "select_q": self.select_query(settled),
+            "select_k": self.select_key(settled),
+        }
+
+    def decide(self, utter_ids, probe_example, engram_a, engram_b, roles, cycles=None, training=False,
+               with_embedding=False):
+        """One pass: perceive the utterances, compose probes, bind, read out."""
+        field, mask = self.perceive(utter_ids, training=training)
+        probes = self.compose_probes(engram_a, engram_b, roles)
+        out = self.bind(field, mask, probes, probe_example, cycles=cycles, training=training)
+        if with_embedding:
+            out["embedding"] = self.pooled_embedding(field, mask)
+        return out
+
+    def decide_joint(self, token_ids, engram_bank, probe_a, probe_b, roles, cycles=None, training=False):
+        """A whole request in exactly one forward pass.
+
+        ``token_ids`` row 0 is the utterance; rows 1.. are schema texts not yet
+        cached. All rows share one perception batch (every stage is pad-masked,
+        so batching them together changes nothing). New engrams are appended to
+        ``engram_bank`` (cached engrams, ``(C, D)``); ``probe_a`` / ``probe_b``
+        index the combined bank, with -1 in ``probe_b`` for "no context".
+        Returns the readouts plus ``new_engrams`` for the caller to cache.
+        """
+        field, mask = self.perceive(token_ids, training=training)
+        new = self.schema_proj(self._attention_pool(field[1:], mask[1:], self.schema_pool))
+        bank = tf.concat([tf.cast(engram_bank, new.dtype), new], axis=0)
+        engram_a = tf.gather(bank, probe_a)
+        has_b = tf.expand_dims(probe_b >= 0, -1)
+        engram_b = tf.where(has_b, tf.gather(bank, tf.maximum(probe_b, 0)), tf.zeros_like(engram_a))
+        probes = self.compose_probes(engram_a, engram_b, roles)
+        out = self.bind(field[:1], mask[:1], probes, tf.zeros_like(roles), cycles=cycles, training=training)
+        out["new_engrams"] = new
+        return out
+
+    @staticmethod
+    def select_logits(select_q, select_k):
+        """``q_param . k_option / sqrt(D)`` — the enum readout."""
+        d = tf.cast(tf.shape(select_q)[-1], select_q.dtype)
+        return tf.reduce_sum(select_q * select_k, axis=-1) / tf.sqrt(d)
+
+    # ------------------------------------------------------------------ build
+    def build_model(self) -> "Arc1Model":
+        d = self.arc1_config.d_model
+        utter = tf.constant([[3, 40, 41, 42, 43, 0, 0, 0]], dtype=tf.int32)
+        schema = tf.constant([[3, 50, 51, 52, 0, 0, 0, 0], [3, 60, 61, 0, 0, 0, 0, 0]], dtype=tf.int32)
+        self(utter, training=False)  # Keras 3 marks the model built only via __call__
+        eng = self.schema_engrams(schema)
+        self.decide(utter, tf.zeros((2,), tf.int32), eng, tf.zeros((2, d)), tf.constant([0, 1]))
+        return self
 
     def get_config(self):
         return self.arc1_config.to_dict()
@@ -379,12 +338,12 @@ class Arc1Model(tf.keras.Model):
     def from_config(cls, config):
         return cls(Arc1Config.from_dict(config))
 
-    def get_model_info(self, depth: Optional[int] = None) -> Dict:
+    def get_model_info(self, cycles: Optional[int] = None) -> Dict:
         built = int(self.count_params()) if self.built else 0
         return {
             "name": "Arc1Model",
+            "architecture": "Resonant Schema Binding",
             "built_parameters": built,
-            "active_depth": self.arc1_config.resolve_depth(depth),
-            "ladder_indices": self.arc1_config.ladder_block_indices(depth),
+            "active_cycles": self.arc1_config.resolve_cycles(cycles),
             "config": self.arc1_config.to_dict(),
         }

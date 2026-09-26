@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FastAPI server for ARC 1 tool calling, extraction, and embeddings.
+"""FastAPI server for ARC 1 tool calling, extraction, classification, and embeddings.
 
 Used by the docs site at /docs/arc-1.
 
@@ -26,6 +26,8 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "1")
+# oneDNN graph rewrites cost more than they save on a model this small (~2x slower on CPU).
+os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,7 +37,7 @@ from gpbacay_arcane.arc1 import Arc1Config, Arc1Model
 from gpbacay_arcane.tokenization import BASE_VOCAB, BytePairTokenizer
 from gpbacay_arcane.tools import Arc1Agent, ToolParam, ToolSpec
 
-app = FastAPI(title="ARCANE ARC 1", version="0.1.0")
+app = FastAPI(title="ARCANE ARC 1", version="0.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -87,8 +89,10 @@ _state = {
     "error": None,
     "preset": PRESET,
     "parameters": None,
-    "active_depth": None,
-    "ladder_depths": None,
+    "architecture": "Resonant Schema Binding",
+    "active_cycles": None,
+    "binding_cycles": None,
+    "layers": None,
     "calibration": None,
     "metrics": None,
 }
@@ -225,7 +229,7 @@ def _load_model() -> None:
                 trained = True
                 print(f"[arc1] Loaded weights {WEIGHTS_PATH}")
             except Exception as exc:  # noqa: BLE001
-                # Older checkpoints (e.g. confidence_head-only) do not match noul/choice/span.
+                # Checkpoints from an older architecture do not match the binding readouts.
                 try:
                     model.load_weights(WEIGHTS_PATH, skip_mismatch=True)
                     weight_note = f"partial load (skip_mismatch): {exc}"
@@ -262,13 +266,15 @@ def _load_model() -> None:
             trained=trained,
             error=weight_note,
             parameters=int(model.count_params()),
-            active_depth=config.resolve_depth(),
-            ladder_depths=sorted(set(config.ladder_depths) | {config.num_layers}),
+            active_cycles=config.resolve_cycles(),
+            binding_cycles=config.binding_cycles,
+            layers=config.num_layers,
             calibration=dict(config.calibration),
             metrics=_metrics_summary(metrics),
             preset=PRESET if not CONFIG_PATH else "from-config",
             heuristic_fallback=use_heuristic,
         )
+        _warm_up(agent)
         print(f"[arc1] Ready ({_state['parameters']:,} params, trained={trained})")
     except Exception as exc:  # noqa: BLE001
         _state["ready"] = False
@@ -276,49 +282,71 @@ def _load_model() -> None:
         print(f"[arc1] Failed: {exc}")
 
 
+def _warm_up(agent: Arc1Agent) -> None:
+    """Trace every cycle setting and cache the built-in schemas before the first request."""
+    cycles_max = agent.model.arc1_config.binding_cycles
+    for cycles in range(1, cycles_max + 1):
+        agent.run("warm up", tools=_builtin_tools(), execute=False, cycles=cycles)
+        agent.extract("warm up", {"name": {"type": "string", "description": "Person name"}}, cycles=cycles)
+        agent.classify("warm up", ["request", "small talk"], cycles=cycles)
+    agent.embed("warm up")
+
+
 def _metrics_summary(metrics: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Headline held-out numbers at full depth for /health."""
+    """Headline held-out numbers at full binding cycles for /health."""
     if not metrics:
         return None
     evaluation = metrics.get("evaluation", {})
-    depth_keys = sorted((k for k in evaluation if k.startswith("depth_")), key=lambda k: int(k.split("_")[1]))
-    if not depth_keys:
+    keys = sorted((k for k in evaluation if k.startswith("cycles_")), key=lambda k: int(k.split("_")[1]))
+    if not keys:
         return None
-    full = evaluation[depth_keys[-1]]
+    full = evaluation[keys[-1]]
+    fast = evaluation[keys[0]]
     return {
-        "depth": int(depth_keys[-1].split("_")[1]),
+        "cycles": int(keys[-1].split("_")[1]),
         "exact_call_acc_heldout_values": full["tools_heldout_values"]["exact_call_acc"],
+        "tool_selection_acc_heldout_values": full["tools_heldout_values"]["tool_selection_acc"],
         "exact_call_acc_unseen_tools": full["tools_unseen_tools"]["exact_call_acc"],
         "extraction_field_f1": full["extraction_heldout_values"]["field_f1"],
-        "noul_ece_after_calibration": metrics.get("calibration", {}).get("noul_ece_after"),
+        "classification_acc": full.get("classify_heldout", {}).get("accuracy"),
+        "latency_ms_p50": full["tools_heldout_values"].get("latency_ms_p50"),
+        "latency_ms_p50_fast": fast["tools_heldout_values"].get("latency_ms_p50"),
+        "fire_ece_after_calibration": metrics.get("calibration", {}).get("fire_ece_after"),
     }
 
 
-def _check_depth(depth: Optional[int]) -> Optional[int]:
-    if depth is None or _model is None:
+def _check_cycles(cycles: Optional[int]) -> Optional[int]:
+    if cycles is None or _model is None:
         return None
-    layers = _model.arc1_config.num_layers
-    if not 1 <= int(depth) <= layers:
-        raise HTTPException(status_code=422, detail=f"depth must be in 1..{layers}")
-    return int(depth)
+    top = _model.arc1_config.binding_cycles
+    if not 1 <= int(cycles) <= top:
+        raise HTTPException(status_code=422, detail=f"cycles must be in 1..{top}")
+    return int(cycles)
 
 
 class RunRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=2000)
     tools: Optional[List[Dict[str, Any]]] = None
     execute: bool = True
-    depth: Optional[int] = None
+    cycles: Optional[int] = None
 
 
 class ExtractRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=4000)
     schema: Dict[str, Any] = Field(default_factory=dict)
-    depth: Optional[int] = None
+    cycles: Optional[int] = None
+
+
+class ClassifyRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=4000)
+    labels: List[str] = Field(..., min_length=1, max_length=64)
+    task: Optional[str] = Field(default=None, max_length=500)
+    descriptions: Optional[Dict[str, str]] = None
+    cycles: Optional[int] = None
 
 
 class EmbedRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=2000)
-    depth: Optional[int] = None
 
 
 @app.on_event("startup")
@@ -334,8 +362,10 @@ def health():
         "trained": _state["trained"],
         "preset": _state["preset"],
         "parameters": _state["parameters"],
-        "active_depth": _state["active_depth"],
-        "ladder_depths": _state["ladder_depths"],
+        "architecture": _state["architecture"],
+        "active_cycles": _state["active_cycles"],
+        "binding_cycles": _state["binding_cycles"],
+        "layers": _state["layers"],
         "calibration": _state["calibration"],
         "metrics": _state["metrics"],
         "heuristic_fallback": _state.get("heuristic_fallback", ALLOW_HEURISTIC),
@@ -348,10 +378,10 @@ def health():
 def run(req: RunRequest):
     if not _state["ready"] or _agent is None or _model is None:
         raise HTTPException(status_code=503, detail=_state["error"] or "ARC 1 still loading")
-    depth = _check_depth(req.depth)
+    cycles = _check_cycles(req.cycles)
     tools = _tools_from_payload(req.tools)
     try:
-        out = _agent.run(req.prompt, tools=tools, execute=req.execute, depth=depth)
+        out = _agent.run(req.prompt, tools=tools, execute=req.execute, cycles=cycles)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"run failed: {exc}") from exc
     return out
@@ -365,20 +395,33 @@ def extract(req: ExtractRequest):
         "name": {"type": "string", "description": "Person name"},
         "city": {"type": "string", "description": "City"},
     }
-    depth = _check_depth(req.depth)
+    cycles = _check_cycles(req.cycles)
     try:
-        return _agent.extract(req.text, schema, depth=depth)
+        return _agent.extract(req.text, schema, cycles=cycles)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"extract failed: {exc}") from exc
+
+
+@app.post("/classify")
+def classify(req: ClassifyRequest):
+    if not _state["ready"] or _agent is None:
+        raise HTTPException(status_code=503, detail=_state["error"] or "ARC 1 still loading")
+    labels = [x.strip() for x in req.labels if x and x.strip()]
+    if not labels:
+        raise HTTPException(status_code=422, detail="labels must contain at least one non-empty label")
+    cycles = _check_cycles(req.cycles)
+    try:
+        return _agent.classify(req.text, labels, task=req.task, cycles=cycles, descriptions=req.descriptions)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"classify failed: {exc}") from exc
 
 
 @app.post("/embed")
 def embed(req: EmbedRequest):
     if not _state["ready"] or _agent is None:
         raise HTTPException(status_code=503, detail=_state["error"] or "ARC 1 still loading")
-    depth = _check_depth(req.depth)
     try:
-        vec = _agent.embed(req.text, depth=depth)
+        vec = _agent.embed(req.text)
         return {"embedding": vec, "dim": len(vec)}
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"embed failed: {exc}") from exc
