@@ -1040,6 +1040,10 @@ class Arc1PerceptionBlock(tf.keras.layers.Layer):
         x = x + self.mixer(self.mix_norm(x), training=training)
         if self.engram is not None:
             x = self.engram(x, token_ids=token_ids, training=training)
+        if self.causal:
+            # Pre-norm residual for the LM: re-normalising the stream after every
+            # block (below) left a 6-layer LM stuck at the unigram plateau.
+            return x + self.resonance(self.out_norm(x), token_mask=token_mask, training=training)
         x = x + self.resonance(x, token_mask=token_mask, training=training)
         return self.out_norm(x)
 

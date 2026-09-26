@@ -12,7 +12,7 @@ export default function ChatPage() {
           Talk to{" "}
           <code className="text-[#C785F2] bg-zinc-900 px-1.5 py-0.5">Arc1LanguageModel</code>
           — ARC 1&apos;s perception stack (FieldAttention, ResonantChannelMixer, ConceptEngram, FieldResonance)
-          run causally as a ~10M-parameter (~40 MB) small language model, distilled from Qwen2.5-0.5B.
+          run causally as a ~10M-parameter (~40 MB) small language model trained on TinyStories.
         </p>
       </div>
 
@@ -46,8 +46,8 @@ export default function ChatPage() {
             <code className="bg-zinc-900 px-1.5 py-0.5">.env.local</code>.
           </p>
           <p className="text-sm text-amber-200 mt-2">
-            Train it (minutes on CPU) with{" "}
-            <code className="bg-zinc-900 px-1.5 py-0.5">python examples/distill_arcane_slm.py --arch arc1</code>.
+            Train it (about an hour on CPU, on TinyStories) with{" "}
+            <code className="bg-zinc-900 px-1.5 py-0.5">python examples/train_arc1_lm.py --fresh</code>.
             The server picks up <code className="bg-zinc-900 px-1.5 py-0.5">Models/arc1_lm.weights.h5</code> automatically.
           </p>
         </div>

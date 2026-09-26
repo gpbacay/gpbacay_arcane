@@ -145,7 +145,15 @@ def _build_prompt(history: List[ChatTurn], message: str) -> str:
         if text:
             parts.append(text)
     parts.append(message.strip())
-    return "\n".join(parts)
+    # Trailing newline: the reply starts a new line instead of finishing the
+    # user's last word ("hi" -> "hipy ...").
+    return "\n".join(parts) + "\n"
+
+
+def _trim_to_sentence(text: str) -> str:
+    """Drop a trailing half-sentence cut off by max_new_tokens."""
+    end = max(text.rfind(c) for c in '.!?"')
+    return text[: end + 1] if end > 0 else text
 
 
 def _load_config():
@@ -274,7 +282,7 @@ def chat(req: ChatRequest):
             eos_id=EOS_ID,
             allowed_token_ids=_allowed_ids,
         )
-        reply = tokenizer.decode(out_ids[len(prompt_ids):]).strip()
+        reply = _trim_to_sentence(tokenizer.decode(out_ids[len(prompt_ids):]).strip())
         if not reply:
             reply = "…"
     except Exception as exc:

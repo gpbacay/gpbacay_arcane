@@ -383,6 +383,7 @@ class Arc1LanguageModel(tf.keras.Model):
         self.token_embedding = tf.keras.layers.Embedding(cfg.vocab_size, cfg.d_model, name="token_embedding")
         self.embed_dropout = tf.keras.layers.Dropout(cfg.dropout_rate)
         self.blocks = _perception_blocks(cfg, causal=True)
+        self.final_norm = RMSNorm(name="final_norm")
 
     @classmethod
     def from_preset(cls, name: str = "arc1-lm", **overrides) -> "Arc1LanguageModel":
@@ -393,7 +394,7 @@ class Arc1LanguageModel(tf.keras.Model):
         x = self.embed_dropout(self.token_embedding(token_ids), training=training)
         for block in self.blocks:
             x = block(x, token_ids=token_ids, token_mask=mask, training=training)
-        return tf.matmul(x, self.token_embedding.embeddings, transpose_b=True)
+        return tf.matmul(self.final_norm(x), self.token_embedding.embeddings, transpose_b=True)
 
     def build_model(self) -> "Arc1LanguageModel":
         self(tf.ones((1, self.slm_config.seq_len), dtype=tf.int32), training=False)
