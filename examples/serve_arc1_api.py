@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 from typing import Any, Dict, List, Optional
 
 EXAMPLES_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -351,7 +352,8 @@ class EmbedRequest(BaseModel):
 
 @app.on_event("startup")
 def startup() -> None:
-    _load_model()
+    # Load in the background so the port binds immediately (Render scans for it); /health reports "loading".
+    threading.Thread(target=_load_model, daemon=True).start()
 
 
 @app.get("/health")
