@@ -71,6 +71,56 @@ const RCN_LAYOUT = [
   ["Tensor data", "rest of file", "Every tensor 64-byte aligned, in its final layout"],
 ];
 
+/* Rows: what the job needs, then how a generative LLM, a fixed classifier, and ARC 1 handle it. */
+const COMPARISON = [
+  ["Output", "Free text you parse and hope is valid JSON", "One label from a fixed set", "Typed calls, records, or labels, valid by construction"],
+  ["Tools and labels", "Described in the prompt", "Fixed at training time", "Passed with each request, cached as engrams"],
+  ["Argument values", "Generated, can be invented", "Not supported", "Copied from the input text"],
+  ["Cost per decision", "One decoding step per output token", "One pass", "One pass, whatever the output size"],
+  ["When nothing fits", "Often calls something anyway", "Always picks a label", "Returns no call, with calibrated confidence"],
+  ["Where it runs", "GPU or a hosted API", "Anywhere", "A laptop CPU or small device, from a sub-megabyte file"],
+];
+
+/* The ideas ARC 1 introduces; each ties to a readout or component described further down. */
+const NOVELTY = [
+  [
+    "Schemas are inputs, not memorised outputs",
+    "Every tool, argument, option, and label is encoded as a schema engram and bound to the sentence in parallel. You change the tool set per request, with no retraining and no prompt engineering.",
+  ],
+  [
+    "Arguments are pointed to, not written",
+    "The anchor readout picks a start and end position in the input. A city or a name is always a span of what the user wrote, so ARC 1 cannot invent a value that isn't there.",
+  ],
+  [
+    "Options are chosen from your list",
+    "Enum arguments and labels are selected by resonance between the parameter and each option. The answer is always one of the options you offered.",
+  ],
+  [
+    "It knows when to stay silent",
+    "Each tool gets a calibrated fire probability. When no tool fits, nothing fires, so a request like “tell me a joke” produces no call instead of a wrong one.",
+  ],
+];
+
+/* What a decoder emits one step at a time for the hero's call. */
+const DECODE_STEPS = ['{"name"', ': "convert', '_currency"', ', "arguments"', ': {"amount"', ": 100", ', "from', '_currency"', ': "USD"', ", ..."];
+
+/* Illustrative gate openness per cycle (0-1) and the word each probe attends to. Not measured values. */
+const PROBES = [
+  { name: "convert_currency", kind: "tool", word: "convert", gates: [0.55, 0.85, 0.96] },
+  { name: "amount", kind: "anchor", word: "100", gates: [0.45, 0.8, 0.94] },
+  { name: "from_currency", kind: "anchor", word: "USD", gates: [0.4, 0.78, 0.93] },
+  { name: "to_currency", kind: "anchor", word: "PHP", gates: [0.35, 0.72, 0.92] },
+  { name: "get_weather", kind: "tool", word: "to", gates: [0.22, 0.09, 0.03] },
+];
+
+/* The four updates inside ResonantBinding, in order, from gpbacay_arcane/mechanisms.py. */
+const CYCLE_STEPS = [
+  ["Attend", "Where does it resonate?", "a = softmax(Wq·p · Wk·U)", "The probe scores every token of the utterance and focuses on the ones that match it."],
+  ["Hear", "What does it hear?", "r = Wl · Σ a·Wv·U", "It pulls in a summary of the tokens it focused on."],
+  ["Gate", "Is it a real match?", "g = σ((Wg[p; r] − θ) / leak)", "A GSER spiking gate opens only when what it heard fits the probe, and stays shut otherwise."],
+  ["Settle", "Update and repeat", "p ← p + g·r + Mixer(p)", "The probe absorbs what passed the gate, then runs the next cycle with the same weights."],
+];
+
 function pct(v: number) {
   return `${(v * 100).toFixed(1)}%`;
 }
@@ -90,11 +140,17 @@ export default function Arc1Page() {
     { label: "Intent category", value: full.classifyIntent },
     { label: "Sentiment", value: full.classifySentiment },
     { label: "Support routing", value: full.classifySupport },
+    { label: "Feed ranking", value: full.classifyFeed },
+    { label: "Search intent", value: full.classifySearch },
+    { label: "Product recommendation", value: full.classifyProducts },
     { label: "Unseen-tool intents", value: full.classifyUnseen },
     { label: "Unseen-tool calls", value: full.exactCallUnseen },
   ]
     .sort((a, b) => b.value - a.value)
     .map((d) => ({ ...d, detail: `${pct(d.value)} on held-out data, ${full.cycles} cycles` }));
+  // ponytail: fixed 85% cut between "strong" and "still weak"; tune if the metrics shift.
+  const strong = accuracy.filter((d) => d.value >= 0.85);
+  const weak = accuracy.filter((d) => d.value < 0.85);
   const sizes = m.formats.map((f) => ({
     label: f.label,
     value: f.bytes,
@@ -111,10 +167,54 @@ export default function Arc1Page() {
           ARC 1 turns a sentence into a decision in one pass.
         </h1>
         <p className="mt-5 max-w-2xl text-lg leading-relaxed text-zinc-400">
-          ARC 1 is a compact, non-autoregressive decision model built on ARCANE resonance. It maps text to calibrated,
-          typed output: tool calls with grounded arguments, extracted records, or classification labels. It does not
-          generate prose, so every result is schema-valid and returned in milliseconds.
+          ARC 1 is a small model that reads a request and decides what to do: which tool to call and with which
+          arguments, which fields to pull out, or which label applies. Instead of writing an answer, it uses{" "}
+          <strong className="font-semibold text-zinc-200">Resonant Schema Binding</strong>: every possible answer
+          listens to the sentence at once, and the ones that match settle into place. Every result fits the schema you
+          gave it.
         </p>
+        <figure className="mt-8 max-w-2xl border border-zinc-800 bg-zinc-950">
+          <div className="border-b border-zinc-800 px-4 py-4 sm:px-5">
+            <p className="flex flex-wrap items-start gap-x-[0.3em] gap-y-2 text-xl leading-snug text-zinc-300">
+              <span>convert</span>
+              {(
+                [
+                  ["100", "amount", "#B9DFE0"],
+                  ["USD", "from_currency", "#F294C0"],
+                ] as const
+              ).map(([word, arg, color]) => (
+                <span key={arg} className="inline-flex flex-col items-center">
+                  <mark className="px-1 text-zinc-50" style={{ boxShadow: `inset 0 -2px 0 ${color}`, background: `${color}24` }}>
+                    {word}
+                  </mark>
+                  <span className="mt-1 whitespace-nowrap px-1 text-[11px] font-medium leading-none" style={{ color }}>
+                    {arg}
+                  </span>
+                </span>
+              ))}
+              <span>to</span>
+              <span className="inline-flex flex-col items-center">
+                <mark className="px-1 text-zinc-50" style={{ boxShadow: "inset 0 -2px 0 #9DE4FA", background: "#9DE4FA24" }}>
+                  PHP
+                </mark>
+                <span className="mt-1 whitespace-nowrap px-1 text-[11px] font-medium leading-none text-[#9DE4FA]">
+                  to_currency
+                </span>
+              </span>
+            </p>
+          </div>
+          <pre className="overflow-x-auto px-4 py-3 text-[13px] leading-relaxed text-zinc-300 sm:px-5">
+            {`{"name": "convert_currency",
+ "arguments": {"amount": 100, "from_currency": "USD", "to_currency": "PHP"}}`}
+          </pre>
+          <figcaption className="border-t border-zinc-800 px-4 py-2.5 text-xs text-zinc-500 sm:px-5">
+            One forward pass, no decoding. Each argument is a span ARC 1 resonated with in the sentence, not text it
+            generated.{" "}
+            <a href="#resonant-schema-binding" className="text-[#C785F2] underline hover:text-[#d49cf5]">
+              How Resonant Schema Binding works
+            </a>
+          </figcaption>
+        </figure>
         <dl className="mt-8 grid max-w-2xl grid-cols-3 border-y border-zinc-800">
           <div className="py-4 pr-4">
             <dt className="text-sm text-zinc-500">Parameters</dt>
@@ -147,14 +247,320 @@ export default function Arc1Page() {
         </p>
       </header>
 
+      <p className="not-prose mb-3 text-sm text-zinc-400">
+        Try it below. Pick an example scene, or type your own request.
+      </p>
       <Arc1Demo />
 
       <div className="text-zinc-300">
-        <h2 id="architecture" className={h2}>
-          Architecture
+        <h2 id="problem" className={h2}>
+          The problem it solves
         </h2>
         <p className={p}>
-          ARC 1 uses <strong className="text-zinc-100">Resonant Schema Binding</strong>. The input is perceived once.
+          Most automation comes down to small decisions: which action a message asks for, which values to fill in, which
+          queue a ticket belongs to. Today these are usually handed to a large language model that writes its answer
+          token by token. That works, but it is slow and expensive for a yes-or-no choice, needs a GPU or a hosted API,
+          and can return malformed JSON, a tool that doesn&apos;t exist, or an argument value the user never said.
+        </p>
+        <p className={`${p} mt-4`}>
+          ARC 1 is built only for the decision. It reads the request once and returns a typed answer, so it can run
+          next to the app that needs it, on every message, in a few milliseconds.
+        </p>
+        <div className="not-prose mt-6 overflow-x-auto">
+          <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-zinc-500">
+                <th className="w-36 py-2 pr-4 font-medium" />
+                <th className="py-2 pr-4 font-medium">Generative LLM</th>
+                <th className="py-2 pr-4 font-medium">Fixed classifier</th>
+                <th className="py-2 font-medium text-zinc-100">ARC 1</th>
+              </tr>
+            </thead>
+            <tbody>
+              {COMPARISON.map(([row, llm, clf, arc]) => (
+                <tr key={row} className="border-b border-zinc-900 align-top">
+                  <th scope="row" className="py-2.5 pr-4 font-medium text-zinc-300">
+                    {row}
+                  </th>
+                  <td className="py-2.5 pr-4 text-zinc-500">{llm}</td>
+                  <td className="py-2.5 pr-4 text-zinc-500">{clf}</td>
+                  <td className="border-l-2 border-[#C785F2] bg-[#C785F2]/[0.06] py-2.5 pl-3 text-zinc-100">{arc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={`${p} mt-4 text-sm text-zinc-500`}>
+          ARC 1 does not replace a language model for open-ended answers. It replaces one for the routing decision in
+          front of it.
+        </p>
+
+        <h2 id="resonant-schema-binding" className={h2}>
+          Resonant Schema Binding
+        </h2>
+        <p className={`${p} text-lg text-zinc-200`}>
+          A language model decides by writing. ARC 1 decides by resonating: every possible answer listens to the sentence
+          at the same time, and the ones that match it settle into place.
+        </p>
+        <p className={`${p} mt-4`}>
+          This is the mechanism behind ARC 1, and the reason it can be this small and this fast. Each tool, argument,
+          option, and label becomes a <em>probe</em>. The sentence is read once into a field of tokens. Then all probes
+          bind to that field in parallel over a few short cycles. No output is generated, so there is nothing to decode.
+        </p>
+
+        <h3 id="decoding-vs-resonance" className={h3}>
+          Decoding versus resonance
+        </h3>
+        <div className="not-prose mt-4 grid gap-px border border-zinc-800 bg-zinc-800 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+          <div className="bg-zinc-950 p-4 sm:p-5">
+            <p className="font-semibold text-zinc-300">Decoding</p>
+            <p className="mt-0.5 text-xs text-zinc-500">A generative model writes the call one token at a time.</p>
+            <ol className="mt-4 flex flex-wrap gap-1.5" aria-label="Decoding steps">
+              {DECODE_STEPS.map((t, i) => (
+                <li key={i} className="flex flex-col border border-zinc-800 bg-black px-2 py-1">
+                  <span className="text-[10px] tabular-nums text-zinc-600">step {i + 1}</span>
+                  <code className="whitespace-pre text-xs text-zinc-400">{t}</code>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-4 text-sm text-zinc-400">
+              Cost grows with the length of the answer, each step waits for the last, and any token can go wrong.
+            </p>
+          </div>
+          <div className="bg-zinc-950 p-4 sm:p-5">
+            <p className="font-semibold text-zinc-100">Resonance</p>
+            <p className="mt-0.5 text-xs text-zinc-500">
+              ARC 1 runs every probe at once. Bars show how far each probe&apos;s gate opens per cycle.
+            </p>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[380px] border-collapse text-left text-xs">
+                <thead>
+                  <tr className="text-zinc-500">
+                    <th className="pb-2 pr-3 font-medium">Probe</th>
+                    {[1, 2, 3].map((c) => (
+                      <th key={c} className="pb-2 pr-3 font-medium">
+                        Cycle {c}
+                      </th>
+                    ))}
+                    <th className="pb-2 font-medium">Reads</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PROBES.map((pr) => {
+                    const open = pr.gates[pr.gates.length - 1] >= 0.5;
+                    return (
+                      <tr key={pr.name} className="border-t border-zinc-900">
+                        <th scope="row" className="py-2 pr-3 font-normal">
+                          <code className={open ? "text-zinc-100" : "text-zinc-500"}>{pr.name}</code>
+                        </th>
+                        {pr.gates.map((g, i) => (
+                          <td key={i} className="py-2 pr-3">
+                            <div className="h-1.5 w-full min-w-[3rem] bg-zinc-900" aria-label={`gate ${Math.round(g * 100)}% open`}>
+                              <div className="h-full" style={{ width: `${g * 100}%`, background: open ? "#C785F2" : "#3f3f46" }} />
+                            </div>
+                          </td>
+                        ))}
+                        <td className="py-2">
+                          {open ? (
+                            <mark className="bg-[#C785F2]/15 px-1 text-zinc-50">{pr.kind === "tool" ? "fires" : pr.word}</mark>
+                          ) : (
+                            <span className="text-zinc-500">stays silent</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-4 text-sm text-zinc-300">
+              Cost is fixed: one pass over the sentence plus {m.cycles} short cycles, whatever the answer&apos;s length.
+              A tool that doesn&apos;t match simply never opens its gate.
+            </p>
+            <p className="mt-2 text-[11px] text-zinc-600">Gate values are illustrative, not measured.</p>
+          </div>
+        </div>
+
+        <h3 id="binding-cycle" className={h3}>
+          One binding cycle
+        </h3>
+        <p className={p}>
+          Each probe <code className={code}>p</code> runs the same four steps against the utterance field{" "}
+          <code className={code}>U</code>, with weights shared across cycles.
+        </p>
+        <ol className="not-prose mt-5 grid gap-px border border-zinc-800 bg-zinc-800 sm:grid-cols-2 xl:grid-cols-4">
+          {CYCLE_STEPS.map(([name, question, formula, body], i) => (
+            <li key={name} className="flex flex-col bg-zinc-950 p-4">
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm tabular-nums text-[#C785F2]">{i + 1}</span>
+                <span className="font-semibold text-zinc-100">{name}</span>
+              </div>
+              <p className="mt-0.5 text-xs text-zinc-500">{question}</p>
+              <code className="mt-3 block overflow-x-auto whitespace-nowrap bg-black px-2 py-1.5 text-[12px] text-zinc-300">
+                {formula}
+              </code>
+              <p className="mt-3 text-sm leading-relaxed text-zinc-400">{body}</p>
+            </li>
+          ))}
+        </ol>
+
+        <h3 id="why-resonance" className={h3}>
+          Why it matters
+        </h3>
+        <ul className="max-w-2xl space-y-2">
+          <li>
+            <strong className="text-zinc-100">One read, many decisions.</strong> The sentence&apos;s keys and values are
+            computed once and shared by every probe, so adding a tool adds a few probes, not another pass.
+          </li>
+          <li>
+            <strong className="text-zinc-100">Silence is built in.</strong> The spiking gate gives a non-matching probe
+            nothing to absorb, which is how ARC 1 rejects {pct(full.noToolAcc)} of requests no tool fits.
+          </li>
+          <li>
+            <strong className="text-zinc-100">Speed on a dial.</strong> Every cycle count is trained, so you can run 1
+            cycle ({m.byCycles[0].latencyP50Ms.toFixed(1)} ms, no-tool rejection {pct(m.byCycles[0].noToolAcc)}) or{" "}
+            {full.cycles} ({full.latencyP50Ms.toFixed(1)} ms, {pct(full.noToolAcc)}) from the same weights.
+          </li>
+          <li>
+            <strong className="text-zinc-100">Neuromorphic, not a decoder.</strong> Perception uses ARCANE&apos;s field
+            resonance and spiking channel mixers; binding uses GSER gates. There is no token-by-token decoder anywhere
+            in the model.
+          </li>
+        </ul>
+
+        <h2 id="whats-new" className={h2}>
+          What&apos;s new about it
+        </h2>
+        <p className={p}>
+          Resonant Schema Binding binds a description of every possible answer to the input and reads the result
+          directly. That design gives ARC 1 properties a generative model doesn&apos;t have.
+        </p>
+        <dl className="not-prose mt-6 grid gap-x-10 gap-y-6 sm:grid-cols-2">
+          {NOVELTY.map(([title, body]) => (
+            <div key={title} className="border-t border-zinc-800 pt-4">
+              <dt className="font-semibold text-zinc-100">{title}</dt>
+              <dd className="mt-1.5 text-sm leading-relaxed text-zinc-400">{body}</dd>
+            </div>
+          ))}
+          <div className="border-t border-[#C785F2] pt-4">
+            <dt className="font-semibold text-zinc-100">Small enough to ship inside an app</dt>
+            <dd className="mt-1.5 text-sm leading-relaxed text-zinc-400">
+              {(m.parameters / 1e6).toFixed(2)}M parameters in a {mb(m.rcn.bytes)} file, with a median latency of{" "}
+              {m.latencyP50Ms.toFixed(1)} ms on a laptop CPU. The model, tokenizer, and calibration travel together in
+              one <code className={code}>.rcn</code> file.
+            </dd>
+          </div>
+        </dl>
+
+        <h2 id="results" className={h2}>
+          Accuracy
+        </h2>
+        <p className={p}>
+          All figures come from synthetic data held out from training. Tool figures use argument values ARC 1 never saw;
+          the unseen-tool rows use tools excluded from training entirely.
+        </p>
+        <div className="not-prose mt-6 grid max-w-3xl gap-px border border-zinc-800 bg-zinc-800 sm:grid-cols-2">
+          {(
+            [
+              ["Strong", "Decisions over the vocabulary of its schemas", strong, "#C785F2"],
+              ["Still weak", "Paraphrases and tools unlike its training data", weak, "#52525b"],
+            ] as const
+          ).map(([title, hint, rows, color]) => (
+            <div key={title} className="bg-zinc-950 p-4 sm:p-5">
+              <h3 className="font-semibold text-zinc-100">{title}</h3>
+              <p className="mt-0.5 text-xs text-zinc-500">{hint}</p>
+              <ul className="mt-4 space-y-2.5">
+                {rows.map((r) => (
+                  <li key={r.label} className="flex items-baseline justify-between gap-4 text-sm">
+                    <span className="text-zinc-300">{r.label}</span>
+                    <span className="font-semibold tabular-nums" style={{ color: color === "#52525b" ? "#a1a1aa" : color }}>
+                      {pct(r.value)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <p className={`${p} mt-4`}>
+          Confidence values are calibrated: tool fire decisions have an expected calibration error of{" "}
+          {pct(m.fireEceAfter)}, so a 90% confidence means about 90% of such calls are right. That makes a simple
+          threshold a reliable way to hand uncertain requests to a person or a larger model.
+        </p>
+        <BarChart
+          title="Held-out accuracy by task"
+          subtitle={`${full.cycles} binding cycles; hover a bar for details`}
+          data={accuracy}
+          max={1}
+          ticks={[0, 0.25, 0.5, 0.75, 1]}
+          unit="percent"
+        />
+        <p className={p}>
+          ARC 1 has no pretrained language knowledge, so it relies on the words in a request matching the words in its
+          schemas. Label hints help: <code className={code}>billing: charges, refunds</code> gives ARC 1 more words to
+          match than <code className={code}>billing</code> alone.
+        </p>
+        <details className="not-prose mt-6 border-y border-zinc-800">
+          <summary className="cursor-pointer py-3 text-sm text-zinc-300 hover:text-zinc-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]">
+            All metrics by binding-cycle count
+          </summary>
+          <div className="overflow-x-auto pb-2">
+            <table className="w-full border-collapse text-left text-sm tabular-nums">
+              <thead>
+                <tr className="border-b border-zinc-800 text-zinc-500">
+                  <th className="py-2 pr-4 font-medium">Metric</th>
+                  {m.byCycles.map((c) => (
+                    <th key={c.cycles} className="py-2 pr-4 text-right font-medium">
+                      {c.cycles} {c.cycles === 1 ? "cycle" : "cycles"}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="text-zinc-300">
+                {(
+                  [
+                    ["Tool selection", "toolSelection"],
+                    ["Exact call", "exactCall"],
+                    ["Argument accuracy", "argumentAcc"],
+                    ["No-tool rejection", "noToolAcc"],
+                    ["Exact call, unseen tools", "exactCallUnseen"],
+                    ["Extraction field F1", "extractionF1"],
+                    ["Classification, intent category", "classifyIntent"],
+                    ["Classification, sentiment", "classifySentiment"],
+                    ["Classification, support routing", "classifySupport"],
+                    ["Classification, feed ranking", "classifyFeed"],
+                    ["Classification, search intent", "classifySearch"],
+                    ["Classification, product recommendation", "classifyProducts"],
+                    ["Classification, unseen-tool intents", "classifyUnseen"],
+                  ] as const
+                ).map(([label, key]) => (
+                  <tr key={key} className="border-b border-zinc-900">
+                    <td className="py-2.5 pr-4">{label}</td>
+                    {m.byCycles.map((c) => (
+                      <td key={c.cycles} className="py-2.5 pr-4 text-right">
+                        {pct(c[key])}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                <tr>
+                  <td className="py-2.5 pr-4">Median latency</td>
+                  {m.byCycles.map((c) => (
+                    <td key={c.cycles} className="py-2.5 pr-4 text-right">
+                      {c.latencyP50Ms.toFixed(1)} ms
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+
+        <h2 id="architecture" className={h2}>
+          How it works
+        </h2>
+        <p className={p}>
+          Under <strong className="text-zinc-100">Resonant Schema Binding</strong>, the input is perceived once.
           Every tool, argument, option, and label is represented as a schema engram, and all engrams bind to the input
           in parallel. Readouts then produce typed decisions directly, with no decoding loop.
         </p>
@@ -209,73 +615,6 @@ export default function Arc1Page() {
           decisions have an expected calibration error of {pct(m.fireEceAfter)}. When no tool fires, ARC 1 returns no
           call.
         </p>
-
-        <h2 id="results" className={h2}>
-          Performance
-        </h2>
-        <p className={p}>
-          All figures come from synthetic data held out from training. Tool figures use unseen argument values;
-          unseen-tool rows use tools excluded from training entirely.
-        </p>
-        <BarChart
-          title="Held-out accuracy by task"
-          subtitle={`${full.cycles} binding cycles; hover a bar for details`}
-          data={accuracy}
-          max={1}
-          ticks={[0, 0.25, 0.5, 0.75, 1]}
-          unit="percent"
-        />
-        <p className={p}>
-          ARC 1 has no pretrained language knowledge. It is strongest when inputs share vocabulary with its schemas and
-          weakest on paraphrases unlike its training data, as the support-routing and unseen-tool results show.
-        </p>
-        <div className="not-prose mt-6 overflow-x-auto">
-          <table className="w-full border-collapse text-left text-sm tabular-nums">
-            <thead>
-              <tr className="border-b border-zinc-800 text-zinc-500">
-                <th className="py-2 pr-4 font-medium">Metric</th>
-                {m.byCycles.map((c) => (
-                  <th key={c.cycles} className="py-2 pr-4 text-right font-medium">
-                    {c.cycles} {c.cycles === 1 ? "cycle" : "cycles"}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="text-zinc-300">
-              {(
-                [
-                  ["Tool selection", "toolSelection"],
-                  ["Exact call", "exactCall"],
-                  ["Argument accuracy", "argumentAcc"],
-                  ["No-tool rejection", "noToolAcc"],
-                  ["Exact call, unseen tools", "exactCallUnseen"],
-                  ["Extraction field F1", "extractionF1"],
-                  ["Classification, intent category", "classifyIntent"],
-                  ["Classification, sentiment", "classifySentiment"],
-                  ["Classification, support routing", "classifySupport"],
-                  ["Classification, unseen-tool intents", "classifyUnseen"],
-                ] as const
-              ).map(([label, key]) => (
-                <tr key={key} className="border-b border-zinc-900">
-                  <td className="py-2.5 pr-4">{label}</td>
-                  {m.byCycles.map((c) => (
-                    <td key={c.cycles} className="py-2.5 pr-4 text-right">
-                      {pct(c[key])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-              <tr className="border-b border-zinc-900">
-                <td className="py-2.5 pr-4">Median latency</td>
-                {m.byCycles.map((c) => (
-                  <td key={c.cycles} className="py-2.5 pr-4 text-right">
-                    {c.latencyP50Ms.toFixed(1)} ms
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
 
         <h2 id="rcn-format" className={h2}>
           The .rcn model format

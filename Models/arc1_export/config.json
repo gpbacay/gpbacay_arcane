@@ -22,10 +22,10 @@
   ],
   "binding_heads": 4,
   "binding_cycles": 3,
-  "active_cycles": null,
+  "active_cycles": 3,
   "calibration": {
-    "fire": 1.29479081973234,
-    "anchor": 1.6352938878415428,
-    "select": 3.0007232182309935
+    "fire": 1.4215367520780082,
+    "anchor": 1.5606897320497115,
+    "select": 2.8638264658334434
   }
 }

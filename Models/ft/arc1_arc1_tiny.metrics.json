@@ -1,0 +1,160 @@
+{
+  "preset": "arc1-tiny",
+  "architecture": "Resonant Schema Binding",
+  "parameters": 1320067,
+  "calibration": {
+    "temperatures": {
+      "fire": 1.29479081973234,
+      "anchor": 1.7134642746062023,
+      "select": 3.0007232182309935
+    },
+    "fire_ece_before": 0.007034301067254845,
+    "fire_ece_after": 0.007833264864092148,
+    "n_fire": 743,
+    "n_anchor": 394,
+    "n_select": 143
+  },
+  "evaluation": {
+    "cycles_1": {
+      "tools_heldout_values": {
+        "n": 300,
+        "tool_selection_acc": 0.99,
+        "exact_call_acc": 0.9233333333333333,
+        "argument_acc": 0.9268929503916449,
+        "no_tool_acc": 1.0,
+        "latency_ms_p50": 9.95,
+        "latency_ms_p90": 20.660000000000007
+      },
+      "tools_unseen_tools": {
+        "n": 150,
+        "tool_selection_acc": 0.4,
+        "exact_call_acc": 0.3,
+        "argument_acc": 0.15053763440860216,
+        "no_tool_acc": 1.0,
+        "latency_ms_p50": 7.6,
+        "latency_ms_p90": 14.095999999999998
+      },
+      "extraction_heldout_values": {
+        "n": 150,
+        "field_precision": 0.9829268292682927,
+        "field_recall": 0.9618138424821002,
+        "field_f1": 0.9722557297949336,
+        "exact_record_acc": 0.8933333333333333
+      },
+      "classify_heldout": {
+        "n": 150,
+        "accuracy": 0.7133333333333334,
+        "accuracy_intent_domain": 1.0,
+        "accuracy_intent_tool": 1.0,
+        "accuracy_request": 1.0,
+        "accuracy_sentiment": 0.5666666666666667,
+        "accuracy_support": 0.675,
+        "accuracy_topic_feed": 0.35714285714285715,
+        "accuracy_topic_products": 0.5,
+        "accuracy_topic_search": 0.6923076923076923,
+        "latency_ms_p50": 11.07
+      },
+      "classify_unseen_tools": {
+        "n": 75,
+        "accuracy": 0.4,
+        "accuracy_intent_tool": 0.4,
+        "latency_ms_p50": 6.615
+      }
+    },
+    "cycles_3": {
+      "tools_heldout_values": {
+        "n": 300,
+        "tool_selection_acc": 0.9933333333333333,
+        "exact_call_acc": 0.9266666666666666,
+        "argument_acc": 0.9268929503916449,
+        "no_tool_acc": 1.0,
+        "latency_ms_p50": 7.53,
+        "latency_ms_p90": 13.676000000000002
+      },
+      "tools_unseen_tools": {
+        "n": 150,
+        "tool_selection_acc": 0.4,
+        "exact_call_acc": 0.29333333333333333,
+        "argument_acc": 0.15591397849462366,
+        "no_tool_acc": 1.0,
+        "latency_ms_p50": 7.17,
+        "latency_ms_p90": 12.758
+      },
+      "extraction_heldout_values": {
+        "n": 150,
+        "field_precision": 0.9925742574257426,
+        "field_recall": 0.9570405727923628,
+        "field_f1": 0.9744835965978129,
+        "exact_record_acc": 0.88
+      },
+      "classify_heldout": {
+        "n": 150,
+        "accuracy": 0.64,
+        "accuracy_intent_domain": 0.9333333333333333,
+        "accuracy_intent_tool": 1.0,
+        "accuracy_request": 1.0,
+        "accuracy_sentiment": 0.5333333333333333,
+        "accuracy_support": 0.525,
+        "accuracy_topic_feed": 0.35714285714285715,
+        "accuracy_topic_products": 0.125,
+        "accuracy_topic_search": 0.6923076923076923,
+        "latency_ms_p50": 6.77
+      },
+      "classify_unseen_tools": {
+        "n": 75,
+        "accuracy": 0.41333333333333333,
+        "accuracy_intent_tool": 0.41333333333333333,
+        "latency_ms_p50": 7.555
+      }
+    },
+    "embeddings": {
+      "n": 60,
+      "intent_retrieval_at_1": 0.9666666666666667
+    }
+  },
+  "train": {
+    "train_seconds": 3860.0307812690735
+  },
+  "history_tail": [
+    {
+      "step": 2800,
+      "fire": 0.02031051035039127,
+      "anchor": 0.040467377765162384,
+      "select": 0.08003783599793678,
+      "embed": 0.005759620947646909,
+      "total": 0.1436955330334604
+    },
+    {
+      "step": 2850,
+      "fire": 0.024270193779375403,
+      "anchor": 0.04205615536659025,
+      "select": 0.08583750118410535,
+      "embed": 0.0009457563773685252,
+      "total": 0.15263672860339283
+    },
+    {
+      "step": 2900,
+      "fire": 0.018822747846134007,
+      "anchor": 0.03335141350806225,
+      "select": 0.10430405962237273,
+      "embed": 0.0021050338019267655,
+      "total": 0.15753074107691645
+    },
+    {
+      "step": 2950,
+      "fire": 0.0249348933622241,
+      "anchor": 0.036089165663579476,
+      "select": 0.08381735551422026,
+      "embed": 0.0008215004148951266,
+      "total": 0.14525216398760676
+    },
+    {
+      "step": 3000,
+      "fire": 0.02069656562875025,
+      "anchor": 0.033322132758330555,
+      "select": 0.1069457934248203,
+      "embed": 0.001055347080800857,
+      "total": 0.16149216532707214
+    }
+  ]
+}

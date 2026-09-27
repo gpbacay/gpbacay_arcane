@@ -1001,6 +1001,194 @@ REQUEST_LABELS = [("request", "small talk"), ("task", "chit-chat"), ("actionable
                   ("command", "conversation"), ("needs action", "just chatting")]
 
 
+def _topic_class(labels, hints, frames, fill=()):
+    """One class of a topic family: label wordings, hint words, frames with an optional ``{k}`` slot."""
+    return {"labels": labels, "hints": hints, "frames": _split_pool(frames), "fill": _split_pool(fill) if fill else None}
+
+
+# Topic families teach the general skill of matching text to user-written label
+# hints ("fitness: running, gym, yoga"). Frames and fillers hold out an eval split.
+_SHOP_FRAMES = [
+    "looking for {k}", "any good {k} you'd recommend", "I need new {k}", "show me some {k}",
+    "what {k} should I get", "gift idea for someone into {k}", "recommend me {k} under 50 dollars",
+    "I want to buy {k}", "shopping for {k} this weekend", "my old {k} broke, I need another",
+    "need something for {k}", "best deals on {k}", "can you suggest {k}", "help me pick {k}",
+    "I've been wanting {k} for a while", "browsing for {k}",
+]
+TOPIC_FAMILIES = {
+    "products": {
+        "tasks": ["Pick the product category to recommend from.", "Which catalog section fits what the shopper wants?",
+                  "Recommend a product category for this request."],
+        "classes": {
+            "electronics": _topic_class(["electronics", "gadgets", "tech"],
+                ["laptops", "phones", "headphones", "gaming", "cameras", "tablets", "video editing", "gadgets"], _SHOP_FRAMES,
+                ["a laptop", "a phone", "headphones", "a tablet", "a smartwatch", "a charger", "gaming gear",
+                 "video editing", "photography", "a monitor", "a speaker", "earbuds", "a camera", "a tv"]),
+            "fitness": _topic_class(["fitness", "sports", "exercise"],
+                ["running", "gym", "yoga", "workout", "training", "cycling", "hiking", "weights"], _SHOP_FRAMES,
+                ["running shoes", "a yoga mat", "dumbbells", "a gym bag", "running", "yoga", "cycling",
+                 "lifting weights", "resistance bands", "hiking", "workout gear", "a kettlebell", "jogging", "a treadmill"]),
+            "kitchen": _topic_class(["kitchen", "cookware", "home cooking"],
+                ["cooking", "cookware", "baking", "pans", "coffee", "recipes", "chef", "grilling"], _SHOP_FRAMES,
+                ["cookware", "a frying pan", "a blender", "cooking", "baking", "a chef knife", "a coffee maker",
+                 "grilling", "mixing bowls", "an air fryer", "a rice cooker", "a cutting board", "making coffee", "a stand mixer"]),
+            "books": _topic_class(["books", "reading", "literature"],
+                ["novels", "reading", "stories", "read", "fiction", "poetry", "authors", "audiobooks"], _SHOP_FRAMES,
+                ["a novel", "reading", "a mystery novel", "poetry", "a fantasy series", "a biography", "stories",
+                 "an audiobook", "a paperback", "something to read", "a memoir", "fiction", "a graphic novel", "short stories"]),
+            "fashion": _topic_class(["fashion", "clothing", "apparel"],
+                ["clothes", "outfits", "dresses", "jackets", "style", "shoes", "jeans", "coats"], _SHOP_FRAMES,
+                ["a dress", "jeans", "a handbag", "a scarf", "sunglasses", "a winter coat", "outfits", "a sweater",
+                 "boots", "a jacket", "streetwear", "a hoodie", "clothes", "a leather belt"]),
+            "beauty": _topic_class(["beauty", "cosmetics", "personal care"],
+                ["skincare", "makeup", "perfume", "hair care", "lipstick", "lotion", "shampoo"], _SHOP_FRAMES,
+                ["lipstick", "face cream", "perfume", "shampoo", "skincare", "makeup", "nail polish", "sunscreen",
+                 "a hair dryer", "moisturizer", "a serum", "eyeliner", "body lotion", "hair care"]),
+            "toys": _topic_class(["toys", "games", "kids"],
+                ["toys", "kids", "board games", "puzzles", "lego", "children", "play"], _SHOP_FRAMES,
+                ["a lego set", "a board game", "a puzzle", "a stuffed animal", "toys for kids", "a toy car",
+                 "a dollhouse", "a kite", "an action figure", "building blocks", "a card game", "something for my kids"]),
+            "garden": _topic_class(["garden", "gardening", "outdoor"],
+                ["gardening", "plants", "seeds", "lawn", "flowers", "yard", "soil"], _SHOP_FRAMES,
+                ["seeds", "a garden hose", "flower pots", "gardening", "a lawn mower", "pruning shears", "plants",
+                 "a compost bin", "a watering can", "growing tomatoes", "fertilizer", "the yard", "grow lights"]),
+            "pets": _topic_class(["pets", "pet supplies", "animals"],
+                ["dog", "cat", "pet", "puppy", "leash", "pet food", "aquarium"], _SHOP_FRAMES,
+                ["dog food", "a cat toy", "a pet bed", "a leash", "my dog", "a fish tank", "my cat", "a new puppy",
+                 "cat litter", "chew toys", "a dog collar", "a scratching post", "my pet"]),
+        },
+    },
+    "feed": {
+        "tasks": ["Rank the post for the user's feed.", "Decide where this post goes in the feed.",
+                  "Sort the post into a feed ranking tier."],
+        "classes": {
+            "boost": _topic_class(["boost", "promote", "rank higher", "top of feed"],
+                ["milestones", "big news", "engaged", "wedding", "baby", "graduated", "promoted", "celebrating", "friends"],
+                ["{k}!!", "so happy to share that {k}", "big news, {k}", "can't believe it, {k}",
+                 "{k} and I'm so grateful", "guess what, {k}", "{k}, what a day", "finally, {k}"],
+                ["we just got engaged", "we're having a baby", "I graduated today", "I got my dream job",
+                 "today is our wedding day", "we bought our first house", "we're celebrating 10 years together",
+                 "our daughter took her first steps", "I finished my first marathon", "I got promoted",
+                 "my brother is getting married", "we adopted a puppy", "my best friend had her baby"]),
+            "show": _topic_class(["show", "normal", "keep", "neutral rank"],
+                ["everyday posts", "updates", "notes", "photos", "lunch", "weekend", "sharing", "daily life"],
+                ["{k}", "quick update: {k}", "today {k}", "just a normal day, {k}", "sharing that {k}", "fyi, {k}"],
+                ["I had pasta for lunch", "here are photos from the weekend", "my notes from the team meeting",
+                 "I'm reading a new book tonight", "the weather is nice today", "my commute was long",
+                 "I tried a new coffee shop", "this is my weekly update", "I'm working from home",
+                 "I walked the dog in the park", "we're watching a movie tonight", "I cleaned the garage",
+                 "sharing slides from the workshop"]),
+            "demote": _topic_class(["demote", "rank lower", "downrank"],
+                ["clickbait", "you won't believe", "shocking", "click", "mind blowing", "secret", "insane"],
+                ["{k}", "{k}, click the link", "omg {k}", "{k} (link in bio)", "must see: {k}", "{k}!!! click"],
+                ["you won't believe what happened next", "this one trick doctors hate", "number 7 will shock you",
+                 "click to see what she said", "the secret they don't want you to know", "wait until you see the ending",
+                 "these photos will blow your mind", "the shocking truth revealed", "everyone is talking about this",
+                 "what he did next is insane", "you need to see this now", "this changes everything"]),
+            "hide": _topic_class(["hide", "remove", "block", "filter out"],
+                ["scam", "spam", "password", "free prize", "crypto", "verify account", "fake", "lottery"],
+                ["{k}", "urgent: {k}", "{k}, act now", "limited time, {k}", "{k} before midnight", "congrats! {k}"],
+                ["send your password to get the reward", "win a free gift card", "verify your bank account here",
+                 "you won the lottery, pay the fee", "cheap followers for sale", "dm me for free crypto",
+                 "your account will be locked, log in here", "earn 5000 a day from home", "enter your card number for a free prize",
+                 "buy fake reviews now", "claim your free laptop now", "send money to unlock your prize"]),
+        },
+    },
+    "search": {
+        "tasks": ["Classify the search intent of the query.", "What is the searcher trying to do?",
+                  "Label the intent behind this search term."],
+        "classes": {
+            "informational": _topic_class(["informational", "info", "learn", "know"],
+                ["how to", "what is", "guide", "explained", "why", "tips", "learn"],
+                ["how to {k}", "how do I {k}", "steps to {k}", "easiest way to {k}", "tips to {k}",
+                 "can I {k} myself", "tutorial to {k}", "why can't I {k}"],
+                ["fix a flat tire", "boil an egg", "tie a tie", "learn python", "remove a coffee stain",
+                 "change a lightbulb", "grow basil", "unclog a drain", "write a resume", "paint a wall",
+                 "reset my router", "bake bread", "clean a laptop screen", "patch a hole in drywall"]),
+            "commercial": _topic_class(["commercial", "research", "commercial investigation", "compare"],
+                ["best", "review", "compare", "vs", "top", "worth it", "alternatives"],
+                ["best {k} 2025", "{k} review", "top 10 {k}", "compare {k}", "is the {k} worth it",
+                 "{k} alternatives", "best {k} for beginners", "{k} pros and cons", "which {k} is better"],
+                ["laptop", "air fryer", "office chair", "standing desk", "mattress", "robot vacuum", "smartwatch",
+                 "backpack", "tv", "blender", "monitor", "espresso machine", "wireless earbuds", "running shoes"]),
+            "transactional": _topic_class(["transactional", "buy", "purchase", "do"],
+                ["buy", "price", "order", "cheap", "deal", "discount", "for sale"],
+                ["buy {k}", "{k} price", "order {k} online", "cheap {k}", "{k} discount code", "{k} for sale near me",
+                 "{k} deals free shipping", "buy {k} now", "{k} coupon"],
+                ["laptop", "air fryer", "office chair", "standing desk", "mattress", "robot vacuum", "smartwatch",
+                 "backpack", "tv", "blender", "monitor", "espresso machine", "wireless earbuds", "headphones"]),
+            "navigational": _topic_class(["navigational", "go to site", "navigate", "website"],
+                ["login", "website", "brand", "sign in", "official site", "homepage", "account"],
+                ["{k} login", "{k} website", "{k} sign in", "{k} official site", "go to {k}", "{k} homepage",
+                 "{k} account", "{k} log in page"],
+                ["facebook", "youtube", "amazon", "netflix", "spotify", "instagram", "paypal", "linkedin",
+                 "reddit", "wikipedia", "github", "outlook", "gmail", "yahoo mail", "dropbox"]),
+        },
+    },
+}
+
+
+def _topic_example(rng: random.Random, split: str, use_hints: bool):
+    """Text, labels, gold label, task, and hints for one topic-family example."""
+    fam_name = rng.choice(list(TOPIC_FAMILIES))
+    fam = TOPIC_FAMILIES[fam_name]
+    keys = list(fam["classes"])
+    gold = rng.choice(keys)
+    chosen = [gold] + rng.sample([k for k in keys if k != gold], min(len(keys) - 1, rng.randint(2, 4)))
+    cls = fam["classes"][gold]
+    text = rng.choice(cls["frames"][split])
+    filler = None  # the words the gold hint may echo
+    if "{k}" in text:
+        filler = rng.choice(cls["fill"][split])
+        text = text.replace("{k}", filler)
+    # Opaque names force the model to read the hints instead of memorising label names.
+    opaque = rng.random() < 0.3
+    names = dict(zip(chosen, rng.sample(rng.choice(OPAQUE_LABELS), len(chosen)))) if opaque else \
+        {k: rng.choice(fam["classes"][k]["labels"]) for k in chosen}
+    hints = {}
+    if use_hints or opaque:
+        for k in chosen:
+            pool = fam["classes"][k]["hints"]
+            words = rng.sample(pool, min(len(pool), rng.randint(2, 4)))
+            if k == gold and filler and rng.random() < 0.5:
+                words[rng.randrange(len(words))] = re.sub(r"^(a|an|the|my) ", "", filler)
+            hints[names[k]] = ", ".join(words)
+    labels = [names[k] for k in chosen]
+    return text, labels, names[gold], rng.choice(fam["tasks"]), f"topic_{fam_name}", hints
+
+
+OPAQUE_LABELS = [
+    ["option a", "option b", "option c", "option d", "option e"],
+    ["group 1", "group 2", "group 3", "group 4", "group 5"],
+    ["team red", "team blue", "team green", "team gold", "team gray"],
+    ["category x", "category y", "category z", "category w", "category v"],
+    ["bucket one", "bucket two", "bucket three", "bucket four", "bucket five"],
+]
+_KEYWORD_VOCAB = _split_pool(COMMON_WORDS)
+_KEYWORD_FRAMES = _split_pool([
+    "{k}", "I have a question about the {k}", "something about {k}", "tell me about {k}", "the {k} again",
+    "{k} please", "is this about the {k}?", "we need to talk about the {k}", "anything new on {k}",
+    "my note says {k}", "put this with {k}", "re: {k}",
+])
+
+
+def _keyword_example(rng: random.Random, split: str):
+    """Pure hint matching: opaque labels, and only the gold hint shares a word with the text."""
+    vocab = _KEYWORD_VOCAB[split] + ITEMS[split]
+    word = rng.choice(vocab)
+    names = rng.choice(OPAQUE_LABELS)[: rng.randint(3, 5)]
+    gold = rng.choice(names)
+    others = [w for w in vocab if w != word]
+    hints = {}
+    for n in names:
+        words = rng.sample(others, rng.randint(1, 3))
+        if n == gold:
+            words.insert(rng.randint(0, len(words)), word)
+        hints[n] = ", ".join(words)
+    text = rng.choice(_KEYWORD_FRAMES[split]).replace("{k}", word)
+    return text, list(names), gold, rng.choice(CLASSIFY_TASKS), "keyword", hints
+
+
 def _sentiment_text(rng: random.Random, polarity: str, split: str) -> str:
     thing = rng.choice(ITEMS[split] + COMMON_WORDS[:40])
     if polarity == "neutral":
@@ -1030,10 +1218,14 @@ def sample_classify_example(rng: random.Random, lib: Dict[str, ToolDef], split: 
     task = rng.choice(CLASSIFY_TASKS)
     text_split = "train" if split == "train" else "eval"
     kind = "intent_tool" if split == "unseen_tools" else rng.choice(
-        ["intent_tool", "intent_domain", "sentiment", "sentiment", "request", "support", "support"])
+        ["intent_tool", "intent_domain", "sentiment", "sentiment", "request", "support", "support", "topic", "topic", "keyword"])
     hints: Dict[str, str] = {}
     use_hints = rng.random() < 0.5
-    if kind == "intent_tool":
+    if kind == "topic":
+        text, labels, label, task, kind, hints = _topic_example(rng, text_split, rng.random() < 0.75)
+    elif kind == "keyword":
+        text, labels, label, task, kind, hints = _keyword_example(rng, text_split)
+    elif kind == "intent_tool":
         names = [n for n in lib if (n in HELD_OUT_TOOLS) == (split == "unseen_tools")]
         others = [n for n in lib if n not in HELD_OUT_TOOLS]
         gold = rng.choice(names)

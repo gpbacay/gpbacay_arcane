@@ -98,15 +98,12 @@ export function ListboxSelect({ label, value, options, onChange, className = "" 
 
   return (
     <div ref={rootRef} className={`relative ${className}`}>
-      <span id={`${id}-label`} className="sr-only">
-        {label}
-      </span>
       <button
         ref={buttonRef}
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-labelledby={`${id}-label ${id}-value`}
+        aria-label={`${label}: ${selected?.label ?? ""}`}
         onClick={() => (open ? close() : openList())}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -117,7 +114,7 @@ export function ListboxSelect({ label, value, options, onChange, className = "" 
         className="flex w-full items-center gap-2.5 border border-zinc-700 bg-black px-3 py-2 text-left text-sm text-zinc-100 transition-colors hover:border-zinc-500 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-[#C785F2]"
       >
         {SelectedIcon && <SelectedIcon className="h-4 w-4 shrink-0 text-[#C785F2]" />}
-        <span id={`${id}-value`} className="min-w-0 flex-1 truncate">
+        <span className="min-w-0 flex-1 truncate">
           {selected?.label}
         </span>
         <ChevronDown
@@ -131,7 +128,7 @@ export function ListboxSelect({ label, value, options, onChange, className = "" 
           ref={listRef}
           role="listbox"
           tabIndex={-1}
-          aria-labelledby={`${id}-label`}
+          aria-label={label}
           aria-activedescendant={`${id}-opt-${active}`}
           onKeyDown={onListKey}
           className="absolute left-0 right-0 z-50 mt-1 max-h-80 overflow-auto border border-zinc-700 bg-zinc-950 py-1 shadow-[0_12px_32px_rgba(0,0,0,0.6)] outline-none sm:right-auto sm:min-w-[20rem]"

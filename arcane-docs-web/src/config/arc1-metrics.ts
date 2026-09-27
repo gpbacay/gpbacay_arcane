@@ -3,21 +3,21 @@ export const ARC1_METRICS = {
   "rcn": {
     "file": "/models/arc1-tiny.rcn",
     "bytes": 769344,
-    "sha256": "e3242f0686600b33e10e36955302251c124cf1de0c00eb02bd50c1bc7c77d9fc",
+    "sha256": "ae5777fabd0e653be010ce392ccba753f0f5718b426bfcdd003bdcdc00e154e9",
     "quant": "rq4"
   },
   "formats": [
     {
       "label": "Keras weights, f32",
       "bytes": 5465216,
-      "exactCall": 0.887,
-      "extractF1": 0.972
+      "exactCall": 0.907,
+      "extractF1": 0.982
     },
     {
       "label": ".rcn f16",
       "bytes": 2653440,
-      "exactCall": 0.887,
-      "extractF1": 0.972
+      "exactCall": 0.907,
+      "extractF1": 0.982
     },
     {
       "label": "TFLite int8",
@@ -28,51 +28,57 @@ export const ARC1_METRICS = {
     {
       "label": ".rcn rq8",
       "bytes": 1425088,
-      "exactCall": 0.887,
-      "extractF1": 0.972
+      "exactCall": 0.907,
+      "extractF1": 0.982
     },
     {
       "label": ".rcn rq4",
       "bytes": 769344,
-      "exactCall": 0.893,
-      "extractF1": 0.968
+      "exactCall": 0.913,
+      "extractF1": 0.981
     }
   ],
   "parameters": 1320067,
   "cycles": 3,
   "seqLen": 160,
-  "latencyP50Ms": 5.62,
-  "fireEceBefore": 0.009473739809061103,
-  "fireEceAfter": 0.00936292339294883,
+  "latencyP50Ms": 7.77,
+  "fireEceBefore": 0.004823492260179441,
+  "fireEceAfter": 0.0030744145312907706,
   "retrievalAt1": 1,
   "byCycles": [
     {
       "cycles": 1,
-      "toolSelection": 0.9733333333333334,
-      "exactCall": 0.8966666666666666,
-      "argumentAcc": 0.9112271540469974,
-      "noToolAcc": 0.9682539682539683,
-      "exactCallUnseen": 0.3333333333333333,
-      "extractionF1": 0.9747899159663866,
+      "toolSelection": 0.9933333333333333,
+      "exactCall": 0.93,
+      "argumentAcc": 0.9321148825065274,
+      "noToolAcc": 1,
+      "exactCallUnseen": 0.29333333333333333,
+      "extractionF1": 0.9856115107913669,
       "classifyIntent": 1,
-      "classifySentiment": 0.673469387755102,
-      "classifySupport": 0.4888888888888889,
-      "classifyUnseen": 0.4533333333333333,
-      "latencyP50Ms": 5.4
+      "classifySentiment": 0.6896551724137931,
+      "classifySupport": 0.5185185185185185,
+      "classifyUnseen": 0.3333333333333333,
+      "classifyProducts": 0.2727272727272727,
+      "classifyFeed": 0.625,
+      "classifySearch": 0.6666666666666666,
+      "latencyP50Ms": 9.43
     },
     {
       "cycles": 3,
-      "toolSelection": 0.98,
-      "exactCall": 0.8933333333333333,
-      "argumentAcc": 0.9112271540469974,
-      "noToolAcc": 0.9841269841269841,
-      "exactCallUnseen": 0.31333333333333335,
-      "extractionF1": 0.96875,
+      "toolSelection": 0.99,
+      "exactCall": 0.9233333333333333,
+      "argumentAcc": 0.9242819843342036,
+      "noToolAcc": 1,
+      "exactCallUnseen": 0.2866666666666667,
+      "extractionF1": 0.9808153477218226,
       "classifyIntent": 1,
-      "classifySentiment": 0.673469387755102,
-      "classifySupport": 0.4666666666666667,
-      "classifyUnseen": 0.48,
-      "latencyP50Ms": 5.62
+      "classifySentiment": 0.7241379310344828,
+      "classifySupport": 0.5185185185185185,
+      "classifyUnseen": 0.36,
+      "classifyProducts": 0.2727272727272727,
+      "classifyFeed": 0.625,
+      "classifySearch": 0.5833333333333334,
+      "latencyP50Ms": 7.77
     }
   ]
 } as const;

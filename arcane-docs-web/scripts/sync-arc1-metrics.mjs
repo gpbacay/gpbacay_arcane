@@ -39,6 +39,9 @@ const byCycles = keys.map((k) => {
     classifySentiment: e.classify_heldout ? e.classify_heldout.accuracy_sentiment : 0,
     classifySupport: e.classify_heldout ? e.classify_heldout.accuracy_support : 0,
     classifyUnseen: e.classify_unseen_tools ? e.classify_unseen_tools.accuracy : 0,
+    classifyProducts: e.classify_heldout?.accuracy_topic_products ?? 0,
+    classifyFeed: e.classify_heldout?.accuracy_topic_feed ?? 0,
+    classifySearch: e.classify_heldout?.accuracy_topic_search ?? 0,
     latencyP50Ms: e.tools_heldout_values.latency_ms_p50,
   };
 });
