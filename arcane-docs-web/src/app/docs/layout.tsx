@@ -80,7 +80,7 @@ function DocsLayoutContent({ children, headings, tocOpen, setTocOpen }: { childr
                 </button>
               </div>
               <div className="p-6 overflow-y-auto flex-1">
-                <TableOfContents headings={headings} />
+                <TableOfContents headings={headings} onNavigate={() => setTocOpen(false)} />
                 <div className="pt-10 mt-10 border-t border-zinc-900">
                   <Link
                     href="https://github.com/gpbacay/gpbacay_arcane/issues/new"
@@ -168,12 +168,25 @@ export default function DocsLayout({
       const mainContent = document.querySelector("main");
       if (!mainContent) return;
 
-      const headingElements = Array.from(mainContent.querySelectorAll("h2, h3"));
+      // Headings inside interactive widgets (data-toc-skip) change as you use them; keep them out of the TOC.
+      const headingElements = Array.from(mainContent.querySelectorAll("h2, h3")).filter(
+        (el) => !el.closest("[data-toc-skip]")
+      );
+      const used = new Set<string>();
       const extracted = headingElements
         .map((el) => {
           if (!el.id) {
-            el.id = el.textContent?.toLowerCase().replace(/\s+/g, "-") || "";
+            const base =
+              (el.textContent || "")
+                .toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, "")
+                .trim()
+                .replace(/\s+/g, "-") || "section";
+            let id = base;
+            for (let n = 2; used.has(id) || document.getElementById(id); n++) id = `${base}-${n}`;
+            el.id = id;
           }
+          used.add(el.id);
           return {
             id: el.id,
             text: (el.textContent || "").trim(),

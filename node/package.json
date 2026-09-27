@@ -1,0 +1,21 @@
+{
+  "name": "gpbacay-arcane",
+  "version": "4.0.0",
+  "description": "ARC 1 structured decisions (tool calling, extraction, classification, embeddings) for Node.js",
+  "main": "index.js",
+  "files": ["index.js", "README.md"],
+  "scripts": {
+    "test": "node test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["arc1", "arcane", "tool-calling", "extraction", "classification"],
+  "author": "Gianne P. Bacay",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gpbacay/gpbacay_arcane.git",
+    "directory": "node"
+  }
+}

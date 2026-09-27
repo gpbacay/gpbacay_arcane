@@ -104,7 +104,7 @@ from .tools import (
 
 from .arc1_codec import Arc1Codec
 
-from .rcn import load_rcn, read_header as read_rcn_header, save_rcn
+from .rcn import load_arc1, load_rcn, read_header as read_rcn_header, save_rcn
 
 from .tokenization import BytePairTokenizer
 
@@ -212,6 +212,7 @@ __all__ = [
     "Arc1Codec",
     "save_rcn",
     "load_rcn",
+    "load_arc1",
     "read_rcn_header",
     # Distillation
     "ArcaneDistiller",

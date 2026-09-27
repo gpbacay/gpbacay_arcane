@@ -34,8 +34,13 @@ const byCycles = keys.map((k) => {
     argumentAcc: e.tools_heldout_values.argument_acc,
     noToolAcc: e.tools_heldout_values.no_tool_acc,
     exactCallUnseen: e.tools_unseen_tools.exact_call_acc,
+    toolSelectionUnseen: e.tools_unseen_tools.tool_selection_acc,
     extractionF1: e.extraction_heldout_values.field_f1,
+    exactRecord: e.extraction_heldout_values.exact_record_acc,
+    classifyOverall: e.classify_heldout?.accuracy ?? 0,
     classifyIntent: e.classify_heldout ? e.classify_heldout.accuracy_intent_domain : 0,
+    classifyIntentTool: e.classify_heldout?.accuracy_intent_tool ?? 0,
+    classifyRequest: e.classify_heldout?.accuracy_request ?? 0,
     classifySentiment: e.classify_heldout ? e.classify_heldout.accuracy_sentiment : 0,
     classifySupport: e.classify_heldout ? e.classify_heldout.accuracy_support : 0,
     classifyUnseen: e.classify_unseen_tools ? e.classify_unseen_tools.accuracy : 0,
@@ -75,6 +80,14 @@ const data = {
   latencyP50Ms: full.latencyP50Ms,
   fireEceBefore: metrics.calibration.fire_ece_before,
   fireEceAfter: metrics.calibration.fire_ece_after,
+  // Test-set sizes, so the page can say "N out of M".
+  n: {
+    tools: evaluation[keys[0]].tools_heldout_values.n,
+    unseenTools: evaluation[keys[0]].tools_unseen_tools.n,
+    extraction: evaluation[keys[0]].extraction_heldout_values.n,
+    classify: evaluation[keys[0]].classify_heldout?.n ?? 0,
+    calibrationFire: metrics.calibration.n_fire,
+  },
   retrievalAt1: evaluation.embeddings ? evaluation.embeddings.intent_retrieval_at_1 : 0,
   byCycles,
 };

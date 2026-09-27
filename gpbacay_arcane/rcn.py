@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import mmap
+import os
 import struct
 import zlib
 from typing import Any, Dict, Optional, Tuple
@@ -189,6 +190,17 @@ def load_rcn(path: str, verify: bool = True):
     tok = meta.get("tokenizer")
     tokenizer = BytePairTokenizer(tok["vocab_size"], [tuple(m) for m in tok["merges"]]) if tok else None
     return model, tokenizer, head
+
+
+ARC1_TINY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "arc1-tiny.rcn")
+
+
+def load_arc1(path: Optional[str] = None, **agent_kwargs):
+    """Load ARC 1 as a ready ``Arc1Agent``; defaults to the bundled ``arc1-tiny.rcn``."""
+    from .tools import Arc1Agent
+
+    model, tokenizer, _ = load_rcn(path or ARC1_TINY)
+    return Arc1Agent(model, tokenizer, **agent_kwargs)
 
 
 if __name__ == "__main__":

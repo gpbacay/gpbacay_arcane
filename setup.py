@@ -21,6 +21,7 @@ setup(
     long_description_content_type='text/markdown',
     url='https://github.com/gpbacay/gpbacay_arcane',
     packages=find_packages(exclude=['tests', 'tests.*', 'examples', 'examples.*']),
+    package_data={'gpbacay_arcane': ['models/*.rcn']},
     python_requires='>=3.8',
     install_requires=[
         'numpy>=1.21.0,<3.0.0',

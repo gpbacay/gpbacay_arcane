@@ -636,7 +636,12 @@ export function Arc1Demo() {
     const text = input.trim();
     if (sending || !text) return;
     if (!health?.ready) {
-      setError(health?.error || "ARC 1 is not running yet. Start it with npm run dev:with-arc1.");
+      setError(
+        health?.error ||
+          (process.env.NODE_ENV === "production"
+            ? "ARC 1 is still waking up. Try again in a moment."
+            : "ARC 1 is not running yet. Start it with npm run dev:with-arc1.")
+      );
       return;
     }
     if (scene.mode === "classify" && labels.length < 2) {
@@ -703,6 +708,7 @@ export function Arc1Demo() {
   return (
     <section
       aria-label="ARC 1 sandbox"
+      data-toc-skip
       className="not-prose border border-zinc-800 bg-zinc-950"
     >
       {/* Top bar: scenes + status */}
@@ -732,11 +738,21 @@ export function Arc1Demo() {
 
       {offline && (
         <div className="flex flex-col gap-2 border-b border-zinc-800 bg-[#835BD9]/10 px-4 py-3 text-sm text-zinc-300 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <span>
-            The sandbox needs the local ARC 1 server. From <code className="text-zinc-100">arcane-docs-web</code>, run{" "}
-            <code className="text-zinc-100">npm run dev:with-arc1</code>.
-          </span>
-          <CopyButton text="npm run dev:with-arc1" label="Copy start command" />
+          {process.env.NODE_ENV === "production" ? (
+            <span>
+              {health?.status === "loading"
+                ? "ARC 1 is loading its weights. This page will connect on its own in a few seconds."
+                : "Waking up the live ARC 1 server. It sleeps when nobody is using it, so the first visit can take about a minute. This page keeps retrying on its own."}
+            </span>
+          ) : (
+            <span>
+              The sandbox needs the local ARC 1 server. From <code className="text-zinc-100">arcane-docs-web</code>, run{" "}
+              <code className="text-zinc-100">npm run dev:with-arc1</code>.
+            </span>
+          )}
+          {process.env.NODE_ENV !== "production" && (
+            <CopyButton text="npm run dev:with-arc1" label="Copy start command" />
+          )}
         </div>
       )}
 
