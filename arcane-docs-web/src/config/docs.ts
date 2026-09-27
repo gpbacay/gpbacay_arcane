@@ -96,11 +96,6 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
           keywords: ["terminal", "about", "list", "version", "commands", "tools"]
         },
         { 
-          title: "MNIST Demo", 
-          href: "/docs/mnist-demo",
-          keywords: ["mnist", "demo", "draw", "digit", "inference", "test", "predict", "weights"]
-        },
-        { 
           title: "ARCANE Fruitfly Brain", 
           href: "/docs/fruitfly",
           keywords: ["fruit fly", "drosophila", "brain", "mnist", "digit", "predict", "flywire", "fafbseg", "connectome", "rsaa", "arcane", "optic"]

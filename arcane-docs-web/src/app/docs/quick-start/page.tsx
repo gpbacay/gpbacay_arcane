@@ -86,7 +86,7 @@ x = BioplasticDenseLayer(units=128, enable_inference_plasticity=True)(x)
 
         <div className="mt-8 rounded-none border border-yellow-900/50 bg-yellow-900/10 p-4">
           <p className="text-sm text-yellow-200">
-            <strong>Note:</strong> Resonance cycles increase training time (~2x) but significantly improve stability and semantic alignment. See the <a href="/docs/mnist-demo" className="underline hover:text-purple-300">MNIST Demo</a> for a full example.
+            <strong>Note:</strong> Resonance cycles increase training time (~2x) but significantly improve stability and semantic alignment. See the <a href="/docs/arc-1" className="underline hover:text-purple-300">ARC 1 demo</a> for a live model.
           </p>
         </div>
       </div>

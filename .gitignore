@@ -87,6 +87,8 @@ Models/*.h5
 Models/**/*.h5
 Models/**/*.keras
 !Models/.gitkeep
+# ARC 1 weights served by the Render API (render.yaml)
+!Models/arc1_arc1_tiny.weights.h5
 
 # Saved model configurations (keep structure, ignore large files)
 *.pkl

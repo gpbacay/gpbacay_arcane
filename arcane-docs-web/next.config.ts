@@ -17,6 +17,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [{ source: "/docs/mnist-demo", destination: "/docs/arc-1", permanent: true }];
+  },
   turbopack: {
     root: '..',
   },

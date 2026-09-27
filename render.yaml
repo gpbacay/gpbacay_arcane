@@ -1,15 +1,16 @@
-# Render Blueprint: MNIST inference API for Arcane docs
-# Deploy this service, then set MNIST_API_URL on Vercel to the Render service URL.
-# Ensure mnist_arcane_model.weights.h5 exists at repo root (train with: python examples/mnist_arcane.py).
+# Render Blueprint: ARC 1 inference API for Arcane docs
+# Deploy this service, then set ARC1_API_URL on Vercel to the Render service URL.
+# Serves Models/arc1_arc1_tiny.* (train with: python examples/train_arc1.py).
 
 services:
   - type: web
-    name: arcane-mnist-api
+    name: arcane-arc1-api
     runtime: python
     region: oregon
 
     buildCommand: pip install -r requirements.txt
-    startCommand: python examples/serve_mnist_api.py
+    startCommand: python examples/serve_arc1_api.py
+    healthCheckPath: /health
 
     envVars:
       - key: PYTHON_VERSION

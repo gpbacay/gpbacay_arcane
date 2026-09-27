@@ -15,7 +15,7 @@ matplotlib>=3.5.0
 # HTTP client (for downloading datasets)
 requests>=2.28.0
 
-# MNIST demo API server (serve_mnist_api.py, Render)
+# API servers (serve_arc1_api.py on Render, serve_mnist_api.py)
 fastapi>=0.100.0
 uvicorn>=0.22.0
 Pillow>=9.0.0
