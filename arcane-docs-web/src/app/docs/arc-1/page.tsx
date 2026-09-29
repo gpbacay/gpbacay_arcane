@@ -3,6 +3,7 @@ import { ArrowDown, Ban, Crosshair, Download, Gauge, Layers, Star } from "lucide
 import { Arc1Demo } from "@/components/Arc1Demo";
 import { BarChart } from "@/components/BarChart";
 import { CodeSnippet } from "@/components/CodeSnippet";
+import { Tabs } from "@/components/Tabs";
 import { ARC1_METRICS } from "@/config/arc1-metrics";
 
 const h2Base = "scroll-mt-28 text-2xl font-bold tracking-tight text-zinc-100 mb-4 border-b border-zinc-800 pb-2";
@@ -107,7 +108,7 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           </a>
           <a
             href={m.rcn.file}
-            title="Free. Asks you to sign in with GitHub and star the repository."
+            title="Free. Asks you to sign in with GitHub and star the repository. Needs fine-tuning before use."
             className="inline-flex items-center gap-2 border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-100 transition-colors hover:border-zinc-500 hover:bg-zinc-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C785F2]"
           >
             <Download className="h-4 w-4" aria-hidden />
@@ -142,15 +143,15 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
         </ul>
         <p className={`${p} mt-4 text-sm text-zinc-400`}>
           Built from ARCANE parts:{" "}
-          <Link href="/docs/layers" className={link}>
+          <Link href="/docs/layers#resonant-channel-mixer" className={link}>
             ResonantChannelMixer
           </Link>
           ,{" "}
-          <Link href="/docs/neural-resonance" className={link}>
+          <Link href="/docs/layers#field-resonance" className={link}>
             FieldResonance
           </Link>
           , and the{" "}
-          <Link href="/docs/resonant-gser" className={link}>
+          <Link href="/docs/layers#dense-gser" className={link}>
             GSER gate
           </Link>
           .
@@ -261,6 +262,10 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
             {notice}
           </p>
         )}
+        <p className="not-prose mt-4 border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+          <strong>Needs fine-tuning.</strong> This download is a base checkpoint, not a finished model. Fine-tune it on
+          your own data and tools before relying on it in your application.
+        </p>
         <div className="not-prose mt-4 flex flex-col gap-3 border border-zinc-800 bg-zinc-950 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="text-sm font-medium text-zinc-100">arc1-tiny.rcn</div>
@@ -288,9 +293,14 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           </span>
         </p>
 
-        <h3 id="python" className={h3}>
-          Python
-        </h3>
+        <Tabs
+          name="sdk"
+          tabs={[
+            {
+              id: "python",
+              label: "Python",
+              content: (
+                <>
         <CodeSnippet filename="Terminal" language="bash" lineNumbers={false} code="pip install gpbacay-arcane" />
         <CodeSnippet
           filename="arc1.py"
@@ -314,10 +324,14 @@ agent.extract("My name is Maria Santos and I live in Cebu", {"name": "Person nam
 agent.classify("the headphones sound amazing", ["positive", "negative", "neutral"])
 # {"label": "positive", "confidence": ..., "distribution": {...}}`}
         />
-
-        <h3 id="nodejs" className={h3}>
-          Node.js
-        </h3>
+                </>
+              ),
+            },
+            {
+              id: "nodejs",
+              label: "Node.js",
+              content: (
+                <>
         <p className={p}>
           On a server, it runs the same model in a local Python process, so the Python package must be installed too.
           To run with no Python at all, use the browser build below.
@@ -348,10 +362,14 @@ await agent.embed("hello");
 
 agent.close();`}
         />
-
-        <h3 id="browser" className={h3}>
-          Browser (Next.js, Vite, plain JS)
-        </h3>
+                </>
+              ),
+            },
+            {
+              id: "browser",
+              label: "Browser (Next.js, Vite, plain JS)",
+              content: (
+                <>
         <p className={p}>
           <code className={code}>gpbacay-arcane/web</code> runs ARC 1 client-side with onnxruntime-web (WebAssembly), with no server and no
           Python. The 5.5 MB model is fetched once and cached by the browser. It has the same API as the Node build and
@@ -381,6 +399,11 @@ await agent.embed("hello");`}
           &quot;/arc1/arc1.json&quot;, wasmPaths: &quot;/ort/&quot; {"}"})</code>. To export your own model, run{" "}
           <code className={code}>python examples/export_arc1_onnx.py --model your.rcn</code>. Binding cycles are fixed at export time.
         </p>
+                </>
+              ),
+            },
+          ]}
+        />
         <p className={`${p} mt-4 text-zinc-400`}>
           Need open-ended replies too? Pair ARC 1 with the{" "}
           <Link href="/docs/chat" className={link}>
@@ -388,6 +411,186 @@ await agent.embed("hello");`}
           </Link>
           .
         </p>
+
+        <h2 id="finetuning" className={h2}>
+          Finetuning
+        </h2>
+        <p className={p}>
+          The downloaded <code className={code}>arc1-tiny.rcn</code> is a base checkpoint. Finetuning teaches it your own
+          tools, fields and labels. Training runs from the source repository and learns from examples it generates out of
+          tool definitions you write, so you describe each tool once and it produces the phrasings. It needs Python and TensorFlow.
+        </p>
+
+        <Tabs
+          name="ft"
+          tabs={[
+            {
+              id: "yourself",
+              label: "Fine tune it yourself",
+              content: (
+            <>
+        <h3 id="ft-setup" className={h3}>
+          1. Set up the repository
+        </h3>
+        <CodeSnippet
+          filename="Terminal"
+          language="bash"
+          lineNumbers={false}
+          code={`git clone ${REPO_URL}
+cd gpbacay_arcane
+pip install -e .`}
+        />
+
+        <h3 id="ft-unpack" className={h3}>
+          2. Unpack the download into trainable files
+        </h3>
+        <p className={p}>
+          An <code className={code}>.rcn</code> file is for running the model. Convert it back to weights and a tokenizer so
+          training can continue from it. The file names below are the ones the trainer looks for.
+        </p>
+        <CodeSnippet
+          filename="unpack.py"
+          language="python"
+          code={`import os
+from gpbacay_arcane.rcn import load_rcn
+
+os.makedirs("Models", exist_ok=True)
+model, tokenizer, _ = load_rcn("arc1-tiny.rcn")
+model.save_weights("Models/arc1_arc1_tiny.weights.h5")
+tokenizer.save("Models/arc1_arc1_tiny_tokenizer.json")`}
+        />
+
+        <h3 id="ft-tools" className={h3}>
+          3. Describe your tools
+        </h3>
+        <p className={p}>
+          Open <code className={code}>gpbacay_arcane/arc1_data.py</code> and add a <code className={code}>ToolDef</code> to
+          the list in <code className={code}>build_tool_library()</code>. Give it a few descriptions, its parameters, and
+          10 or more phrasings with <code className={code}>{"{param}"}</code> placeholders. A <code className={code}>SlotDef</code>{" "}
+          says how each value is written in text.
+        </p>
+        <CodeSnippet
+          filename="arc1_data.py"
+          language="python"
+          code={`ToolDef(
+    "book_table",
+    ["Reserve a table at a restaurant.", "Make a dinner reservation."],
+    [P("restaurant", "string", "Restaurant name"), P("guests", "integer", "Party size")],
+    ["book a table at {restaurant} for {guests}",
+     "reserve {restaurant}, {guests} people",
+     "table for {guests} at {restaurant} please"],
+    {"restaurant": SlotDef(choice_of(["Luigi's", "Sushi Zen", "The Anchor", "Casa Verde"])),
+     "guests": SlotDef(lambda r, s: _int_surface(r, 1, 12), _int)},
+    domain="food",
+),`}
+        />
+        <p className={`${p} mt-4 text-zinc-400`}>
+          <code className={code}>choice_of</code> takes a fixed list of values. The file also has <code className={code}>pool</code>,
+          which splits values into training and held-out sets so the evaluation in step 5 can test values the model has not seen.
+        </p>
+
+        <h3 id="ft-train" className={h3}>
+          4. Train from the checkpoint
+        </h3>
+        <CodeSnippet
+          filename="Terminal"
+          language="bash"
+          lineNumbers={false}
+          code={`python examples/train_arc1.py --preset arc1-tiny --resume --steps 1500 --learning-rate 3e-4`}
+        />
+        <p className={`${p} mt-4 text-zinc-400`}>
+          <code className={code}>--resume</code> starts from the weights and tokenizer from step 2. The default learning
+          rate is 2e-3, which is for training from scratch. Use a smaller one so the model keeps what it already knows. Loss is
+          printed every 50 steps and weights are saved every 500.
+        </p>
+
+        <h3 id="ft-eval" className={h3}>
+          5. Calibrate and evaluate
+        </h3>
+        <CodeSnippet
+          filename="Terminal"
+          language="bash"
+          lineNumbers={false}
+          code={`python examples/train_arc1.py --preset arc1-tiny --eval-only`}
+        />
+        <p className={`${p} mt-4 text-zinc-400`}>
+          This refits the confidence temperatures on held-out values, prints accuracy, and writes{" "}
+          <code className={code}>Models/arc1_arc1_tiny.metrics.json</code>. Run it before you export, and check that your
+          new tools score well and the old ones did not drop.
+        </p>
+
+        <h3 id="ft-export" className={h3}>
+          6. Export and use it
+        </h3>
+        <CodeSnippet
+          filename="Terminal"
+          language="bash"
+          lineNumbers={false}
+          code={`python examples/export_arc1.py --config Models/arc1_arc1_tiny.config.json \\
+  --weights Models/arc1_arc1_tiny.weights.h5 \\
+  --tokenizer Models/arc1_arc1_tiny_tokenizer.json \\
+  --rcn my-arc1.rcn --quant rq8`}
+        />
+        <CodeSnippet
+          filename="use.py"
+          language="python"
+          code={`import gpbacay_arcane as arcane
+
+agent = arcane.load_arc1("my-arc1.rcn")`}
+        />
+        <p className={`${p} mt-4 text-zinc-400`}>
+          For Node use <code className={code}>load({"{"} model: &quot;my-arc1.rcn&quot; {"}"})</code>. For the browser, convert
+          it with <code className={code}>python examples/export_arc1_onnx.py --model my-arc1.rcn</code>.
+        </p>
+            </>
+              ),
+            },
+            {
+              id: "ai",
+              label: "Finetune using AI",
+              content: (
+            <>
+              <p className={`${p} mt-6`}>
+                Open the cloned repository in a coding assistant (Claude Code, Cursor, Codex and the like), download{" "}
+                <code className={code}>arc1-tiny.rcn</code> into it, and paste this prompt. Replace the bracketed part with
+                your tools, fields or labels. The assistant does the same six steps as the other tab.
+              </p>
+              <CodeSnippet
+                filename="Prompt"
+                language="markdown"
+                lineNumbers={false}
+                code={`Finetune the ARC 1 model in this repository (gpbacay_arcane) for my own tools.
+
+What I need it to do:
+[List each tool: name, what it does, its parameters (name, type, description),
+and 5 or more example ways a user would ask for it. Add any fields to extract
+or labels to classify into.]
+
+Do this in order, and stop and tell me if a step fails:
+1. Run "pip install -e ." if the package is not installed.
+2. Load ./arc1-tiny.rcn with gpbacay_arcane.rcn.load_rcn, then save the weights to
+   Models/arc1_arc1_tiny.weights.h5 and the tokenizer to Models/arc1_arc1_tiny_tokenizer.json.
+3. Add a ToolDef for each of my tools to build_tool_library() in
+   gpbacay_arcane/arc1_data.py. Follow the existing entries: descriptions, params,
+   templates with {param} placeholders (10 or more), and a SlotDef per parameter.
+4. Run: python examples/train_arc1.py --preset arc1-tiny --resume --steps 1500 --learning-rate 3e-4
+5. Run: python examples/train_arc1.py --preset arc1-tiny --eval-only
+   Report the accuracy for my new tools and confirm the original tools did not get worse.
+6. Only if the results look good, export with: python examples/export_arc1.py
+   --config Models/arc1_arc1_tiny.config.json --weights Models/arc1_arc1_tiny.weights.h5
+   --tokenizer Models/arc1_arc1_tiny_tokenizer.json --rcn my-arc1.rcn --quant rq8
+   Then check that gpbacay_arcane.load_arc1("my-arc1.rcn") runs one of my tools.
+
+Do not change any model code other than build_tool_library().`}
+              />
+              <p className={`${p} mt-4 text-zinc-400`}>
+                Read the assistant&apos;s evaluation numbers yourself before you use the exported file.
+              </p>
+            </>
+              ),
+            },
+          ]}
+        />
       </div>
     </div>
   );

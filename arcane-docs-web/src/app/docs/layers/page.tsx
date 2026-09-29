@@ -13,8 +13,9 @@ export default function BiologicalLayersPage() {
 
   useEffect(() => {
     const hash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
-    if (hash === "predictive-resonant") {
-      setOpenItem("predictive-resonant");
+    if (hash) {
+      setOpenItem(hash);
+      document.getElementById(hash)?.scrollIntoView();
     }
   }, []);
 
@@ -96,6 +97,38 @@ layer = DenseGSER(
     spike_threshold=0.5,
     activation='gelu'
 )`
+    },
+    {
+      id: "resonant-channel-mixer",
+      name: "ResonantChannelMixer",
+      description: "Cheap channel mixer: low-rank expand, DenseGSER gate, project.",
+      details: "Replaces a dense d_model * ffn_mult FFN with a bottleneck of width d_model // rank_div (minimum 16), so most ARC 1 capacity can sit in ConceptEngram tables instead of matmuls. The bottleneck output passes through a DenseGSER spike gate (with the conceptual gate enabled) before dropout.",
+      code: `from gpbacay_arcane.layers import ResonantChannelMixer
+
+layer = ResonantChannelMixer(
+    d_model=256,
+    rank_div=4,
+    leak_rate=0.1,
+    spike_threshold=0.4,
+    dropout_rate=0.0
+)`
+    },
+    {
+      id: "field-resonance",
+      name: "FieldResonance",
+      description: "Global (bidirectional) resonance over a padded token field.",
+      details: "Every real token is harmonized toward the field prototype (the projected, masked mean of all real tokens) for resonance_cycles closed-form cycles, then passes a straight-through spike with subtractive reset. Padding never enters the prototype, so the layer is invariant to right padding. Set causal=True to use the running mean of tokens up to t instead.",
+      link: "/docs/neural-resonance",
+      code: `from gpbacay_arcane.mechanisms import FieldResonance
+
+layer = FieldResonance(
+    d_model=256,
+    resonance_factor=0.15,
+    resonance_cycles=3,
+    spike_threshold=0.4,
+    causal=False
+)
+out = layer(tokens, token_mask=mask)`
     },
     {
       id: "latent-temporal-coherence",
