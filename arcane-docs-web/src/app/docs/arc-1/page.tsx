@@ -88,14 +88,20 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
       <header className="not-prose mb-12">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#C785F2]">ARCANE · Technical report</p>
         <h1 className="mt-3 max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-[-0.03em] text-zinc-50 sm:text-5xl">
-          ARC 1: Grounded Structured Decisions via Resonant Schema Binding
+          Stop Using LLMs for If-Else Decisions: Meet ARC 1
         </h1>
         <p className="mt-6 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          ARC 1 is a {(m.parameters / 1e6).toFixed(2)}M-parameter neuromimetic model for tool calling, field extraction,
-          classification, and semantic retrieval. It makes these decisions without generating text: each tool,
-          argument, and label binds to the input in parallel through a few cycles of gated resonance built from the
-          ARCANE library. It runs in {full.latencyP50Ms.toFixed(1)} ms median on a CPU from a single{" "}
-          {mb(m.rcn.bytes)} file.
+          A {(m.parameters / 1e6).toFixed(1)}M-parameter, open-source, neuromimetic model that makes grounded, typed
+          decisions in {full.latencyP50Ms.toFixed(1)} milliseconds on a standard CPU.
+        </p>
+        <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
+          We keep asking multi-billion-parameter language models to pick a tool, route a ticket, or pull a date and an
+          amount out of an invoice, then run a fragile parser over the prose they generate. It is slow, expensive, and
+          it can invent values that were never in the input. Most automation does not need eloquence. It needs a
+          correct, typed decision, delivered instantly, with an honest confidence score. ARC 1 makes that decision
+          without generating text: learned probes for each tool, argument, and label resonate with the input through
+          spiking dynamics until they settle, in a single forward pass. It ships as one {mb(m.rcn.bytes)} .rcn file
+          under the MIT license.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
