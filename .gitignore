@@ -112,3 +112,9 @@ homeostatic_plasticity_comparison.png
 resonance_parameter_sensitivity.png
 bioplastic_homeostasis_convergence.png
 hebbian_homeostasis_convergence.png
+
+# Node
+node_modules/
+
+# Exported ONNX models (regenerate with examples/export_arc1_onnx.py)
+*.onnx

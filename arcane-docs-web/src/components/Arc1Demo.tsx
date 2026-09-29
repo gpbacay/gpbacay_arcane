@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListboxSelect } from "@/components/ui/listbox-select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ArrowLeftRight,
   Check,
   CloudSun,
   Copy,
   FileText,
+  Info,
   Home,
   LayoutGrid,
   MessageSquare,
@@ -921,7 +923,23 @@ export function Arc1Demo() {
         {/* Side column: controls, measurements, state */}
         <aside className="border-t border-zinc-800 p-4 sm:p-5 lg:border-t-0">
           <fieldset>
-            <legend className="mb-2 text-sm font-medium text-zinc-200">Binding cycles</legend>
+            <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium text-zinc-200">
+              Binding cycles
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="About binding cycles"
+                    className="text-zinc-500 transition-colors hover:text-zinc-200 focus-visible:text-zinc-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
+                  >
+                    <Info className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-56 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
+                  Fewer cycles answer faster. More cycles give each probe time to settle on the right words.
+                </TooltipContent>
+              </Tooltip>
+            </legend>
             <div className="grid grid-flow-col gap-px bg-zinc-800" role="radiogroup">
               {Array.from({ length: maxCycles }, (_, i) => i + 1).map((c) => (
                 <button
@@ -938,9 +956,6 @@ export function Arc1Demo() {
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-xs leading-relaxed text-zinc-500">
-              Fewer cycles answer faster. More cycles give each probe time to settle on the right words.
-            </p>
           </fieldset>
 
           {result?.stats && (

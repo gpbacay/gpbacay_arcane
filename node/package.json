@@ -1,21 +1,50 @@
 {
   "name": "gpbacay-arcane",
   "version": "4.0.0",
-  "description": "ARC 1 structured decisions (tool calling, extraction, classification, embeddings) for Node.js",
+  "description": "ARC 1 structured decisions (tool calling, extraction, classification, embeddings) for Node.js and the browser",
   "main": "index.js",
-  "files": ["index.js", "README.md"],
+  "exports": {
+    ".": "./index.js",
+    "./web": "./web.mjs"
+  },
+  "files": [
+    "index.js",
+    "web.mjs",
+    "web/arc1.onnx",
+    "web/arc1.json",
+    "README.md"
+  ],
   "scripts": {
-    "test": "node test.js"
+    "test": "node test.js && node test-web.mjs"
   },
   "engines": {
     "node": ">=18"
   },
-  "keywords": ["arc1", "arcane", "tool-calling", "extraction", "classification"],
+  "keywords": [
+    "arc1",
+    "arcane",
+    "tool-calling",
+    "extraction",
+    "classification",
+    "onnx",
+    "browser"
+  ],
   "author": "Gianne P. Bacay",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/gpbacay/gpbacay_arcane.git",
     "directory": "node"
+  },
+  "peerDependencies": {
+    "onnxruntime-web": ">=1.19"
+  },
+  "peerDependenciesMeta": {
+    "onnxruntime-web": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "onnxruntime-web": "^1.30.0"
   }
 }
