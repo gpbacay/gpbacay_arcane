@@ -54,7 +54,7 @@ const full = byCycles[byCycles.length - 1];
 
 const benchPath = path.join(repoRoot, "Models", "arc1_rcn_benchmark.json");
 const bench = JSON.parse(fs.readFileSync(benchPath, "utf8"));
-const rcnFile = path.join(here, "..", "public", "models", "arc1-tiny.rcn");
+const rcnFile = path.join(here, "..", "private", "models", "arc1-tiny.rcn");
 const rcnBytes = fs.readFileSync(rcnFile);
 const formats = [
   ["Keras weights, f32", bench["weights.h5 (f32)"]],
@@ -68,7 +68,7 @@ const formats = [
 
 const data = {
   rcn: {
-    file: "/models/arc1-tiny.rcn",
+    file: "/api/arc1-download",
     bytes: rcnBytes.length,
     sha256: crypto.createHash("sha256").update(rcnBytes).digest("hex"),
     quant: "rq4",

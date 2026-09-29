@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/docs/mnist-demo", destination: "/docs/arc-1", permanent: true }];
   },
+  // The model file lives outside public/ so the download route can gate it; make sure deploys ship it.
+  outputFileTracingIncludes: { "/api/arc1-download": ["./private/models/**"] },
   turbopack: {
     root: '..',
   },

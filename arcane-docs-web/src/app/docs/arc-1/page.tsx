@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDown, Ban, Crosshair, Download, Gauge, Layers } from "lucide-react";
+import { ArrowDown, Ban, Crosshair, Download, Gauge, Layers, Star } from "lucide-react";
 import { Arc1Demo } from "@/components/Arc1Demo";
 import { BarChart } from "@/components/BarChart";
 import { CodeSnippet } from "@/components/CodeSnippet";
@@ -49,7 +49,16 @@ function mb(bytes: number) {
   return `${(bytes / 1e6).toFixed(2)} MB`;
 }
 
-export default function Arc1Page() {
+const REPO_URL = "https://github.com/gpbacay/gpbacay_arcane";
+
+const DOWNLOAD_NOTICES: Record<string, string> = {
+  star: "We couldn't find a star from that GitHub account. Star the repository, then press Download again.",
+  denied: "GitHub sign-in was cancelled, so the download didn't start. Press Download to try again.",
+  error: "Something went wrong while checking your star. Press Download to try again.",
+};
+
+export default async function Arc1Page({ searchParams }: { searchParams: Promise<{ download?: string }> }) {
+  const notice = DOWNLOAD_NOTICES[(await searchParams).download ?? ""];
   const m = ARC1_METRICS;
   const full = m.byCycles[m.byCycles.length - 1];
   const of = (v: number, n: number) => `${Math.round(v * n)} of ${n}`;
@@ -98,7 +107,7 @@ export default function Arc1Page() {
           </a>
           <a
             href={m.rcn.file}
-            download
+            title="Free. Asks you to sign in with GitHub and star the repository."
             className="inline-flex items-center gap-2 border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-100 transition-colors hover:border-zinc-500 hover:bg-zinc-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C785F2]"
           >
             <Download className="h-4 w-4" aria-hidden />
@@ -247,6 +256,11 @@ export default function Arc1Page() {
         <h2 id="get-started" className={h2}>
           Get started
         </h2>
+        {notice && (
+          <p role="alert" className="not-prose mt-4 border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+            {notice}
+          </p>
+        )}
         <div className="not-prose mt-4 flex flex-col gap-3 border border-zinc-800 bg-zinc-950 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="text-sm font-medium text-zinc-100">arc1-tiny.rcn</div>
@@ -257,13 +271,22 @@ export default function Arc1Page() {
           </div>
           <a
             href={m.rcn.file}
-            download
             className="inline-flex shrink-0 items-center justify-center gap-2 bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C785F2]"
           >
             <Download className="h-4 w-4" aria-hidden />
             Download
           </a>
         </div>
+        <p className="not-prose mt-2 flex items-center gap-1.5 text-xs text-zinc-500">
+          <Star className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>
+            Free, with one ask: you sign in with GitHub and{" "}
+            <a href={REPO_URL} target="_blank" rel="noreferrer" className="text-zinc-300 underline hover:text-zinc-100">
+              star the repository
+            </a>
+            . We only check the star and keep nothing.
+          </span>
+        </p>
 
         <h3 id="python" className={h3}>
           Python
