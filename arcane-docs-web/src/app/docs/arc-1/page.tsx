@@ -108,7 +108,7 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           </a>
           <a
             href={m.rcn.file}
-            title="Free. Asks you to sign in with GitHub and star the repository. Needs fine-tuning before use."
+            title="Free, no sign-in. Needs fine-tuning before use."
             className="inline-flex items-center gap-2 border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-100 transition-colors hover:border-zinc-500 hover:bg-zinc-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C785F2]"
           >
             <Download className="h-4 w-4" aria-hidden />
@@ -285,11 +285,11 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
         <p className="not-prose mt-2 flex items-center gap-1.5 text-xs text-zinc-500">
           <Star className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <span>
-            Free, with one ask: you sign in with GitHub and{" "}
+            Free, with no sign-in. If you find ARC 1 useful, a{" "}
             <a href={REPO_URL} target="_blank" rel="noreferrer" className="text-zinc-300 underline hover:text-zinc-100">
-              star the repository
-            </a>
-            . We only check the star and keep nothing.
+              star on GitHub
+            </a>{" "}
+            is appreciated.
           </span>
         </p>
 
