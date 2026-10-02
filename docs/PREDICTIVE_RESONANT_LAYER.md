@@ -21,7 +21,7 @@ The `PredictiveResonantLayer` operates through a four-stage process during each 
 
 1. Base Dynamics: A standard gated recurrent update (LSTM-based) produces a raw candidate state (analogous to **Feedforward Sensory Input**).
 2. Harmonization: a **closed-form** $N$-step EMA moves the candidate toward the current alignment vector (equivalent to the old iterative loop).
-3. Spiking & Modulation: STE spike + subtractive reset.
+3. Spiking & Modulation: graded spikes against a self-scaling threshold, with a learned per-unit threshold and leak.
 4. Predictive Update: a linear head updates the alignment vector with a slow EMA ($\alpha = 0.1$).
 
 ## Process Flow

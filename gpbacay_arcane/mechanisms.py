@@ -4,7 +4,44 @@ import tensorflow as tf
 import numpy as np
 from tensorflow.keras.layers import Layer, Dense, Dropout, LayerNormalization
 
-from .activations import straight_through_spike
+from .activations import graded_spike
+
+
+def _add_spike_leak(layer, size):
+    """Per-channel sub-quantum leak logit; sigmoid(-3) ~ 0.05, so it starts as near-pure spikes."""
+    layer.leak_logit = layer.add_weight(
+        name="spike_leak", shape=(size,),
+        initializer=tf.keras.initializers.Constant(-3.0), trainable=True)
+    return layer.leak_logit
+
+
+def _add_spike_params(layer, size):
+    """Per-channel relative firing threshold and sub-quantum leak, learned with the layer.
+
+    Created as the layer's last trainable weights so checkpoints saved before
+    they existed still load (see ``_load_with_default_spike_params``)."""
+    layer.threshold = layer.add_weight(
+        name="spike_threshold", shape=(size,),
+        initializer=tf.keras.initializers.Constant(layer.spike_threshold), trainable=True)
+    return [layer.threshold, _add_spike_leak(layer, size)]
+
+
+def _spike(layer, h):
+    return graded_spike(h, tf.abs(layer.threshold), tf.sigmoid(layer.leak_logit))
+
+
+def _load_with_default_spike_params(layer, store, load):
+    """Load a checkpoint saved before ``layer.spike_params`` existed: they keep their init."""
+    own = layer._trainable_variables + layer._non_trainable_variables
+    new = layer.spike_params
+    missing = len(own) - len(store.keys())
+    if 0 < missing <= len(new):
+        skip = new[len(new) - missing:]
+        kept = [v for v in own if not any(v is m for m in skip)]
+        for i, v in enumerate(kept):
+            v.assign(store[f"{i}"])
+        return
+    load(store)
 
 class GSER(Layer):
     """
@@ -54,6 +91,10 @@ class GSER(Layer):
                 trainable=True,
                 name='semantic_gate_bias'
             )
+        self.spike_params = [_add_spike_leak(self, self.max_dynamic_reservoir_dim)]
+
+    def load_own_variables(self, store):
+        _load_with_default_spike_params(self, store, super().load_own_variables)
 
     def initialize_weights(self):
         leak = float(np.clip(self.initial_leak_rate, 1e-4, 1.0 - 1e-4))
@@ -145,6 +186,7 @@ class GSER(Layer):
             self.spatiotemporal_input_weights.assign(tf.tensor_scatter_nd_update(self.spatiotemporal_input_weights, tf.expand_dims(p, axis=1), tf.gather(self.spatiotemporal_input_weights, q)))
             self.leak_rate_param.assign(tf.tensor_scatter_nd_update(self.leak_rate_param, tf.expand_dims(p, axis=1), tf.gather(self.leak_rate_param, q)))
             self.spike_threshold_param.assign(tf.tensor_scatter_nd_update(self.spike_threshold_param, tf.expand_dims(p, axis=1), tf.gather(self.spike_threshold_param, q)))
+            self.leak_logit.assign(tf.tensor_scatter_nd_update(self.leak_logit, tf.expand_dims(p, axis=1), tf.gather(self.leak_logit, q)))
             self.current_reservoir_size.assign_sub(1)
 
     def call(self, inputs, states):
@@ -179,16 +221,18 @@ class GSER(Layer):
             semantic_gate = tf.sigmoid(semantic_gate_activations[:, :tf.cast(active_size, tf.int32)])
             state = state * semantic_gate
 
-        spikes = straight_through_spike(state, spike_threshold)
-        state = state - spikes * spike_threshold
+        # The reservoir has no separate memory cell, so the membrane potential
+        # carries over between steps unrounded; only what leaves the cell is spiked.
+        spikes = graded_spike(state, spike_threshold, tf.sigmoid(tf.slice(self.leak_logit, [0], [active_size])))
         pad_width = tf.cast(self.max_dynamic_reservoir_dim - active_size, tf.int32)
         paddings = tf.stack([
             tf.constant([0, 0], dtype=tf.int32),
             tf.stack([tf.constant(0, dtype=tf.int32), pad_width]),
         ])
-        padded_state = tf.pad(state, paddings)
+        padded_spikes, padded_state = tf.pad(spikes, paddings), tf.pad(state, paddings)
+        padded_spikes.set_shape([None, self.max_dynamic_reservoir_dim])
         padded_state.set_shape([None, self.max_dynamic_reservoir_dim])
-        return padded_state, [padded_state]
+        return padded_spikes, [padded_state]
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         if batch_size is None and inputs is not None:
@@ -289,8 +333,12 @@ class ResonantGSERCell(Layer):
             name='global_divergence', shape=(),
             initializer='zeros', trainable=False
         )
-        
+        self.spike_params = _add_spike_params(self, self.units)
+
         self.built = True
+
+    def load_own_variables(self, store):
+        _load_with_default_spike_params(self, store, super().load_own_variables)
     
     def project_feedback(self, state, to_input_space=False):
         """
@@ -382,8 +430,7 @@ class ResonantGSERCell(Layer):
         h_modulated = h_resonated * (1.0 + res_mod) + self.resonance_bias
         
         # === Step 4: Spiking Mechanism (STE so spike decisions train) ===
-        spikes = straight_through_spike(h_modulated, self.spike_threshold)
-        h_final = h_modulated - spikes * self.spike_threshold
+        h_final = _spike(self, h_modulated)
 
         # === Step 5: Track a slow prototype of the hidden state ===
         batch_mean = tf.reduce_mean(h_final, axis=0)
@@ -518,8 +565,12 @@ class PredictiveResonantCell(Layer):
                 initializer="zeros",
                 trainable=False,
             )
+        self.spike_params = _add_spike_params(self, self.units)
 
         super(PredictiveResonantCell, self).build(input_shape)
+
+    def load_own_variables(self, store):
+        _load_with_default_spike_params(self, store, super().load_own_variables)
 
     def _resonance_loop(self, h_initial, alignment):
         """
@@ -585,8 +636,7 @@ class PredictiveResonantCell(Layer):
         res_mod = tf.sigmoid(self.resonance_gate)
         h_modulated = h_resonant * (1.0 + res_mod) + self.resonance_bias
 
-        spikes = straight_through_spike(h_modulated, self.spike_threshold)
-        h_final = h_modulated - spikes * self.spike_threshold
+        h_final = _spike(self, h_modulated)
 
         # 4. Predictive update of alignment: slow-moving target toward projected future state
         predicted = tf.matmul(h_final, self.prediction_kernel) + self.prediction_bias
@@ -1121,7 +1171,8 @@ class ResonantSequenceMixer(Layer):
     """Token-parallel closed-form resonance from ResonantGSERCell, made causal.
 
     Harmonizes each token toward the causal running mean of the sequence
-    (a prefix prototype), then applies STE subtractive reset. No RNN unroll,
+    (a prefix prototype), then fires graded spikes with a learned per-channel
+    threshold and leak. No RNN unroll,
     so it can sit inside a 100M-scale decoder block.
     """
 
@@ -1163,8 +1214,12 @@ class ResonantSequenceMixer(Layer):
             initializer="zeros",
             trainable=True,
         )
+        self.spike_params = _add_spike_params(self, self.d_model)
         self.layer_norm.build(input_shape)
         super().build(input_shape)
+
+    def load_own_variables(self, store):
+        _load_with_default_spike_params(self, store, super().load_own_variables)
 
     def call(self, inputs, training=False):
         seq_len = tf.shape(inputs)[1]
@@ -1181,8 +1236,7 @@ class ResonantSequenceMixer(Layer):
         h_resonated = decay * inputs + (1.0 - decay) * prototype
         res_mod = tf.sigmoid(self.resonance_gate) * tf.cast(self.resonance_factor, dtype)
         h_modulated = h_resonated * (1.0 + res_mod) + self.resonance_bias
-        spikes = straight_through_spike(h_modulated, self.spike_threshold)
-        h_final = h_modulated - spikes * tf.cast(self.spike_threshold, dtype)
+        h_final = _spike(self, h_modulated)
         return self.layer_norm(inputs + h_final)
 
     def get_config(self):
@@ -1606,8 +1660,8 @@ class FieldResonance(Layer):
 
     Every real token is harmonized toward the field prototype (the projected,
     masked mean of all real tokens) for ``resonance_cycles`` closed-form cycles,
-    then passes a straight-through spike with subtractive reset. Padding never
-    enters the prototype, so the layer is invariant to right padding.
+    then fires graded spikes with a learned per-channel threshold and leak.
+    Padding never enters the prototype, so the layer is invariant to right padding.
     """
 
     def __init__(self, d_model, resonance_factor=0.15, resonance_cycles=3, spike_threshold=0.4,
@@ -1628,7 +1682,11 @@ class FieldResonance(Layer):
             initializer=tf.keras.initializers.Constant(1.0), trainable=True)
         self.resonance_bias = self.add_weight(
             name="resonance_bias", shape=(self.d_model,), initializer="zeros", trainable=True)
+        self.spike_params = _add_spike_params(self, self.d_model)
         super().build(input_shape)
+
+    def load_own_variables(self, store):
+        _load_with_default_spike_params(self, store, super().load_own_variables)
 
     def call(self, inputs, token_mask=None, training=False):
         dtype = inputs.dtype
@@ -1645,8 +1703,7 @@ class FieldResonance(Layer):
         decay = tf.pow(1.0 - alpha, tf.cast(self.resonance_cycles, dtype))
         h = decay * inputs + (1.0 - decay) * prototype
         h = h * (1.0 + tf.sigmoid(self.resonance_gate) * alpha) + self.resonance_bias
-        spikes = straight_through_spike(h, self.spike_threshold)
-        return h - spikes * tf.cast(self.spike_threshold, dtype)
+        return _spike(self, h)
 
     def get_config(self):
         config = super().get_config()

@@ -98,7 +98,7 @@ The fundamental unit of the resonance hierarchy:
 *   **Closed-form harmonization**: $N$ EMA steps toward `resonance_alignment`, skipped while that vector is unset.
 *   **Feedback Mechanism**: `project_feedback()` maps hidden→hidden by default; `to_input_space=True` uses `feedback_weights`.
 *   **Prototype state**: `last_h` is a slow EMA of the **batch mean**, not a per-example code.
-*   **Spikes**: subtractive reset with a straight-through estimator.
+*   **Spikes**: graded spikes, signed counts against a self-scaling threshold (`graded_spike`), with a learned per-unit threshold and leak.
 
 ### 2. The NeuralResonanceCallback
 Runs on **`on_train_batch_begin`** (before the current batch forward pass):

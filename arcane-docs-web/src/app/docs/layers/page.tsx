@@ -117,7 +117,7 @@ layer = ResonantChannelMixer(
       id: "field-resonance",
       name: "FieldResonance",
       description: "Global (bidirectional) resonance over a padded token field.",
-      details: "Every real token is harmonized toward the field prototype (the projected, masked mean of all real tokens) for resonance_cycles closed-form cycles, then passes a straight-through spike with subtractive reset. Padding never enters the prototype, so the layer is invariant to right padding. Set causal=True to use the running mean of tokens up to t instead.",
+      details: "Every real token is harmonized toward the field prototype (the projected, masked mean of all real tokens) for resonance_cycles closed-form cycles, then fires graded spikes: signed spike counts against a threshold that scales with the field, with a learned per-channel threshold and leak. Padding never enters the prototype, so the layer is invariant to right padding. Set causal=True to use the running mean of tokens up to t instead.",
       link: "/docs/neural-resonance",
       code: `from gpbacay_arcane.mechanisms import FieldResonance
 

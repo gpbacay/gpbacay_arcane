@@ -42,6 +42,7 @@ from .layers import (
 # Convenience re-exports for activations
 from .activations import (
     straight_through_spike,
+    graded_spike,
     resonant_spike,
     homeostatic_gelu,
     adaptive_softplus,
@@ -191,6 +192,7 @@ __all__ = [
     "ResonantBinding",
     # Activations
     "straight_through_spike",
+    "graded_spike",
     "resonant_spike",
     "homeostatic_gelu",
     "adaptive_softplus",

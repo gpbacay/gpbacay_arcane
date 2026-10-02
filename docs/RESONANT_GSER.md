@@ -73,15 +73,18 @@ Where:
 
 ### Spiking Mechanism
 
-ResonantGSER uses a subtractive reset with a straight-through estimator so the spike decision can train:
+ResonantGSER fires **graded spikes** against a self-scaling threshold. $\theta$ is relative: each state fires against $V_{th} = \theta \cdot \mathrm{mean}|h_{mod}|$, emits a signed spike count, and transmits count $\times V_{th}$:
 
 $$
 \begin{aligned}
 &h_{mod} = h_{res} \cdot (1.0 + \sigma(g) \cdot \gamma) + b_{res} \\
-&s = \mathrm{STE}\bigl(\mathbb{I}(h_{mod} > \theta)\bigr) \\
-&h_{final} = h_{mod} - s \cdot \theta
+&V_{th} = \theta \cdot \mathrm{mean}\,|h_{mod}| \\
+&s = \mathrm{round}(h_{mod} / V_{th}) \in \mathbb{Z} \\
+&h_{final} = s \cdot V_{th}
 \end{aligned}
 $$
+
+Each unit learns its own $	heta$ (initialised at `spike_threshold`) and a leak $\lambda$ that passes $\lambda (h_{mod} - h_{final})$ of the sub-quantum remainder through. Negative counts are inhibitory spikes and large values burst. The backward pass is the identity with respect to $h_{mod}$, so there is no dead band at the threshold, and a learnable $\theta$ still receives a gradient.
 
 ## Implementation in ARCANE
 
@@ -216,7 +219,7 @@ python -m pytest tests/test_resonant_gser.py tests/test_mechanism_correctness.py
 |-----------|-----------------|---------|
 | `resonance_factor` | 0.15 - 0.30 | Larger α moves faster toward $P$; clipped below 0.99 |
 | `resonance_cycles` | 3 - 8 | Appears in the closed-form exponent $N$ |
-| `spike_threshold` | 0.3 - 0.7 | Subtractive reset after STE spike |
+| `spike_threshold` | 0.3 - 0.7 | Relative threshold (fraction of mean abs state); smaller = more spikes |
 | `convergence_epsilon` | 1e-6 - 1e-3 | Outer-loop stop in `run_resonance_cycle` |
 
 ## Visual Analysis

@@ -9,7 +9,7 @@ A Python library for building neuromimetic AI models inspired by biological neur
 ARCANE is a comprehensive Python library that enables you to build, train, and deploy neuromimetic AI models. Unlike traditional deep learning frameworks, ARCANE incorporates biological neural principles such as:
 
 - **Neural Resonance**: Bi-directional prototype alignment between ResonantGSER layers, plus local per-example alignment in PredictiveResonantLayer. Optional inference-time BCM plasticity.
-- **Spiking Neural Dynamics**: LIF-style leak, threshold, and subtractive reset with a straight-through estimator so spikes can train.
+- **Spiking Neural Dynamics**: LIF-style leak plus graded spikes: signed spike counts against a self-scaling threshold, trained end to end.
 - **Hebbian / BCM Learning**: Dual-weight plastic kernels (`BioplasticDenseLayer`, `HebbianHomeostaticNeuroplasticity`).
 - **Homeostatic Plasticity**: Activity-dependent gain and plastic-kernel scaling.
 - **Hierarchical Processing**: Multi-level ResonantGSER stacks with `set_higher_layer` / `set_lower_layer` (Keras 3-safe).

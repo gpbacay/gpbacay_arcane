@@ -20,6 +20,32 @@ def straight_through_spike(potential, threshold=0.5, sharpness=10.0):
     return tf.stop_gradient(hard - soft) + soft
 
 
+def graded_spike(potential, threshold=0.4, leak=None):
+    """
+    Graded spike: signed spike counts against a self-scaling threshold.
+
+    ``threshold`` is relative, not absolute. Each row fires against
+    V_th = threshold * mean|potential|, so the firing rate holds steady however
+    the potential is scaled. The neuron emits round(potential / V_th) spikes
+    (positive excitatory, negative inhibitory, large values burst) and
+    transmits count * V_th; whatever is left under one quantum is reset away.
+
+    Backward pass: identity w.r.t. the potential (no dead band at the
+    threshold), and a learnable threshold receives (count - potential / V_th)
+    * mean|potential|, so it settles where the counts fit the potential best.
+    Smaller threshold: more spikes, finer resolution, less sparsity.
+
+    ``leak`` (0..1, per channel) passes that fraction of the sub-quantum
+    remainder through as a graded potential, so channels that need fine detail
+    can keep it while the rest stay coarse. Its gradient is the remainder.
+    """
+    scale = tf.stop_gradient(tf.reduce_mean(tf.abs(potential), axis=-1, keepdims=True))
+    v_th = tf.cast(threshold, potential.dtype) * scale + 1e-6
+    u = potential / v_th
+    spikes = v_th * (u + tf.stop_gradient(tf.round(u) - u))
+    return spikes if leak is None else spikes + leak * (potential - spikes)
+
+
 def resonant_spike(x, state, threshold=0.5, leak_rate=0.1, resonance_factor=0.0, sharpness=10.0):
     """
     Resonant Spiking Activation (RSA)

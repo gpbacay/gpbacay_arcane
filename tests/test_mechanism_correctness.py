@@ -3,6 +3,7 @@ import tensorflow as tf
 
 from gpbacay_arcane.activations import (
     NeuromimeticActivation,
+    graded_spike,
     resonant_spike,
     straight_through_spike,
 )
@@ -163,3 +164,48 @@ def test_resonant_spike_backward_compatible_reset():
     )
     assert float(spikes.numpy()[0]) == 1.0
     np.testing.assert_allclose(new_state.numpy()[0], 0.1, atol=1e-6)
+
+
+
+def test_graded_spike_counts_scale_and_gradients():
+    x = tf.Variable([[0.1, -2.0, 0.9, 3.0]])  # mean|x| = 1.5 -> V_th = 0.75 at threshold 0.5
+    theta = tf.Variable(0.5)
+    with tf.GradientTape(persistent=True) as tape:
+        y = graded_spike(x, theta)
+    np.testing.assert_allclose(y.numpy(), [[0.0, -2.25, 0.75, 3.0]], atol=1e-5)  # counts 0, -3, 1, 4
+    np.testing.assert_allclose(tape.gradient(y, x).numpy(), np.ones((1, 4)))  # no dead band
+    assert abs(float(tape.gradient(y, theta))) > 0  # learnable thresholds still train
+    np.testing.assert_allclose(graded_spike(10.0 * x, 0.5).numpy(), 10.0 * y.numpy(), rtol=1e-5)
+
+
+def test_field_resonance_learns_spike_params_and_loads_older_weights():
+    from gpbacay_arcane.mechanisms import FieldResonance
+    layer = FieldResonance(d_model=4)
+    x = tf.random.normal((2, 5, 4))
+    with tf.GradientTape() as tape:
+        y = layer(x)
+    assert all(g is not None for g in tape.gradient(y, [layer.threshold, layer.leak_logit]))
+    old = {str(i): v.numpy() + 1.0 for i, v in enumerate(layer.trainable_variables[:3])}
+    layer.load_own_variables(old)  # checkpoint from before the threshold existed
+    np.testing.assert_allclose(layer.resonance_bias.numpy(), old["2"])
+    np.testing.assert_allclose(layer.threshold.numpy(), 0.4)
+
+
+def test_recurrent_cells_learn_spike_params_and_load_older_weights():
+    from gpbacay_arcane.mechanisms import PredictiveResonantCell, ResonantGSERCell
+    for cell in (ResonantGSERCell(units=4, spike_threshold=0.5), PredictiveResonantCell(units=4, spike_threshold=0.5),
+                 GSER(input_dim=3, initial_reservoir_size=4, max_dynamic_reservoir_dim=4, spectral_radius=0.9,
+                      leak_rate=0.2, spike_threshold=0.5)):
+        layer = tf.keras.layers.RNN(cell)
+        x = tf.random.normal((2, 5, 3))
+        with tf.GradientTape() as tape:
+            y = layer(x)
+        assert all(g is not None for g in tape.gradient(y, cell.spike_params))
+        own = cell._trainable_variables + cell._non_trainable_variables
+        older = [v for v in own if not any(v is p for p in cell.spike_params)]  # layout before spike params
+        floats = [v for v in older if "float" in str(v.dtype)]
+        cell.load_own_variables({str(i): np.full(v.shape, 0.7, "float32") if "float" in str(v.dtype) else v.numpy()
+                                 for i, v in enumerate(older)})
+        for v in floats:
+            np.testing.assert_allclose(v.numpy(), 0.7, rtol=1e-6)
+        np.testing.assert_allclose(tf.sigmoid(cell.leak_logit).numpy(), 1 / (1 + np.exp(3.0)), rtol=1e-5)

@@ -71,17 +71,27 @@ Mimics a biological neuron's membrane potential with top-down modulation.
 spikes, new_state = resonant_spike(inputs, current_state, threshold=0.5, leak_rate=0.1, resonance_factor=0.2)
 ```
 
-### 2. Homeostatic GELU (h-GELU)
+### 2. Graded Spike
+The spiking step used by every ARCANE resonance layer. `threshold` is relative: each row fires against `V_th = threshold * mean|potential|`, so the firing rate stays steady however the potential is scaled. The neuron emits a signed spike count `round(potential / V_th)` (negative = inhibitory, large values burst) and transmits `count * V_th`. The gradient is the identity w.r.t. the potential, and a learnable threshold still trains.
+
+An optional per-channel `leak` (0..1) passes that fraction of the sub-quantum remainder through as a graded potential. `FieldResonance`, `ResonantSequenceMixer`, `ResonantGSERCell` and `PredictiveResonantCell` learn both a threshold and a leak per channel (`GSER` learns a leak alongside its existing per-unit threshold, and keeps its membrane potential unrounded between steps) (initialised at `spike_threshold` and about 0.05), so each channel settles on its own resolution during training.
+**Usage:**
+```python
+out = graded_spike(potential, threshold=0.4)
+out = graded_spike(potential, threshold=per_channel_threshold, leak=per_channel_leak)
+```
+
+### 3. Homeostatic GELU (h-GELU)
 Self-regulates sensitivity to prevent runaway excitation. Gain is clipped to `[0.1, 10]`.
 **Usage:**
 ```python
 activated = homeostatic_gelu(inputs, moving_average_activity, target_activity=0.12)
 ```
 
-### 3. Adaptive Softplus
+### 4. Adaptive Softplus
 Smooth firing-rate map with a tunable threshold and sharpness.
 
-### 4. `NeuromimeticActivation` layer
+### 5. `NeuromimeticActivation` layer
 Keras wrapper around the functions above. Supports `resonant_spike`, `homeostatic_gelu`, and `adaptive_softplus`. Membrane / activity traces are feature-wise running averages (not per-sample RNN state). Keras kwargs such as `name=` are **not** forwarded into `resonant_spike`.
 
 ```python
