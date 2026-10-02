@@ -42,7 +42,13 @@ SWC_BASE = (
 )
 
 FLY_SCALE = 5.031442762457326e-06
-NECK_Y = -0.40
+# Where the FAFB descending axons are cut, in FlyWire display space: the mean
+# tip of the left/right DNp01, DNa02 and DNa01 pairs in flywire-geometry.bin.
+# The cervical connective at the top of the VNC mesh is pinned to this point.
+NECK_X = -0.29
+NECK_Y = -0.80
+NECK_Z = 0.59
+CONNECTIVE_SLAB_NM = 20000.0
 VNC_REGION = 5
 TUBE_SIDES = 5
 VOXEL_NM = 8.0
@@ -130,17 +136,17 @@ def vertex_normals(verts, tris):
 
 
 def display_origin(verts_nm: np.ndarray):
-    cx = 0.5 * (verts_nm[:, 0].min() + verts_nm[:, 0].max())
-    cy = 0.5 * (verts_nm[:, 1].min() + verts_nm[:, 1].max())
+    """Centre of the cervical connective (the anterior-most slab of the VNC)."""
     zmin = float(verts_nm[:, 2].min())
-    return cx, cy, zmin
+    slab = verts_nm[verts_nm[:, 2] < zmin + CONNECTIVE_SLAB_NM]
+    return float(slab[:, 0].mean()), float(slab[:, 1].mean()), zmin
 
 
 def to_display(verts_nm: np.ndarray, cx: float, cy: float, zmin: float) -> np.ndarray:
     disp = np.empty_like(verts_nm)
-    disp[:, 0] = (verts_nm[:, 0] - cx) * FLY_SCALE
+    disp[:, 0] = NECK_X + (verts_nm[:, 0] - cx) * FLY_SCALE
     disp[:, 1] = NECK_Y - (verts_nm[:, 2] - zmin) * FLY_SCALE
-    disp[:, 2] = (verts_nm[:, 1] - cy) * FLY_SCALE
+    disp[:, 2] = NECK_Z + (verts_nm[:, 1] - cy) * FLY_SCALE
     return disp
 
 

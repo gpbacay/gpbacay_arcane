@@ -83,7 +83,8 @@ export function loadMancVncGeometry(): Promise<MancVncGeometry> {
   return pending;
 }
 
-const NECK_Y = -0.4;
+/** Matches NECK_Y in scripts/export-manc-vnc-geometry.py. */
+const NECK_Y = -0.8;
 const HEAD_GF: [number, number, number] = [0.95, 0.82, 1];
 const HEAD_SENSORY: [number, number, number] = [0.2, 0.8, 0.9];
 const HEAD_DEFAULT: [number, number, number] = [0.82, 0.38, 0.95];

@@ -5,16 +5,10 @@ import { Camera, Geometry, Mesh, Program, Renderer, Transform } from "ogl";
 import {
   ALL_REGION_MASK,
   BRAIN_REGIONS,
-  buildBackgroundBrain,
-  buildCircuitArbors,
-  buildVncNeuropilMesh,
-  buildVncNeuronMesh,
-  type CircuitNeuron,
-} from "@/lib/drosophila-brain";
-import {
   MAX_CIRCUIT_NEURONS,
   buildFlywireCircuit,
   loadFlywireGeometry,
+  type CircuitNeuron,
   type FlywireGeometry,
 } from "@/lib/flywire-geometry";
 import {
@@ -48,58 +42,15 @@ type Prediction = {
 };
 
 const CIRCUIT_URL = "/api/flywire/circuit";
-const FOCUS_Y = -1.2;
-const DEFAULT_ZOOM = 11.2;
+/**
+ * Centre of the brain + VNC bounding box in display space (brain top 0.90, VNC
+ * tip -4.39; brain back -0.70, VNC front 1.48). The orbit pivots here so the
+ * model stays centred in the frame however it is turned.
+ */
+const MODEL_CENTER: [number, number, number] = [0, -1.75, 0.39];
+const DEFAULT_ZOOM = 12.5;
 const PAD = 112;
 const MODEL_SIZE = 28;
-
-const LINE_VERTEX = `
-attribute vec3 position;
-attribute vec3 color;
-attribute float region;
-uniform mat4 modelViewMatrix;
-uniform mat4 projectionMatrix;
-uniform float uMask;
-varying vec3 vColor;
-varying float vVisible;
-void main() {
-  float bit = mod(floor(uMask / pow(2.0, region) + 0.001), 2.0);
-  vVisible = bit;
-  vColor = color;
-  if (bit < 0.5) {
-    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-    return;
-  }
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`;
-
-const BG_FRAGMENT = `
-precision highp float;
-varying vec3 vColor;
-varying float vVisible;
-uniform float uAlpha;
-uniform float uTime;
-uniform float uActivity;
-void main() {
-  if (vVisible < 0.5) discard;
-  // Background neurites only flash when stimulated by real circuit firing
-  float spike = pow(max(0.0, sin(uTime * 9.0 + vColor.r * 16.0 + vColor.g * 10.0)), 6.0) * uActivity;
-  vec3 lit = vColor * (0.30 + 1.8 * uActivity + 2.2 * spike) + vec3(0.02, 0.018, 0.035);
-  gl_FragColor = vec4(lit, uAlpha * (0.35 + 0.65 * uActivity));
-}
-`;
-
-const CIRCUIT_FRAGMENT = `
-precision highp float;
-varying vec3 vColor;
-varying float vVisible;
-uniform float uAlpha;
-void main() {
-  if (vVisible < 0.5) discard;
-  gl_FragColor = vec4(vColor, uAlpha);
-}
-`;
 
 /** Shared region-mask test: bit `region` of uMask decides visibility. */
 const MASK_TEST = `
@@ -436,62 +387,21 @@ export function FlyWireConnectome() {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 
     const camera = new Camera(gl, { fov: 28, near: 0.1, far: 60 });
-    camera.position.set(0, FOCUS_Y, DEFAULT_ZOOM);
-    camera.lookAt([0, FOCUS_Y, 0]);
+    camera.position.set(0, 0, DEFAULT_ZOOM);
+    camera.lookAt([0, 0, 0]);
 
     const scene = new Transform();
     scene.scale.set(0.86, 0.86, 0.86);
-
-    // --- Background: procedural until the real geometry arrives -------------
-    // Both paths write uActivity, so the render loop does not care which is up.
-    const backgroundPrograms: Program[] = [];
-    let backgroundMesh: Mesh | null = null;
-
-    const buildProceduralBackground = () => {
-      const bg = buildBackgroundBrain(window.innerWidth < 700 ? 6500 : 11000);
-      const bgGeom = new Geometry(gl, {
-        position: { size: 3, data: bg.positions },
-        color: { size: 3, data: bg.colors },
-        region: { size: 1, data: bg.regions },
-      });
-      const bgProgram = new Program(gl, {
-        vertex: LINE_VERTEX,
-        fragment: BG_FRAGMENT,
-        uniforms: {
-          uAlpha: { value: 0.55 },
-          uTime: { value: 0 },
-          uMask: { value: maskRef.current },
-          uActivity: { value: 0 },
-        },
-        transparent: true,
-        depthTest: false,
-        depthWrite: false,
-        cullFace: false,
-      });
-      const mesh = new Mesh(gl, { geometry: bgGeom, program: bgProgram, mode: gl.LINES });
-      mesh.frustumCulled = false;
-      mesh.setParent(scene);
-      backgroundMesh = mesh;
-      backgroundPrograms.push(bgProgram);
-    };
-
-    buildProceduralBackground();
+    const model = new Transform();
+    model.position.set(-MODEL_CENTER[0], -MODEL_CENTER[1], -MODEL_CENTER[2]);
+    model.setParent(scene);
 
     // --- Circuit arbors ----------------------------------------------------
     let circuitMesh: Mesh | null = null;
     let circuitGeom: Geometry | null = null;
     let circuitProgram: Program | null = null;
-    /** Non-null only on the procedural fallback, which colours on the CPU. */
-    let cpuColoring: {
-      vertexNeuron: string[];
-      vertexDistances: Float32Array;
-      baseColors: Float32Array;
-      spikeTarget: Float32Array;
-    } | null = null;
-    /**
-     * Non-null only on the real-geometry path, which colours on the GPU.
-     * `state` must be a plain array: ogl skips Float32Array uniform arrays.
-     */
+    const backgroundPrograms: Program[] = [];
+    /** `state` must be a plain array: ogl skips Float32Array uniform arrays. */
     let gpuColoring: { neuronIds: string[]; state: number[] } | null = null;
 
     const clearCircuit = () => {
@@ -499,37 +409,7 @@ export function FlyWireConnectome() {
       circuitMesh = null;
       circuitGeom = null;
       circuitProgram = null;
-      cpuColoring = null;
       gpuColoring = null;
-    };
-
-    /** Procedural arbors: seeded random walks, coloured per vertex on the CPU. */
-    const buildFallbackCircuit = (data: Circuit) => {
-      clearCircuit();
-      const built = buildCircuitArbors(data.neurons);
-      cpuColoring = {
-        vertexNeuron: built.vertexNeuron,
-        vertexDistances: built.vertexDistances,
-        baseColors: built.baseColors,
-        spikeTarget: new Float32Array(built.cloud.colors.length),
-      };
-      circuitGeom = new Geometry(gl, {
-        position: { size: 3, data: built.cloud.positions },
-        color: { size: 3, data: built.cloud.colors },
-        region: { size: 1, data: built.cloud.regions },
-      });
-      circuitProgram = new Program(gl, {
-        vertex: LINE_VERTEX,
-        fragment: CIRCUIT_FRAGMENT,
-        uniforms: { uAlpha: { value: 0.92 }, uMask: { value: maskRef.current } },
-        transparent: true,
-        depthTest: false,
-        depthWrite: false,
-        cullFace: false,
-      });
-      circuitMesh = new Mesh(gl, { geometry: circuitGeom, program: circuitProgram, mode: gl.LINES });
-      circuitMesh.frustumCulled = false;
-      circuitMesh.setParent(scene);
     };
 
     /** Real v783 skeletons: opaque tube meshes, coloured in the vertex shader. */
@@ -572,15 +452,12 @@ export function FlyWireConnectome() {
       });
       circuitMesh = new Mesh(gl, { geometry: circuitGeom, program: circuitProgram });
       circuitMesh.frustumCulled = false;
-      circuitMesh.setParent(scene);
+      circuitMesh.setParent(model);
       return true;
     };
 
-    /** Swap the procedural fiber cloud for the FlyWire neuropil + Male CNS VNC. */
+    /** FlyWire neuropil shell, plus the Male CNS VNC when it loaded. */
     const installRealBackground = (geometry: FlywireGeometry, vnc: MancVncGeometry | null) => {
-      if (backgroundMesh) backgroundMesh.setParent(null);
-      backgroundPrograms.length = 0;
-
       const shellGeom = new Geometry(gl, {
         position: { size: 3, data: geometry.meshPositions },
         normal: { size: 3, data: geometry.meshNormals },
@@ -605,27 +482,16 @@ export function FlyWireConnectome() {
       const shell = new Mesh(gl, { geometry: shellGeom, program: shellProgram });
       shell.frustumCulled = false;
       shell.renderOrder = 1;
-      shell.setParent(scene);
+      shell.setParent(model);
       backgroundPrograms.push(shellProgram);
 
-      // FAFB stops at the neck. Prefer the Male CNS VNC neuropil mesh; fall back
-      // to the procedural cord only if that blob failed to load.
-      const vncShell = vnc
-        ? { positions: vnc.meshPositions, normals: vnc.meshNormals, regions: vnc.meshRegions }
-        : buildVncNeuropilMesh();
-      const vncArbor = vnc
-        ? {
-            positions: vnc.arborPositions,
-            normals: vnc.arborNormals,
-            colors: vnc.arborColors,
-            regions: vnc.arborRegions,
-          }
-        : buildVncNeuronMesh();
+      // FAFB stops at the neck; the cord is the Male CNS VNC, pinned to the cut.
+      if (!vnc) return;
 
       const vncShellGeom = new Geometry(gl, {
-        position: { size: 3, data: vncShell.positions },
-        normal: { size: 3, data: vncShell.normals },
-        region: { size: 1, data: vncShell.regions },
+        position: { size: 3, data: vnc.meshPositions },
+        normal: { size: 3, data: vnc.meshNormals },
+        region: { size: 1, data: vnc.meshRegions },
       });
       const vncShellProgram = new Program(gl, {
         vertex: NEUROPIL_VERTEX,
@@ -644,13 +510,13 @@ export function FlyWireConnectome() {
       const vncShellMesh = new Mesh(gl, { geometry: vncShellGeom, program: vncShellProgram });
       vncShellMesh.frustumCulled = false;
       vncShellMesh.renderOrder = 1;
-      vncShellMesh.setParent(scene);
+      vncShellMesh.setParent(model);
       backgroundPrograms.push(vncShellProgram);
 
       const vncBound = bindVncArborsToCircuit(
-        vncArbor.positions,
-        vncArbor.colors,
-        vncArbor.positions.length / 3,
+        vnc.arborPositions,
+        vnc.arborColors,
+        vnc.arborCount,
         (gpuColoring?.neuronIds ?? []).map((id, index) => {
           const n = circuitRef.current?.neurons.find((cell) => cell.id === id);
           return {
@@ -663,10 +529,10 @@ export function FlyWireConnectome() {
       );
 
       const vncNeuronGeom = new Geometry(gl, {
-        position: { size: 3, data: vncArbor.positions },
-        normal: { size: 3, data: vncArbor.normals },
+        position: { size: 3, data: vnc.arborPositions },
+        normal: { size: 3, data: vnc.arborNormals },
         color: { size: 3, data: vncBound.colors },
-        region: { size: 1, data: vncArbor.regions },
+        region: { size: 1, data: vnc.arborRegions },
         aNeuron: { size: 1, data: vncBound.neuronIndex },
         aDist: { size: 1, data: vncBound.distances },
       });
@@ -686,15 +552,12 @@ export function FlyWireConnectome() {
       const vncNeuronMesh = new Mesh(gl, { geometry: vncNeuronGeom, program: vncNeuronProgram });
       vncNeuronMesh.frustumCulled = false;
       vncNeuronMesh.renderOrder = 0;
-      vncNeuronMesh.setParent(scene);
+      vncNeuronMesh.setParent(model);
       backgroundPrograms.push(vncNeuronProgram);
     };
 
-    if (circuitRef.current) buildFallbackCircuit(circuitRef.current);
-
-    // Real geometry is a ~23 MB blob, so the procedural scene renders first and
-    // is replaced in place once the download and decode finish. The Male CNS
-    // VNC mesh loads in parallel and is swapped in with the brain shell.
+    // Real geometry is a ~23 MB blob; nothing is drawn until it decodes. The
+    // Male CNS VNC mesh loads in parallel and is added with the brain shell.
     let realGeometry: FlywireGeometry | null = null;
     const vncPromise = loadMancVncGeometry().catch(() => null);
     loadFlywireGeometry((loaded, total) => {
@@ -750,13 +613,11 @@ export function FlyWireConnectome() {
       }
       const q = orbitRef.current;
       scene.quaternion.set(q.x, q.y, q.z, q.w);
-      camera.position.set(0, FOCUS_Y, zoomRef.current);
-      camera.lookAt([0, FOCUS_Y, 0]);
+      camera.position.set(0, 0, zoomRef.current);
+      camera.lookAt([0, 0, 0]);
 
       const data = circuitRef.current;
-      if (data && !circuitMesh) {
-        if (!realGeometry || !buildRealCircuit(realGeometry, data)) buildFallbackCircuit(data);
-      }
+      if (data && !circuitMesh && realGeometry) buildRealCircuit(realGeometry, data);
 
       let activity = 0;
       const sim = simulatorRef.current;
@@ -777,17 +638,6 @@ export function FlyWireConnectome() {
           // ~40 floats per frame; the wavefront itself is evaluated per vertex
           // in ARBOR_VERTEX.
           sim.writeNeuronState(gpuColoring.state, gpuColoring.neuronIds, time);
-        } else if (cpuColoring && circuitGeom) {
-          sim.applyColors(
-            cpuColoring.spikeTarget,
-            cpuColoring.vertexNeuron,
-            cpuColoring.vertexDistances,
-            cpuColoring.baseColors,
-            time
-          );
-          const attr = circuitGeom.attributes.color as { data: Float32Array; needsUpdate: boolean };
-          attr.data.set(cpuColoring.spikeTarget);
-          attr.needsUpdate = true;
         }
 
         const s = sim.getStats();
@@ -899,11 +749,8 @@ export function FlyWireConnectome() {
                   v783 skeletons
                 </span>
               ) : (
-                <span
-                  className="text-amber-300/80"
-                  title="The v783 geometry blob could not be loaded; showing procedural stand-in arbors"
-                >
-                  {geometrySource === "loading" ? "loading geometry" : "schematic arbors"}
+                <span className="text-amber-300/80" title="The v783 geometry blob could not be loaded">
+                  {geometrySource === "loading" ? "loading geometry" : "geometry unavailable"}
                 </span>
               )}
             </p>
@@ -1046,6 +893,11 @@ export function FlyWireConnectome() {
             {loading
               ? "waking circuit…"
               : `loading v783 skeletons ${Math.round(geometryProgress * 100)}%`}
+          </p>
+        )}
+        {geometrySource === "fallback" && (
+          <p className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[10px] uppercase tracking-[0.18em] text-amber-300/80">
+            v783 geometry failed to load
           </p>
         )}
         {error && (

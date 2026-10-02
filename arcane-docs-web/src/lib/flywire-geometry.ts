@@ -13,6 +13,28 @@
 
 import meta from "@/data/flywire-geometry-meta.json";
 
+export type CircuitNeuron = {
+  id: string;
+  label: string;
+  cell_type: string;
+  layer: string;
+  side: string;
+};
+
+/** Region-mask bits baked into every vertex by the export scripts. */
+export const BRAIN_REGIONS = [
+  { bit: 0, id: "opticLeft", label: "Left optic lobe" },
+  { bit: 1, id: "opticRight", label: "Right optic lobe" },
+  { bit: 2, id: "central", label: "Central brain" },
+  { bit: 3, id: "mushroom", label: "Mushroom body" },
+  { bit: 4, id: "antennal", label: "Antennal lobe" },
+  { bit: 5, id: "vnc", label: "Ventral nerve cord" },
+  { bit: 6, id: "giant", label: "Giant Fiber" },
+  { bit: 7, id: "descending", label: "Descending" },
+] as const;
+
+export const ALL_REGION_MASK = BRAIN_REGIONS.reduce((mask, region) => mask | (1 << region.bit), 0);
+
 export type FlywireNeuronGeom = {
   id: string;
   label: string;
@@ -176,7 +198,7 @@ export function loadFlywireGeometry(
   return pending;
 }
 
-/** Resting colour for a neuron, keyed the same way as the procedural fallback. */
+/** Resting colour for a neuron. */
 function restingRgb(cell_type: string, layer: string): [number, number, number] {
   if (cell_type === "DNp01") return [0.95, 0.82, 1];
   if (layer === "sensory") return [0.2, 0.8, 0.9];
