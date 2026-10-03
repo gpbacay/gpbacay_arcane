@@ -3,6 +3,7 @@ import { ArrowDown, Ban, Crosshair, Download, Gauge, Layers, Star } from "lucide
 import { Arc1Demo } from "@/components/Arc1Demo";
 import { BarChart } from "@/components/BarChart";
 import { CodeSnippet } from "@/components/CodeSnippet";
+import { Mermaid } from "@/components/markdown";
 import { Tabs } from "@/components/Tabs";
 import { ARC1_METRICS } from "@/config/arc1-metrics";
 
@@ -161,6 +162,36 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
             GSER gate
           </Link>
           .
+        </p>
+
+        <h2 id="architecture" className={h2}>
+          Architecture
+        </h2>
+        <p className={p}>
+          ARC 1 uses Resonant Schema Binding. The request and every schema element go through the same perception
+          blocks once. Each schema element becomes a probe that binds to the request in {m.cycles} shared-weight cycles,
+          and four readouts are taken from the settled probes. Nothing is decoded token by token.
+        </p>
+        <Mermaid
+          minWidth={560}
+          chart={`flowchart TD
+  REQ["Request text"] --> PER
+  SCH["Schema<br/>tools, parameters, options, labels"] --> PER
+  PER["Perception blocks (bidirectional, read once)<br/>FieldAttention, ResonantChannelMixer,<br/>ConceptEngram memory, FieldResonance"]
+  PER --> FIELD["Utterance field"]
+  PER --> ENG["Schema engrams<br/>(cached after first use)"]
+  ENG --> PROBE["Probes<br/>engram + context engram + role"]
+  FIELD --> BIND
+  PROBE --> BIND
+  BIND["Resonant binding<br/>GSER spiking gate, ${m.cycles} cycles, all probes in parallel"]
+  BIND --> FIRE["Fire<br/>does a tool or optional argument apply?"]
+  BIND --> ANCHOR["Anchor<br/>start and end span copied from the request"]
+  BIND --> SELECT["Select<br/>option or label choice"]
+  FIELD --> EMB["Embedding<br/>semantic retrieval"]`}
+        />
+        <p className={`${p} text-sm text-zinc-400`}>
+          Fire, anchor and select each have a temperature fitted on held-out data, which is what makes the reported
+          confidence meaningful. Changing the number of cycles trades accuracy for compute without new weights.
         </p>
 
         <h2 id="accuracy" className={h2}>
