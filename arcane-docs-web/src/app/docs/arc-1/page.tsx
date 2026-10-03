@@ -166,7 +166,10 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
         <h2 id="accuracy" className={h2}>
           Accuracy
         </h2>
-        <p className={p}>Measured on held-out synthetic examples, including tool values never seen in training.</p>
+        <p className={p}>
+          Measured mostly on held-out synthetic examples, including tool values never seen in training. One check uses
+          real text, below.
+        </p>
         <ul className="not-prose mt-6 grid gap-px border border-zinc-800 bg-zinc-800 sm:grid-cols-2 lg:grid-cols-4">
           {[
             [pct(full.toolSelection), "right tool", `${of(full.toolSelection, m.n.tools)} requests`],
@@ -193,6 +196,43 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           Expected calibration error on tool decisions is {pct(m.fireEceAfter)} over {m.n.calibrationFire} test
           decisions. Full-call and label calibration has not been measured.
         </p>
+        <p className={`${p} mt-4`}>
+          On {m.realIntents.n} real utterances from CLINC150, for intents that were left out of every training set, it
+          picked the right one of {m.realIntents.labels} labels {pct(m.realIntents.accuracy)} of the time (chance is{" "}
+          {pct(m.realIntents.chance)}). Before the language distillation described below, the same check scored about 38%.
+        </p>
+
+        <h2 id="training" className={h2}>
+          How it was trained
+        </h2>
+        <p className={p}>
+          ARC 1 starts with no language knowledge, so a frozen Qwen3-Embedding-0.6B teaches it offline which texts mean the
+          same thing. The teacher is not in the download and is never run at inference, so the size and speed are unchanged.
+        </p>
+        <ol className="mt-4 max-w-2xl list-decimal space-y-2 pl-5 text-sm leading-relaxed text-zinc-300">
+          <li>
+            <strong className="text-zinc-100">Contrastive pre-training.</strong> Each request is pulled toward its tool or
+            intent and pushed away from the others (35k pairs from the synthetic tools, CLINC150 and Banking77), while its
+            vectors learn to match the teacher&apos;s sense of similarity.
+          </li>
+          <li>
+            <strong className="text-zinc-100">Hard negatives.</strong> The same, with the teacher&apos;s nearest wrong
+            answers added as negatives.
+          </li>
+          <li>
+            <strong className="text-zinc-100">Multi-task training with replay.</strong> The usual tool, extraction and
+            label losses, with 40% of each step replaying stage 1 so the new knowledge is not forgotten.
+          </li>
+        </ol>
+        <p className={`${p} mt-4 text-sm text-zinc-400`}>
+          The trade-off: against the previous checkpoint this gains about 19 points on real phrasings and 31 points on
+          classifying requests for unseen tools, and gives up about 6 points on exact tool calls and fully correct
+          extracted records. Recipe and commands are in the{" "}
+          <a href={`${REPO_URL}#arc-1--automation-foundation-model`} target="_blank" rel="noreferrer" className={link}>
+            repository README
+          </a>
+          .
+        </p>
 
         <h2 id="limitations" className={h2}>
           Limitations
@@ -205,16 +245,19 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
             ],
             [
               "Weak categories",
-              `Classification is ${pct(full.classifyOverall)} overall; support routing (${pct(full.classifySupport)}) and product topics (${pct(full.classifyProducts)}) are weakest, on small subsets.`,
+              `Classification is ${pct(full.classifyOverall)} overall; feed ranking (${pct(full.classifyFeed)}), product topics (${pct(full.classifyProducts)}) and search intent (${pct(full.classifySearch)}) are weakest, on small subsets.`,
             ],
             [
               "Grounded is not correct",
               "Values are copied from the request but can land in the wrong field. Required details the user never gave are still filled, and option lists always return a closest choice. Validate before acting.",
             ],
-            ["Synthetic test data", "All scores come from generated held-out examples, not real traffic."],
+            [
+              "Mostly synthetic test data",
+              `Most scores come from generated held-out examples, not real traffic. The one real-text check is ${m.realIntents.n} CLINC150 utterances in a five-way choice.`,
+            ],
             [
               "Scope",
-              `English only, inputs cut at ${m.seqLen} tokens, each tool called at most once per request, no world knowledge, and no chat replies.`,
+              `English only, inputs cut at ${m.seqLen} tokens, each tool called at most once per request, only the light language knowledge distilled from a small text encoder and no world knowledge, and no chat replies.`,
             ],
           ].map(([title, body]) => (
             <li key={title} className="py-3.5">
@@ -507,7 +550,8 @@ tokenizer.save("Models/arc1_arc1_tiny_tokenizer.json")`}
         <p className={`${p} mt-4 text-zinc-400`}>
           <code className={code}>--resume</code> starts from the weights and tokenizer from step 2. The default learning
           rate is 2e-3, which is for training from scratch. Use a smaller one so the model keeps what it already knows. Loss is
-          printed every 50 steps and weights are saved every 500.
+          printed every 50 steps and weights are saved every 500. Fine-tuning only on your own tools can wear away the
+          distilled language knowledge, so check the real-text score in the metrics file afterwards.
         </p>
 
         <h3 id="ft-eval" className={h3}>

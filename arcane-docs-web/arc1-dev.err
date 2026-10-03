@@ -1,0 +1,16 @@
+C:\Users\Gianne Bacay\Desktop\project test\gpbacay_arcane\examples\serve_arc1_api.py:335: UserWarning: Field name "schema" in "ExtractRequest" shadows an attribute in parent "BaseModel"
+  class ExtractRequest(BaseModel):
+C:\Users\Gianne Bacay\Desktop\project test\gpbacay_arcane\examples\serve_arc1_api.py:353: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+INFO:     Started server process [10888]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+C:\Users\Gianne Bacay\AppData\Roaming\Python\Python311\site-packages\keras\src\layers\layer.py:424: UserWarning: `build()` was called on layer 'arc1_model', however the layer does not have a `build()` method implemented and it looks like it has unbuilt state. This will cause the layer to be marked as built, despite not being actually built, which may cause failures down the line. Make sure to implement a proper `build()` method.
+  warnings.warn(
+⚠ turbopack.root should be absolute, using: C:\Users\Gianne Bacay\Desktop\project test\gpbacay_arcane

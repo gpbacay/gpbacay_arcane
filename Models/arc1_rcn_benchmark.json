@@ -1,32 +1,32 @@
 {
  "weights.h5 (f32)": {
-  "bytes": 5465216,
-  "exact_call": 0.907,
-  "extract_f1": 0.982,
-  "classify": 0.68
+  "bytes": 5468928,
+  "exact_call": 0.867,
+  "extract_f1": 0.975,
+  "classify": 0.747
  },
  "f16": {
-  "bytes": 2653440,
-  "load_s": 0.84,
-  "exact_call": 0.907,
-  "extract_f1": 0.982,
-  "classify": 0.68
+  "bytes": 2655680,
+  "load_s": 0.55,
+  "exact_call": 0.86,
+  "extract_f1": 0.975,
+  "classify": 0.747
  },
  "rq8": {
-  "bytes": 1425088,
-  "load_s": 0.88,
-  "exact_call": 0.907,
-  "extract_f1": 0.982,
-  "classify": 0.68
+  "bytes": 1427264,
+  "load_s": 0.55,
+  "exact_call": 0.86,
+  "extract_f1": 0.975,
+  "classify": 0.747
  },
  "rq4": {
-  "bytes": 769344,
-  "load_s": 0.84,
-  "exact_call": 0.913,
-  "extract_f1": 0.981,
-  "classify": 0.66
+  "bytes": 771520,
+  "load_s": 0.81,
+  "exact_call": 0.867,
+  "extract_f1": 0.972,
+  "classify": 0.74
  },
  "tflite int8": {
-  "bytes": 1791192
+  "bytes": 1794008
  }
 }

@@ -1,6 +1,6 @@
 {
   "name": "gpbacay-arcane",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "ARC 1 structured decisions (tool calling, extraction, classification, embeddings) for Node.js and the browser",
   "main": "index.js",
   "exports": {

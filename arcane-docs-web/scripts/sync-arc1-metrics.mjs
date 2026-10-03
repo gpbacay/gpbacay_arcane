@@ -89,6 +89,11 @@ const data = {
     calibrationFire: metrics.calibration.n_fire,
   },
   retrievalAt1: evaluation.embeddings ? evaluation.embeddings.intent_retrieval_at_1 : 0,
+  // Real CLINC150 utterances for intents no training corpus contained (null when not measured).
+  realIntents: evaluation.real_intents
+    ? (({ accuracy, n, n_labels, chance }) => ({ accuracy, n, labels: n_labels, chance }))(
+        evaluation.real_intents[`cycles_${full.cycles}`])
+    : null,
   byCycles,
 };
 

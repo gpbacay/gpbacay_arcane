@@ -1,0 +1,515 @@
+{
+  "shipped": {
+    "standard": {
+      "cycles_1": {
+        "tools_heldout_values": {
+          "n": 300,
+          "tool_selection_acc": 0.9933333333333333,
+          "exact_call_acc": 0.9166666666666666,
+          "argument_acc": 0.9190600522193212,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 3.75,
+          "latency_ms_p90": 6.886000000000003
+        },
+        "tools_unseen_tools": {
+          "n": 150,
+          "tool_selection_acc": 0.4266666666666667,
+          "exact_call_acc": 0.29333333333333333,
+          "argument_acc": 0.17204301075268819,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 3.08,
+          "latency_ms_p90": 5.843999999999999
+        },
+        "extraction_heldout_values": {
+          "n": 150,
+          "field_precision": 0.9927536231884058,
+          "field_recall": 0.9809069212410502,
+          "field_f1": 0.9867947178871549,
+          "exact_record_acc": 0.9533333333333334
+        },
+        "classify_heldout": {
+          "n": 150,
+          "accuracy": 0.6733333333333333,
+          "accuracy_intent_domain": 1.0,
+          "accuracy_intent_tool": 1.0,
+          "accuracy_keyword": 0.35294117647058826,
+          "accuracy_request": 1.0,
+          "accuracy_sentiment": 0.6896551724137931,
+          "accuracy_support": 0.5555555555555556,
+          "accuracy_topic_feed": 0.625,
+          "accuracy_topic_products": 0.2727272727272727,
+          "accuracy_topic_search": 0.5,
+          "latency_ms_p50": 6.19
+        },
+        "classify_unseen_tools": {
+          "n": 75,
+          "accuracy": 0.3333333333333333,
+          "accuracy_intent_tool": 0.3333333333333333,
+          "latency_ms_p50": 4.825
+        }
+      },
+      "cycles_3": {
+        "tools_heldout_values": {
+          "n": 300,
+          "tool_selection_acc": 0.99,
+          "exact_call_acc": 0.92,
+          "argument_acc": 0.9242819843342036,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 4.1,
+          "latency_ms_p90": 7.824000000000001
+        },
+        "tools_unseen_tools": {
+          "n": 150,
+          "tool_selection_acc": 0.4066666666666667,
+          "exact_call_acc": 0.3,
+          "argument_acc": 0.16666666666666666,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 3.94,
+          "latency_ms_p90": 7.766
+        },
+        "extraction_heldout_values": {
+          "n": 150,
+          "field_precision": 0.9855421686746988,
+          "field_recall": 0.9761336515513126,
+          "field_f1": 0.9808153477218226,
+          "exact_record_acc": 0.9333333333333333
+        },
+        "classify_heldout": {
+          "n": 150,
+          "accuracy": 0.6666666666666666,
+          "accuracy_intent_domain": 1.0,
+          "accuracy_intent_tool": 1.0,
+          "accuracy_keyword": 0.29411764705882354,
+          "accuracy_request": 1.0,
+          "accuracy_sentiment": 0.6896551724137931,
+          "accuracy_support": 0.5555555555555556,
+          "accuracy_topic_feed": 0.625,
+          "accuracy_topic_products": 0.2727272727272727,
+          "accuracy_topic_search": 0.5,
+          "latency_ms_p50": 3.27
+        },
+        "classify_unseen_tools": {
+          "n": 75,
+          "accuracy": 0.3466666666666667,
+          "accuracy_intent_tool": 0.3466666666666667,
+          "latency_ms_p50": 5.04
+        }
+      },
+      "embeddings": {
+        "n": 60,
+        "intent_retrieval_at_1": 1.0
+      }
+    },
+    "large": {
+      "cycles_1": {
+        "tools_heldout_values": {
+          "n": 1000,
+          "tool_selection_acc": 0.992,
+          "exact_call_acc": 0.895,
+          "argument_acc": 0.9058084772370487,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 3.74,
+          "latency_ms_p90": 7.292000000000001
+        },
+        "tools_unseen_tools": {
+          "n": 500,
+          "tool_selection_acc": 0.476,
+          "exact_call_acc": 0.334,
+          "argument_acc": 0.20236087689713322,
+          "no_tool_acc": 0.9844961240310077,
+          "latency_ms_p50": 3.17,
+          "latency_ms_p90": 5.8820000000000014
+        },
+        "extraction_heldout_values": {
+          "n": 500,
+          "field_precision": 0.9920977011494253,
+          "field_recall": 0.9794326241134752,
+          "field_f1": 0.985724482512491,
+          "exact_record_acc": 0.944
+        },
+        "classify_heldout": {
+          "n": 500,
+          "accuracy": 0.678,
+          "accuracy_intent_domain": 1.0,
+          "accuracy_intent_tool": 1.0,
+          "accuracy_keyword": 0.4897959183673469,
+          "accuracy_request": 1.0,
+          "accuracy_sentiment": 0.7282608695652174,
+          "accuracy_support": 0.5544554455445545,
+          "accuracy_topic_feed": 0.38461538461538464,
+          "accuracy_topic_products": 0.2894736842105263,
+          "accuracy_topic_search": 0.53125,
+          "latency_ms_p50": 5.97
+        },
+        "classify_unseen_tools": {
+          "n": 250,
+          "accuracy": 0.388,
+          "accuracy_intent_tool": 0.388,
+          "latency_ms_p50": 3.16
+        }
+      },
+      "embeddings": {
+        "n": 60,
+        "intent_retrieval_at_1": 1.0
+      }
+    },
+    "real_intents": {
+      "cycles_1": {
+        "n": 600,
+        "n_labels": 5,
+        "n_intents": 29,
+        "accuracy": 0.3933333333333333,
+        "chance": 0.2
+      },
+      "cycles_3": {
+        "n": 600,
+        "n_labels": 5,
+        "n_intents": 29,
+        "accuracy": 0.37833333333333335,
+        "chance": 0.2
+      }
+    }
+  },
+  "distilled2": {
+    "standard": {
+      "cycles_1": {
+        "tools_heldout_values": {
+          "n": 300,
+          "tool_selection_acc": 0.9833333333333333,
+          "exact_call_acc": 0.85,
+          "argument_acc": 0.8485639686684073,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 3.87,
+          "latency_ms_p90": 7.560000000000002
+        },
+        "tools_unseen_tools": {
+          "n": 150,
+          "tool_selection_acc": 0.4866666666666667,
+          "exact_call_acc": 0.4,
+          "argument_acc": 0.1774193548387097,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 3.43,
+          "latency_ms_p90": 7.555999999999999
+        },
+        "extraction_heldout_values": {
+          "n": 150,
+          "field_precision": 0.9802955665024631,
+          "field_recall": 0.9498806682577565,
+          "field_f1": 0.9648484848484848,
+          "exact_record_acc": 0.8666666666666667
+        },
+        "classify_heldout": {
+          "n": 150,
+          "accuracy": 0.7533333333333333,
+          "accuracy_intent_domain": 1.0,
+          "accuracy_intent_tool": 1.0,
+          "accuracy_keyword": 0.5882352941176471,
+          "accuracy_request": 1.0,
+          "accuracy_sentiment": 0.6896551724137931,
+          "accuracy_support": 0.6296296296296297,
+          "accuracy_topic_feed": 0.625,
+          "accuracy_topic_products": 0.6363636363636364,
+          "accuracy_topic_search": 0.6666666666666666,
+          "latency_ms_p50": 6.77
+        },
+        "classify_unseen_tools": {
+          "n": 75,
+          "accuracy": 0.64,
+          "accuracy_intent_tool": 0.64,
+          "latency_ms_p50": 4.38
+        }
+      },
+      "cycles_3": {
+        "tools_heldout_values": {
+          "n": 300,
+          "tool_selection_acc": 0.9833333333333333,
+          "exact_call_acc": 0.86,
+          "argument_acc": 0.8590078328981723,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 3.84,
+          "latency_ms_p90": 6.784000000000001
+        },
+        "tools_unseen_tools": {
+          "n": 150,
+          "tool_selection_acc": 0.49333333333333335,
+          "exact_call_acc": 0.38666666666666666,
+          "argument_acc": 0.1827956989247312,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 3.42,
+          "latency_ms_p90": 5.0299999999999985
+        },
+        "extraction_heldout_values": {
+          "n": 150,
+          "field_precision": 0.975669099756691,
+          "field_recall": 0.9570405727923628,
+          "field_f1": 0.9662650602409639,
+          "exact_record_acc": 0.88
+        },
+        "classify_heldout": {
+          "n": 150,
+          "accuracy": 0.7466666666666667,
+          "accuracy_intent_domain": 1.0,
+          "accuracy_intent_tool": 1.0,
+          "accuracy_keyword": 0.6470588235294118,
+          "accuracy_request": 1.0,
+          "accuracy_sentiment": 0.6551724137931034,
+          "accuracy_support": 0.7037037037037037,
+          "accuracy_topic_feed": 0.5,
+          "accuracy_topic_products": 0.5454545454545454,
+          "accuracy_topic_search": 0.5833333333333334,
+          "latency_ms_p50": 3.39
+        },
+        "classify_unseen_tools": {
+          "n": 75,
+          "accuracy": 0.6266666666666667,
+          "accuracy_intent_tool": 0.6266666666666667,
+          "latency_ms_p50": 3.2199999999999998
+        }
+      },
+      "embeddings": {
+        "n": 60,
+        "intent_retrieval_at_1": 1.0
+      }
+    },
+    "large": {
+      "cycles_1": {
+        "tools_heldout_values": {
+          "n": 1000,
+          "tool_selection_acc": 0.986,
+          "exact_call_acc": 0.833,
+          "argument_acc": 0.8296703296703297,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 3.18,
+          "latency_ms_p90": 4.39
+        },
+        "tools_unseen_tools": {
+          "n": 500,
+          "tool_selection_acc": 0.512,
+          "exact_call_acc": 0.4,
+          "argument_acc": 0.178752107925801,
+          "no_tool_acc": 0.9767441860465116,
+          "latency_ms_p50": 2.86,
+          "latency_ms_p90": 3.6820000000000004
+        },
+        "extraction_heldout_values": {
+          "n": 500,
+          "field_precision": 0.9782451051486585,
+          "field_recall": 0.9567375886524823,
+          "field_f1": 0.9673718178558623,
+          "exact_record_acc": 0.884
+        },
+        "classify_heldout": {
+          "n": 500,
+          "accuracy": 0.746,
+          "accuracy_intent_domain": 0.975609756097561,
+          "accuracy_intent_tool": 0.9830508474576272,
+          "accuracy_keyword": 0.5714285714285714,
+          "accuracy_request": 1.0,
+          "accuracy_sentiment": 0.717391304347826,
+          "accuracy_support": 0.7128712871287128,
+          "accuracy_topic_feed": 0.5384615384615384,
+          "accuracy_topic_products": 0.5263157894736842,
+          "accuracy_topic_search": 0.59375,
+          "latency_ms_p50": 5.51
+        },
+        "classify_unseen_tools": {
+          "n": 250,
+          "accuracy": 0.696,
+          "accuracy_intent_tool": 0.696,
+          "latency_ms_p50": 2.59
+        }
+      },
+      "embeddings": {
+        "n": 60,
+        "intent_retrieval_at_1": 1.0
+      }
+    },
+    "real_intents": {
+      "cycles_1": {
+        "n": 600,
+        "n_labels": 5,
+        "n_intents": 29,
+        "accuracy": 0.58,
+        "chance": 0.2
+      },
+      "cycles_3": {
+        "n": 600,
+        "n_labels": 5,
+        "n_intents": 29,
+        "accuracy": 0.5766666666666667,
+        "chance": 0.2
+      }
+    }
+  },
+  "distilled3": {
+    "standard": {
+      "cycles_1": {
+        "tools_heldout_values": {
+          "n": 300,
+          "tool_selection_acc": 0.9866666666666667,
+          "exact_call_acc": 0.87,
+          "argument_acc": 0.8720626631853786,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 2.77,
+          "latency_ms_p90": 4.922000000000002
+        },
+        "tools_unseen_tools": {
+          "n": 150,
+          "tool_selection_acc": 0.3466666666666667,
+          "exact_call_acc": 0.28,
+          "argument_acc": 0.06451612903225806,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 2.18,
+          "latency_ms_p90": 2.928
+        },
+        "extraction_heldout_values": {
+          "n": 150,
+          "field_precision": 0.9805352798053528,
+          "field_recall": 0.9618138424821002,
+          "field_f1": 0.9710843373493976,
+          "exact_record_acc": 0.8933333333333333
+        },
+        "classify_heldout": {
+          "n": 150,
+          "accuracy": 0.7333333333333333,
+          "accuracy_intent_domain": 1.0,
+          "accuracy_intent_tool": 1.0,
+          "accuracy_keyword": 0.5294117647058824,
+          "accuracy_request": 1.0,
+          "accuracy_sentiment": 0.6206896551724138,
+          "accuracy_support": 0.6296296296296297,
+          "accuracy_topic_feed": 0.625,
+          "accuracy_topic_products": 0.7272727272727273,
+          "accuracy_topic_search": 0.5833333333333334,
+          "latency_ms_p50": 4.73
+        },
+        "classify_unseen_tools": {
+          "n": 75,
+          "accuracy": 0.6533333333333333,
+          "accuracy_intent_tool": 0.6533333333333333,
+          "latency_ms_p50": 2.71
+        }
+      },
+      "cycles_3": {
+        "tools_heldout_values": {
+          "n": 300,
+          "tool_selection_acc": 0.99,
+          "exact_call_acc": 0.8733333333333333,
+          "argument_acc": 0.8798955613577023,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 2.54,
+          "latency_ms_p90": 3.3720000000000003
+        },
+        "tools_unseen_tools": {
+          "n": 150,
+          "tool_selection_acc": 0.37333333333333335,
+          "exact_call_acc": 0.28,
+          "argument_acc": 0.06989247311827956,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 2.3,
+          "latency_ms_p90": 2.8779999999999997
+        },
+        "extraction_heldout_values": {
+          "n": 150,
+          "field_precision": 0.9757281553398058,
+          "field_recall": 0.9594272076372315,
+          "field_f1": 0.9675090252707582,
+          "exact_record_acc": 0.8866666666666667
+        },
+        "classify_heldout": {
+          "n": 150,
+          "accuracy": 0.7333333333333333,
+          "accuracy_intent_domain": 1.0,
+          "accuracy_intent_tool": 1.0,
+          "accuracy_keyword": 0.5294117647058824,
+          "accuracy_request": 1.0,
+          "accuracy_sentiment": 0.5862068965517241,
+          "accuracy_support": 0.7407407407407407,
+          "accuracy_topic_feed": 0.625,
+          "accuracy_topic_products": 0.6363636363636364,
+          "accuracy_topic_search": 0.5,
+          "latency_ms_p50": 2.29
+        },
+        "classify_unseen_tools": {
+          "n": 75,
+          "accuracy": 0.6533333333333333,
+          "accuracy_intent_tool": 0.6533333333333333,
+          "latency_ms_p50": 2.365
+        }
+      },
+      "embeddings": {
+        "n": 60,
+        "intent_retrieval_at_1": 0.9833333333333333
+      }
+    },
+    "large": {
+      "cycles_1": {
+        "tools_heldout_values": {
+          "n": 1000,
+          "tool_selection_acc": 0.994,
+          "exact_call_acc": 0.856,
+          "argument_acc": 0.859497645211931,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 2.53,
+          "latency_ms_p90": 3.53
+        },
+        "tools_unseen_tools": {
+          "n": 500,
+          "tool_selection_acc": 0.374,
+          "exact_call_acc": 0.292,
+          "argument_acc": 0.05564924114671164,
+          "no_tool_acc": 1.0,
+          "latency_ms_p50": 2.28,
+          "latency_ms_p90": 3.0320000000000005
+        },
+        "extraction_heldout_values": {
+          "n": 500,
+          "field_precision": 0.9776173285198556,
+          "field_recall": 0.9602836879432625,
+          "field_f1": 0.9688729874776387,
+          "exact_record_acc": 0.892
+        },
+        "classify_heldout": {
+          "n": 500,
+          "accuracy": 0.748,
+          "accuracy_intent_domain": 1.0,
+          "accuracy_intent_tool": 1.0,
+          "accuracy_keyword": 0.6326530612244898,
+          "accuracy_request": 1.0,
+          "accuracy_sentiment": 0.6304347826086957,
+          "accuracy_support": 0.693069306930693,
+          "accuracy_topic_feed": 0.5641025641025641,
+          "accuracy_topic_products": 0.6578947368421053,
+          "accuracy_topic_search": 0.59375,
+          "latency_ms_p50": 4.84
+        },
+        "classify_unseen_tools": {
+          "n": 250,
+          "accuracy": 0.66,
+          "accuracy_intent_tool": 0.66,
+          "latency_ms_p50": 2.42
+        }
+      },
+      "embeddings": {
+        "n": 60,
+        "intent_retrieval_at_1": 0.9833333333333333
+      }
+    },
+    "real_intents": {
+      "cycles_1": {
+        "n": 600,
+        "n_labels": 5,
+        "n_intents": 29,
+        "accuracy": 0.5666666666666667,
+        "chance": 0.2
+      },
+      "cycles_3": {
+        "n": 600,
+        "n_labels": 5,
+        "n_intents": 29,
+        "accuracy": 0.57,
+        "chance": 0.2
+      }
+    }
+  }
+}

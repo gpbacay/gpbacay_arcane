@@ -118,3 +118,11 @@ node_modules/
 
 # Exported ONNX models (regenerate with examples/export_arc1_onnx.py)
 *.onnx
+
+# ARC 1 distillation: downloaded datasets, teacher vectors, and experiment runs
+data/external/
+data/arc1_teacher/
+Models/control/
+Models/distill*/
+Models/*.log
+Models/*.err
