@@ -170,7 +170,7 @@ agent.classify("my card was charged twice", ["billing", "technical support", "sa
 ```
 
 ```bash
-python examples/train_arc1.py --preset arc1-tiny --steps 4000   # train + calibrate + evaluate
+python examples/train_arc1.py --preset arc1-tiny --steps 4000   # train + calibrate + evaluate (plain recipe)
 python examples/serve_arc1_api.py                                # port 8002: /run /extract /classify /embed
 python examples/export_arc1.py --config Models/arc1_arc1_tiny.config.json     --weights Models/arc1_arc1_tiny.weights.h5 --cycles 2 --tflite
 # Docs sandbox: cd arcane-docs-web && npm run dev:with-arc1  →  /docs/arc-1
@@ -178,9 +178,45 @@ python examples/export_arc1.py --config Models/arc1_arc1_tiny.config.json     --
 
 Held-out metrics are written to `Models/arc1_arc1_tiny.metrics.json`: unseen argument values, tools
 never seen in training, extraction field F1, classification accuracy (held-out wordings and unseen
-tool intents), latency, and calibration error before and after temperature fitting. Limits: one call per tool per request, long text is truncated to `seq_len`, and
-with no pretrained language knowledge, classification is strongest when labels relate to the words in
-the text (intent, sentiment) and weak on paraphrases unlike its training data (support-ticket routing).
+tool intents), real-utterance intent accuracy, latency, and calibration error before and after
+temperature fitting. Limits: one call per tool per request, long text is truncated to `seq_len`, and
+the only language knowledge is what was distilled from a small text encoder (below), so classification
+is still weakest on wordings unlike its training data and it has no world knowledge.
+
+**Training recipe (distilled).** The shipped `arc1-tiny` is trained in three stages with a frozen
+[Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) as an offline teacher. The
+teacher is not part of the model and not needed at inference: the exported model keeps the same
+architecture, tokenizer, size, and speed.
+
+1. **A, contrastive pre-training**: an InfoNCE loss pulls each request toward its tool or intent
+   engram (35k request→tool/intent pairs from the synthetic tools, CLINC150, and Banking77), while
+   ARC 1's request and engram vectors learn to match the teacher's similarity structure.
+2. **B, hard negatives**: the same, with each positive's nearest wrong tools or intents under the
+   teacher added as negatives.
+3. **C, multi-task**: the usual fire/anchor/select/embed losses, with the distillation loss and
+   40% contrastive replay from A mixed in so the paraphrase knowledge is not forgotten, then a
+   continuation at a lower learning rate and lighter auxiliary losses.
+
+On 600 real CLINC150 utterances for intents no training corpus contained (5 labels, chance 20%) this
+lifted accuracy from 39% to 58%, and unseen-tool classification from 39% to 70%. The cost is about
+6 points of exact tool calls and extracted-record accuracy against the previous checkpoint
+(see [ARC1.md](ARC1.md) for the full comparison).
+
+```bash
+# Retrain (CPU: about 1 day). Teacher vectors need torch and transformers>=4.51 in a separate env.
+mkdir -p data/external   # CLINC150 + Banking77: the two curl commands are in data/DATA_LICENSE.md
+python -m gpbacay_arcane.arc1_distill --out data/arc1_teacher
+python examples/dump_arc1_teacher.py --corpus data/arc1_teacher    # ~75 min on a laptop CPU
+python examples/train_arc1.py --teacher-cache data/arc1_teacher --out-dir Models/distill --skip-eval
+# continue stage C from that result at a lower learning rate with lighter auxiliary losses
+mkdir Models/distill2
+cp Models/distill/arc1_arc1_tiny.weights.h5 Models/distill2/arc1_arc1_tiny.stageB.weights.h5
+cp Models/distill/arc1_arc1_tiny_tokenizer.json Models/distill2/
+python examples/train_arc1.py --teacher-cache data/arc1_teacher --out-dir Models/distill2 --start-stage C \
+    --steps 2500 --learning-rate 1e-3 --distill-weight 0.1 --replay-weight 0.2 --seed 1 --skip-eval
+python examples/train_arc1.py --eval-only --out-dir Models/distill2
+python examples/compare_arc1.py old=Models/arc1_arc1_tiny new=Models/distill2/arc1_arc1_tiny
+```
 
 ### Distilling Qwen2.5-0.5B into ARCANE
 

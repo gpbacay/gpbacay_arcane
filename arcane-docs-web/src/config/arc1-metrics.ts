@@ -2,48 +2,48 @@
 export const ARC1_METRICS = {
   "rcn": {
     "file": "/api/arc1-download",
-    "bytes": 769344,
-    "sha256": "ae5777fabd0e653be010ce392ccba753f0f5718b426bfcdd003bdcdc00e154e9",
+    "bytes": 771520,
+    "sha256": "8b078f4412c65544fd321a6149f651048053b01c8c96d00b1459c97eff9e66c9",
     "quant": "rq4"
   },
   "formats": [
     {
       "label": "Keras weights, f32",
-      "bytes": 5465216,
-      "exactCall": 0.907,
-      "extractF1": 0.982
+      "bytes": 5468928,
+      "exactCall": 0.867,
+      "extractF1": 0.975
     },
     {
       "label": ".rcn f16",
-      "bytes": 2653440,
-      "exactCall": 0.907,
-      "extractF1": 0.982
+      "bytes": 2655680,
+      "exactCall": 0.86,
+      "extractF1": 0.975
     },
     {
       "label": "TFLite int8",
-      "bytes": 1791192,
+      "bytes": 1794008,
       "exactCall": null,
       "extractF1": null
     },
     {
       "label": ".rcn rq8",
-      "bytes": 1425088,
-      "exactCall": 0.907,
-      "extractF1": 0.982
+      "bytes": 1427264,
+      "exactCall": 0.86,
+      "extractF1": 0.975
     },
     {
       "label": ".rcn rq4",
-      "bytes": 769344,
-      "exactCall": 0.913,
-      "extractF1": 0.981
+      "bytes": 771520,
+      "exactCall": 0.867,
+      "extractF1": 0.972
     }
   ],
-  "parameters": 1320067,
+  "parameters": 1320835,
   "cycles": 3,
   "seqLen": 160,
-  "latencyP50Ms": 7.77,
-  "fireEceBefore": 0.004823492260179441,
-  "fireEceAfter": 0.0030744145312907706,
+  "latencyP50Ms": 2.5,
+  "fireEceBefore": 0.006771185702113762,
+  "fireEceAfter": 0.006021034886946575,
   "n": {
     "tools": 300,
     "unseenTools": 150,
@@ -52,50 +52,56 @@ export const ARC1_METRICS = {
     "calibrationFire": 749
   },
   "retrievalAt1": 1,
+  "realIntents": {
+    "accuracy": 0.5766666666666667,
+    "n": 600,
+    "labels": 5,
+    "chance": 0.2
+  },
   "byCycles": [
     {
       "cycles": 1,
-      "toolSelection": 0.9933333333333333,
-      "exactCall": 0.93,
-      "argumentAcc": 0.9321148825065274,
+      "toolSelection": 0.9833333333333333,
+      "exactCall": 0.85,
+      "argumentAcc": 0.8485639686684073,
       "noToolAcc": 1,
-      "exactCallUnseen": 0.29333333333333333,
-      "toolSelectionUnseen": 0.4266666666666667,
-      "extractionF1": 0.9856115107913669,
-      "exactRecord": 0.9533333333333334,
-      "classifyOverall": 0.6866666666666666,
+      "exactCallUnseen": 0.4,
+      "toolSelectionUnseen": 0.4866666666666667,
+      "extractionF1": 0.9648484848484848,
+      "exactRecord": 0.8666666666666667,
+      "classifyOverall": 0.7533333333333333,
       "classifyIntent": 1,
       "classifyIntentTool": 1,
       "classifyRequest": 1,
       "classifySentiment": 0.6896551724137931,
-      "classifySupport": 0.5185185185185185,
-      "classifyUnseen": 0.3333333333333333,
-      "classifyProducts": 0.2727272727272727,
+      "classifySupport": 0.6296296296296297,
+      "classifyUnseen": 0.64,
+      "classifyProducts": 0.6363636363636364,
       "classifyFeed": 0.625,
       "classifySearch": 0.6666666666666666,
-      "latencyP50Ms": 9.43
+      "latencyP50Ms": 2.51
     },
     {
       "cycles": 3,
-      "toolSelection": 0.99,
-      "exactCall": 0.9233333333333333,
-      "argumentAcc": 0.9242819843342036,
+      "toolSelection": 0.9833333333333333,
+      "exactCall": 0.86,
+      "argumentAcc": 0.8590078328981723,
       "noToolAcc": 1,
-      "exactCallUnseen": 0.2866666666666667,
-      "toolSelectionUnseen": 0.4,
-      "extractionF1": 0.9808153477218226,
-      "exactRecord": 0.9333333333333333,
-      "classifyOverall": 0.68,
+      "exactCallUnseen": 0.38666666666666666,
+      "toolSelectionUnseen": 0.49333333333333335,
+      "extractionF1": 0.9662650602409639,
+      "exactRecord": 0.88,
+      "classifyOverall": 0.7466666666666667,
       "classifyIntent": 1,
       "classifyIntentTool": 1,
       "classifyRequest": 1,
-      "classifySentiment": 0.7241379310344828,
-      "classifySupport": 0.5185185185185185,
-      "classifyUnseen": 0.36,
-      "classifyProducts": 0.2727272727272727,
-      "classifyFeed": 0.625,
+      "classifySentiment": 0.6551724137931034,
+      "classifySupport": 0.7037037037037037,
+      "classifyUnseen": 0.6266666666666667,
+      "classifyProducts": 0.5454545454545454,
+      "classifyFeed": 0.5,
       "classifySearch": 0.5833333333333334,
-      "latencyP50Ms": 7.77
+      "latencyP50Ms": 2.5
     }
   ]
 } as const;

@@ -9,6 +9,7 @@ weights, config (with calibration), tokenizer, and metrics are written.
 
   python examples/train_arc1.py --preset arc1-tiny --steps 4000
   python examples/train_arc1.py --eval-only            # re-evaluate saved weights
+  python examples/train_arc1.py --teacher-cache data/arc1_teacher   # distilled A -> B -> C recipe
 """
 
 from __future__ import annotations
@@ -31,6 +32,10 @@ from gpbacay_arcane.arc1_codec import Arc1Codec, tool_text
 from gpbacay_arcane.arc1_data import build_tool_library, sample_extract_example, sample_tool_example
 from gpbacay_arcane.arc1_train import TrainConfig, calibrate, full_evaluation, save_artifacts, train
 from gpbacay_arcane.tokenization import BASE_VOCAB, BytePairTokenizer
+from gpbacay_arcane.tools import Arc1Agent
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CLINC = os.path.join(ROOT, "data", "external", "clinc150_data_full.json")
 
 
 def parse_args():
@@ -49,6 +54,13 @@ def parse_args():
     p.add_argument("--skip-eval", action="store_true", help="Train and save only; run --eval-only afterwards")
     p.add_argument("--eval-examples", type=int, default=300)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--teacher-cache", default=None,
+                   help="Teacher embeddings dir (gpbacay_arcane/arc1_distill.py): stages A, B, then --steps of stage C")
+    p.add_argument("--steps-a", type=int, default=3000, help="Stage A: contrastive request->tool + distillation")
+    p.add_argument("--steps-b", type=int, default=1000, help="Stage B: stage A with teacher-mined hard negatives")
+    p.add_argument("--start-stage", default="A", choices=["A", "B", "C"], help="Resume a distilled run at this stage")
+    p.add_argument("--distill-weight", type=float, default=0.5, help="Stage C weight of the teacher distillation loss")
+    p.add_argument("--replay-weight", type=float, default=0.5, help="Stage C weight of the contrastive replay loss")
     return p.parse_args()
 
 
@@ -98,7 +110,13 @@ def main():
             seed=args.seed,
         )
         tokenizer.save(tok_path)
-        train_info = train(model, tokenizer, tc, prefix, resume=args.resume)
+        if args.teacher_cache:
+            from gpbacay_arcane.arc1_distill import DistillConfig, train_distilled
+            dc = DistillConfig(steps_a=args.steps_a, steps_b=args.steps_b,
+                               distill_weight_c=args.distill_weight, replay_weight=args.replay_weight)
+            train_info = train_distilled(model, tokenizer, tc, dc, args.teacher_cache, prefix, args.start_stage)
+        else:
+            train_info = train(model, tokenizer, tc, prefix, resume=args.resume)
         if args.skip_eval:
             model.save_weights(prefix + ".weights.h5")
             print(f"saved weights: {prefix}.weights.h5 (run --eval-only to calibrate + evaluate)")
@@ -109,6 +127,11 @@ def main():
     print(f"[arc1] calibration: {json.dumps(calibration)}", flush=True)
     evaluation = full_evaluation(model, tokenizer, n_tool=args.eval_examples,
                                  cycles_list=sorted({1, config.binding_cycles}))
+    if os.path.exists(CLINC):  # real utterances, intents no training corpus contained
+        from gpbacay_arcane.arc1_distill import evaluate_real_intents
+        agent = Arc1Agent(model, tokenizer)
+        evaluation["real_intents"] = {f"cycles_{c}": evaluate_real_intents(agent, CLINC, n=600, cycles=c)
+                                      for c in sorted({1, config.binding_cycles})}
     print(json.dumps(evaluation, indent=2), flush=True)
 
     metrics = {
