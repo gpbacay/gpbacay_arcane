@@ -135,7 +135,7 @@ DSTSMGSER = NeuromimeticSemanticModel
 GSERModel = NeuromimeticSemanticModel
 CoherentThoughtModel = NeuromimeticSemanticModel
 
-__version__ = "3.0.0"
+__version__ = "4.1.0"
 __author__ = "Gianne P. Bacay"
 __description__ = "Neuromimetic Semantic Foundation Model with Biologically-Inspired Neural Mechanisms"
 
