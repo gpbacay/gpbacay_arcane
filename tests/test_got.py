@@ -156,6 +156,25 @@ def test_follow_up_evidence_reaches_the_prompt_and_budget_is_reported():
     assert capped["budget_exhausted"] and capped["unsupported"] == [HALLUCINATED]
 
 
+def test_empty_off_topic_and_contradicted_answers_lose():
+    g = DocumentGraph()
+    g.add_document(GUIDE, "User Guide")
+
+    def reason(*answers, **kwargs):
+        llm, _ = scripted(json.dumps({"thoughts": [{"answer": a} for a in answers]}))
+        return GroundedGraphOfThought(g, llm, max_llm_calls=1, **kwargs).reason("config fails, what now?")
+
+    partial = f"{GROUNDED} {HALLUCINATED}"
+    assert reason("It is what it is.", partial)["answer"] == partial  # nothing to check is not "fully grounded"
+    off_topic = "Push the build to the server. Run npm install to get started."  # more grounded mass, wrong sections
+    assert reason(off_topic, GROUNDED)["answer"] == GROUNDED
+
+    def nli(claim, evidence):  # stand-in for an entailment model
+        return 0.0 if "never" in claim.lower() else 1.0
+    assert reason("Never edit config.json.", verify=nli)["unsupported"] == ["Never edit config.json."]
+    assert reason("Never edit config.json.")["unsupported"] == []  # the lexical check alone misses it
+
+
 def test_tools_run_through_arcane_executor():
     g = DocumentGraph()
     assert "got_remove_document" not in [t.name for t in got_tools(g)]  # write tools are opt-in

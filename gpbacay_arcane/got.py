@@ -477,8 +477,14 @@ def _union(*lists: Sequence[str]) -> List[str]:
 
 
 def _net(t: Dict[str, Any]) -> float:
-    """Supported term mass minus penalized unsupported mass: rewards grounded content, not just short answers."""
-    return t["grounded"] - UNSUPPORTED_PENALTY * (t["mass"] - t["grounded"])
+    """Supported mass, weighted by its sections' relevance to the question, minus penalized unsupported mass.
+
+    Rewards grounded, on-topic content, not just short answers; an answer with nothing to check
+    ("It is what it is.") ranks last instead of passing as fully grounded.
+    """
+    if not t["mass"]:
+        return float("-inf")
+    return t["relevant"] - UNSUPPORTED_PENALTY * (t["mass"] - t["grounded"])
 
 
 class _Run:
@@ -490,21 +496,31 @@ class _Run:
         self.frontier: List[Dict[str, Any]] = []
         self.calls = 0
         self.exhausted = False
+        # How relevant each section is to the question, so an answer grounded in off-topic sections ranks low
+        graph = got.graph
+        self.relevance = {h["nodeId"]: h["score"]
+                          for h in graph.search(question, **dict(got.search_kwargs, max_results=len(graph.nodes)))}
 
     def add(self, content: str, operation: str, parents: List[Dict[str, Any]], evidence: List[str], **meta) -> Dict[str, Any]:
         """Record a thought, verifying each of its sentences against its evidence (no LLM call)."""
-        claims = []
+        graph, verify, claims = self.got.graph, self.got.verify, []
         for text in _SENTENCE.split(content):
             text = text.strip(" \t-*")
-            share, nodes, mass = self.got.graph.support(text, evidence)
-            if mass:
-                claims.append({"text": text, "support": share, "nodes": nodes, "mass": mass,
-                               "supported": share >= self.got.min_support})
+            share, nodes, mass = graph.support(text, evidence)
+            if not mass:
+                continue
+            if verify and share >= self.got.min_support:  # only what passes lexically; verify can only lower it
+                share *= float(verify(text, "\n\n".join(graph.nodes[n]["content"] for n in nodes)))
+            claims.append({"text": text, "support": share, "nodes": nodes, "mass": mass,
+                           "relevance": max((self.relevance.get(n, 0.0) for n in nodes), default=0.0),
+                           "supported": share >= self.got.min_support})
         mass = sum(c["mass"] for c in claims)
         grounded = sum(c["support"] * c["mass"] for c in claims)
+        relevant = sum(c["support"] * c["mass"] * c["relevance"] for c in claims)
         t = {"id": f"t{len(self.thoughts) + 1}", "content": content, "operation": operation,
              "parents": [p["id"] for p in parents], "evidence": evidence, "claims": claims,
-             "score": grounded / mass if mass else 0.0, "grounded": grounded, "mass": mass, **meta}
+             "score": grounded / mass if mass else 0.0, "grounded": grounded, "relevant": relevant,
+             "mass": mass, **meta}
         self.thoughts[t["id"]] = t
         return t
 
@@ -580,8 +596,9 @@ class ops:
 
     @staticmethod
     def keep_best(n: int = 1):
-        """Keep the ``n`` most grounded thoughts; candidates under two-thirds supported (net <= 0) are
-        dropped while a better one exists, so a later merge has nothing ungrounded to blend in."""
+        """Keep the ``n`` most grounded, on-topic thoughts; candidates with net <= 0 (under two-thirds
+        supported, or backed only by sections the question doesn't reach) are dropped while a better one
+        exists, so a later merge has nothing ungrounded to blend in."""
         def run(r: _Run):
             ranked = sorted(r.frontier, key=lambda t: -_net(t))
             r.frontier = [t for t in ranked[:n] if _net(t) > 0] or ranked[:1]
@@ -662,12 +679,16 @@ class GroundedGraphOfThought:
         graph: the ``DocumentGraph`` to search.
         llm: any ``prompt -> text`` callable (Claude, OpenAI, Ollama, a local model...).
         min_support: share of a sentence's term mass the evidence must cover for it to count as supported.
+        verify: optional ``(claim, evidence_text) -> probability`` that the evidence entails the claim,
+            e.g. an NLI model. It multiplies the lexical support of sentences that pass it, so it catches
+            negations and wrong relations the term check can't ("never edit config.json").
         search_kwargs: forwarded to ``DocumentGraph.search``.
     """
 
     def __init__(self, graph: DocumentGraph, llm: Callable[[str], str], max_llm_calls: int = 16,
-                 max_evidence: int = 10, max_evidence_chars: int = 1500, min_support: float = 0.5, **search_kwargs):
-        self.graph, self.llm = graph, llm
+                 max_evidence: int = 10, max_evidence_chars: int = 1500, min_support: float = 0.5,
+                 verify: Optional[Callable[[str, str], float]] = None, **search_kwargs):
+        self.graph, self.llm, self.verify = graph, llm, verify
         self.max_llm_calls, self.min_support = max_llm_calls, min_support
         self.max_evidence, self.max_evidence_chars = max_evidence, max_evidence_chars
         self.search_kwargs = search_kwargs

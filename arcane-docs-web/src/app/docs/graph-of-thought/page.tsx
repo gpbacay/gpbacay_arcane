@@ -45,7 +45,7 @@ const EDGES: [string, string, string][] = [
 const OPS: [string, string][] = [
   ["ops.retrieve(query=None)", "Searches the graph for the question or a sub-query and attaches the hits as evidence."],
   ["ops.generate(k)", "Branches each thought into k candidate answers in one LLM call."],
-  ["ops.keep_best(n)", "Keeps the n most grounded thoughts, and drops any under two-thirds supported while a better one exists."],
+  ["ops.keep_best(n)", "Keeps the n most grounded thoughts, weighted by how relevant their sections are to the question, and drops weak or off-topic ones while a better one exists."],
   ["ops.aggregate()", "Merges several thoughts into one, the step a tree of thoughts can't do. The merge is kept only if it is at least as grounded as its best parent."],
   ["ops.refine(max_rounds)", "Searches the graph with each unsupported sentence first, then asks the LLM to rewrite only what is still unsupported. A rewrite that lowers grounding is discarded."],
 ];
@@ -246,6 +246,9 @@ result["llm_calls"], result["budget_exhausted"]
 
 graph.support("Set DATABASE_URL before starting.", ["user-guide#3"])  # (1.0, ["user-guide#3"], mass)
 
+# Optional entailment check: (claim, evidence) -> probability, e.g. an NLI model
+got = GroundedGraphOfThought(graph, llm=my_llm, verify=my_nli)
+
 # Custom plan
 got.reason(question, [ops.retrieve(), ops.generate(5), ops.keep_best(3), ops.aggregate(), ops.refine(3)])`}
         />
@@ -360,7 +363,7 @@ graph = DocumentGraph.from_json(json.load(open("graph.json")))`}
             ["Simple stemming", "Common suffixes are removed, but it is not a full stemmer, so some word forms still miss."],
             ["Size", "Semantic linking compares each new section with every other section, which suits up to tens of thousands of sections."],
             ["Term links age", "Term-based links use word rarity at the time a document is added. Re-add a document to refresh them."],
-            ["Lexical verification", "The check counts shared words, so an honest paraphrase scores lower and a negated claim (\"never edit config.json\") still matches. It catches invented facts, not contradictions."],
+            ["Lexical verification", "The check counts shared words, so an honest paraphrase scores lower and a negated claim (\"never edit config.json\") still matches. Pass verify= (an NLI model, for example) to catch contradictions."],
             ["Not benchmarked yet", "The design is tested with scripted models only. Its effect on answer quality against a real LLM has not been measured."],
             ["Sequential LLM calls", "Reasoning steps call the model one at a time, so a plan's latency is the sum of its calls."],
             ["Tool routing", "Use an LLM to pick tools; arc1-tiny is not trained for them yet."],

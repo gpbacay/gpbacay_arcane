@@ -250,7 +250,10 @@ Every thought's sentences are checked against the document graph when the though
   sentences still unsupported go back to the LLM;
 - **decides citations**: only sections that back a supported sentence are cited.
 
-The check is lexical: paraphrases score lower and a negated claim still matches. `embed=` takes any
+Supported sentences are weighted by how relevant their sections are to the question, so an answer
+grounded in off-topic sections loses to an on-topic one, and an answer with nothing checkable ranks last.
+The check is lexical: paraphrases score lower and a negated claim still matches unless you pass
+`verify=`, any `(claim, evidence) -> entailment probability` function such as an NLI model. `embed=` takes any
 `text -> vector` function for semantic links; arc1-tiny's embeddings are too weak for this, so use a
 sentence-embedding model. `got_tools` is read-only unless you pass `writable=True`. The bundled `arc1-tiny`
 is not trained to route these tools, so drive them with an LLM, or fine-tune ARC 1 before you hand them
