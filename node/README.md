@@ -31,6 +31,22 @@ agent.close();
 - The Python interpreter is `options.python`, then `$ARC1_PYTHON`, then `python` on Windows or `python3` elsewhere.
 - Tools are not executed here. Use `function_calls` in your own code.
 
+## Node.js without Python
+
+`gpbacay-arcane/web` also runs in plain Node.js (ESM) with no Python install:
+
+```sh
+npm install gpbacay-arcane onnxruntime-web
+```
+
+```js
+import { load } from "gpbacay-arcane/web";
+
+const agent = await load(); // reads the bundled arc1.onnx / arc1.json from disk
+const r = await agent.classify("I was charged twice", ["billing", "shipping"]);
+await agent.close();
+```
+
 ## In the browser (no server, no Python)
 
 `gpbacay-arcane/web` runs the same model client-side with [onnxruntime-web](https://www.npmjs.com/package/onnxruntime-web) (WebAssembly). The model is 5.5 MB, and the browser fetches it once and caches it. Results match the Python package.

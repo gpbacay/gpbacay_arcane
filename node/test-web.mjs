@@ -1,14 +1,10 @@
 // Parity test: web.mjs (onnxruntime-web) vs the Python model (index.js). node test-web.mjs
 import assert from "node:assert";
-import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { load } from "./web.mjs";
 
 const py = await createRequire(import.meta.url)("./index.js").load();
-const web = await load({
-  model: await readFile(new URL("./web/arc1.onnx", import.meta.url)),
-  config: JSON.parse(await readFile(new URL("./web/arc1.json", import.meta.url), "utf8")),
-});
+const web = await load(); // default: the bundled web/arc1.onnx + arc1.json, read from disk in Node
 
 const weather = { name: "get_weather", description: "Get the current weather for a city.",
   parameters: [{ name: "city", description: "City name" }, { name: "unit", required: false, enum: ["celsius", "fahrenheit"] }] };

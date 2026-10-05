@@ -117,6 +117,9 @@ function validateCalls(calls, tools) {
 // ---------------------------------------------------------------------- load
 const DEFAULT_MODEL = new URL("./web/arc1.onnx", import.meta.url);
 const DEFAULT_CONFIG = new URL("./web/arc1.json", import.meta.url);
+// Node's fetch() can't read file: URLs (the defaults outside a bundler), so read those from disk.
+const isFile = (src) => String(src instanceof URL ? src.href : src).startsWith("file:");
+const readFileUrl = async (src) => (await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ /* @vite-ignore */ "node:fs/promises")).readFile(new URL(src));
 
 /**
  * Load ARC 1 in the browser.
@@ -131,8 +134,10 @@ export async function load(options = {}) {
   else if (typeof window !== "undefined" && !ort.env.wasm.wasmPaths)
     ort.env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ort.env.versions.web}/dist/`;
   const cfgSrc = options.config ?? DEFAULT_CONFIG;
-  const meta = typeof cfgSrc === "object" && !(cfgSrc instanceof URL) ? cfgSrc : await (await fetch(cfgSrc)).json();
-  const modelSrc = options.model ?? DEFAULT_MODEL;
+  const meta = typeof cfgSrc === "object" && !(cfgSrc instanceof URL) ? cfgSrc
+    : isFile(cfgSrc) ? JSON.parse(await readFileUrl(cfgSrc)) : await (await fetch(cfgSrc)).json();
+  let modelSrc = options.model ?? DEFAULT_MODEL;
+  if (isFile(modelSrc)) modelSrc = await readFileUrl(modelSrc);
   const session = await ort.InferenceSession.create(modelSrc instanceof URL ? modelSrc.href : modelSrc, options.sessionOptions);
   const cfg = meta.config, d = cfg.d_model, cycles = meta.cycles;
   const temp = (k) => cfg.calibration?.[k] ?? 1;
