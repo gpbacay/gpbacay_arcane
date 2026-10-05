@@ -1,7 +1,12 @@
-"""Reactor: retrieval-augmented decisions for fast System 1 models.
+"""Hippocampus: a fast-learning memory of decided examples for System 1 models.
+
+Named for its role in the brain (complementary learning systems): the neocortex, here the model, learns
+slowly and holds general knowledge in its weights; the hippocampus stores single episodes at once and
+biases the cortex's decision when a similar cue comes back. Examples are stored by ``remember``, recalled
+by similarity, and mixed with the model's own judgment, never written into its weights.
 
 RAG gives an LLM knowledge its weights lack by retrieving text at request time. A System 1 decision
-model (ARC 1, a small classifier, an LLM used as a router) does not read retrieved prose, so Reactor
+model (ARC 1, a small classifier, an LLM used as a router) does not read retrieved prose, so Hippocampus
 retrieves *decisions* instead: ``remember(text, label)`` stores a decided example in a ``DocumentGraph``,
 and at request time the examples most like the input vote for their labels (kNN-LM style, weighted by
 search score). The vote is combined with the model's own probabilities. New examples take effect on the
@@ -87,7 +92,7 @@ def _template(text: str, arguments: Dict[str, Any], params: Dict[str, Any]):
     return re.compile(head + r"\W+".join(parts) + tail, re.IGNORECASE), keys, fixed
 
 
-class Reactor:
+class Hippocampus:
     """A System 1 model plus a dynamic memory of decided examples.
 
     Examples are documents whose id starts with ``memory-``, with the label in ``description`` and any
@@ -208,7 +213,7 @@ class Reactor:
 
         Returns the model's own output fields (if any), with ``label``, ``confidence``, ``distribution``,
         ``source`` (``model``, ``memory`` or ``model+memory``) and ``neighbors`` (the evidence). With no
-        model and no similar example, ``label`` is ``None``: Reactor abstains rather than guess.
+        model and no similar example, ``label`` is ``None``: Hippocampus abstains rather than guess.
         """
         labels = [str(x) for x in dict.fromkeys(labels)]
         model_dist, out = self._model_distribution(text, labels, **model_kwargs)
@@ -269,3 +274,6 @@ class Reactor:
             out["source"] = "model+memory"
         out["memory_arguments"], out["neighbors"] = filled, memory["neighbors"]
         return out
+
+
+Reactor = Hippocampus  # former name, kept so existing imports keep working

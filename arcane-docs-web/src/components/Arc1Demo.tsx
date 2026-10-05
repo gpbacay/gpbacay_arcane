@@ -36,10 +36,10 @@ type Health = {
   binding_cycles?: number;
   layers?: number;
   error?: string | null;
-  reactor?: boolean;
+  hippocampus?: boolean;
 };
 
-/** A decided example in Reactor's memory: a class label or tool name (null = no tool applies). */
+/** A decided example in Hippocampus's memory: a class label or tool name (null = no tool applies). */
 type MemoryItem = { text: string; label: string | null; arguments?: Record<string, unknown> };
 
 type Neighbor = { text: string; label: string | null; score: number };
@@ -108,7 +108,7 @@ type Scene = {
   labels?: string[];
   task?: string;
   state: Array<{ key: string; label: string; value: string }>;
-  /** Examples preloaded into Reactor's memory for this scene. */
+  /** Examples preloaded into Hippocampus's memory for this scene. */
   memory?: MemoryItem[];
 };
 
@@ -176,8 +176,8 @@ const TOOL_FOOD: ToolDef = {
 const SCENES: Scene[] = [
   {
     id: "new-tools",
-    label: "New tools (Reactor)",
-    description: "Tools ARC 1 never trained on. Switch the harness to Reactor to teach them by example",
+    label: "New tools (Hippocampus)",
+    description: "Tools ARC 1 never trained on. Switch the harness to Hippocampus to teach them by example",
     icon: Library,
     mode: "run",
     tools: [TOOL_RATE, TOOL_PODCAST, TOOL_FOOD],
@@ -633,7 +633,7 @@ function describeMemory(m: MemoryItem) {
   return m.label ? `${m.label}${args}` : "no tool";
 }
 
-/** Reactor's memory for the scene: what ARC 1 retrieves at request time, and a form to teach it more. */
+/** Hippocampus's memory for the scene: what ARC 1 retrieves at request time, and a form to teach it more. */
 function MemoryPanel({
   scene,
   labelNames,
@@ -674,7 +674,7 @@ function MemoryPanel({
   return (
     <div className="mt-4 border border-zinc-800">
       <div className="flex items-baseline justify-between gap-3 border-b border-zinc-800 px-3 py-2">
-        <h3 className="text-sm font-medium text-zinc-200">Reactor memory</h3>
+        <h3 className="text-sm font-medium text-zinc-200">Hippocampus memory</h3>
         <span className="text-xs tabular-nums text-zinc-500">
           {memory.length} example{memory.length === 1 ? "" : "s"}
         </span>
@@ -771,8 +771,8 @@ export function Arc1Demo() {
   const [checking, setChecking] = useState(true);
   const [sceneId, setSceneId] = useState(DEFAULT_SCENE.id);
   const [input, setInput] = useState(DEFAULT_SCENE.prompts[0]);
-  const [useReactor, setUseReactor] = useState(false);
-  // Reactor memory per scene, seeded from the scene's examples. It lives in this page and is sent with
+  const [useHippocampus, setUseHippocampus] = useState(false);
+  // Hippocampus memory per scene, seeded from the scene's examples. It lives in this page and is sent with
   // each request, so the server stays stateless and visitors never share a memory.
   const [memories, setMemories] = useState<Record<string, MemoryItem[]>>({});
   const [cycles, setCycles] = useState<number | null>(null);
@@ -789,12 +789,12 @@ export function Arc1Demo() {
 
   const scene = useMemo(() => SCENES.find((s) => s.id === sceneId) || DEFAULT_SCENE, [sceneId]);
   const memory = useMemo(() => memories[scene.id] ?? scene.memory ?? [], [memories, scene]);
-  const reactorReady = Boolean(health?.reactor) && scene.mode !== "extract";
-  const reactorOn = useReactor && reactorReady;
+  const hippocampusReady = Boolean(health?.hippocampus) && scene.mode !== "extract";
+  const hippocampusOn = useHippocampus && hippocampusReady;
   const remember = useCallback(
     (item: MemoryItem) =>
       setMemories((prev) => {
-        // Same text again replaces it, as Reactor.remember does.
+        // Same text again replaces it, as Hippocampus.remember does.
         const current = (prev[scene.id] ?? scene.memory ?? []).filter((m) => m.text !== item.text);
         return { ...prev, [scene.id]: [...current, item].slice(-200) };
       }),
@@ -905,7 +905,7 @@ export function Arc1Demo() {
     setError(null);
     try {
       const isRun = scene.mode === "run";
-      const withMemory = reactorOn ? { memory } : {};
+      const withMemory = hippocampusOn ? { memory } : {};
       const [url, body] =
         scene.mode === "run"
           ? ["/api/arc1-run", { prompt: text, tools: scene.tools, execute: true, cycles: activeCycles, ...withMemory }]
@@ -937,12 +937,12 @@ export function Arc1Demo() {
     } finally {
       setSending(false);
     }
-  }, [input, sending, health, scene, labels, activeCycles, applyEffects, reactorOn, memory]);
+  }, [input, sending, health, scene, labels, activeCycles, applyEffects, hippocampusOn, memory]);
 
   const decisions = useMemo(() => (result ? argumentDecisions(result) : []), [result]);
   const calls = result?.function_calls || [];
   const fired = new Set(calls.map((c) => c.name));
-  // Arguments Reactor copied through a remembered pattern replace ARC 1's anchors for that tool.
+  // Arguments Hippocampus copied through a remembered pattern replace ARC 1's anchors for that tool.
   const memTools = new Set(result?.memory_arguments || []);
   const fromMemory: Decision[] = calls
     .filter((c) => memTools.has(c.name))
@@ -1083,7 +1083,7 @@ export function Arc1Demo() {
               ))}
             </div>
             {scene.mode === "classify" && <LabelEditor labels={labels} onChange={setLabels} />}
-            {reactorOn && (
+            {hippocampusOn && (
               <MemoryPanel
                 scene={scene}
                 labelNames={labelNames}
@@ -1197,7 +1197,7 @@ export function Arc1Demo() {
 
                 {result.neighbors && (
                   <div>
-                    <h3 className="mb-2 text-sm font-medium text-zinc-400">Reactor: remembered examples used</h3>
+                    <h3 className="mb-2 text-sm font-medium text-zinc-400">Hippocampus: remembered examples used</h3>
                     {result.neighbors.length ? (
                       <ul className="divide-y divide-zinc-900 border-y border-zinc-900">
                         {result.neighbors.map((n) => (
@@ -1263,14 +1263,14 @@ export function Arc1Demo() {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    aria-label="About the Reactor harness"
+                    aria-label="About the Hippocampus harness"
                     className="text-zinc-500 transition-colors hover:text-zinc-200 focus-visible:text-zinc-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
                   >
                     <Info className="h-3.5 w-3.5" aria-hidden />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="max-w-56 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
-                  Reactor gives ARC 1 a memory of decided examples. Similar examples vote and show where arguments
+                  Hippocampus gives ARC 1 a memory of decided examples. Similar examples vote and show where arguments
                   sit, so it handles new tools and labels without fine-tuning.
                 </TooltipContent>
               </Tooltip>
@@ -1278,17 +1278,17 @@ export function Arc1Demo() {
             <div className="grid grid-cols-2 gap-px bg-zinc-800" role="radiogroup" aria-label="Harness">
               {[
                 { on: false, label: "ARC 1" },
-                { on: true, label: "+ Reactor" },
+                { on: true, label: "+ Hippocampus" },
               ].map((opt) => (
                 <button
                   key={opt.label}
                   type="button"
                   role="radio"
-                  aria-checked={reactorOn === opt.on}
-                  disabled={opt.on && !reactorReady}
-                  onClick={() => setUseReactor(opt.on)}
+                  aria-checked={hippocampusOn === opt.on}
+                  disabled={opt.on && !hippocampusReady}
+                  onClick={() => setUseHippocampus(opt.on)}
                   className={`py-1.5 text-sm transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2] disabled:cursor-not-allowed disabled:opacity-40 ${
-                    reactorOn === opt.on ? "bg-[#835BD9] text-white" : "bg-zinc-950 text-zinc-400 hover:text-zinc-100"
+                    hippocampusOn === opt.on ? "bg-[#835BD9] text-white" : "bg-zinc-950 text-zinc-400 hover:text-zinc-100"
                   }`}
                 >
                   {opt.label}
@@ -1296,12 +1296,12 @@ export function Arc1Demo() {
               ))}
             </div>
             {scene.mode === "extract" ? (
-              <p className="mt-1.5 text-[11px] leading-snug text-zinc-500">Reactor covers tools and labels, not extraction.</p>
-            ) : health?.ready && !health.reactor ? (
-              <p className="mt-1.5 text-[11px] leading-snug text-zinc-500">This ARC 1 server doesn&apos;t support Reactor yet.</p>
+              <p className="mt-1.5 text-[11px] leading-snug text-zinc-500">Hippocampus covers tools and labels, not extraction.</p>
+            ) : health?.ready && !health.hippocampus ? (
+              <p className="mt-1.5 text-[11px] leading-snug text-zinc-500">This ARC 1 server doesn&apos;t support Hippocampus yet.</p>
             ) : null}
-            <a href="/docs/reactor" className="mt-1.5 inline-block text-[11px] text-zinc-500 underline hover:text-zinc-200">
-              How Reactor works
+            <a href="/docs/hippocampus" className="mt-1.5 inline-block text-[11px] text-zinc-500 underline hover:text-zinc-200">
+              How Hippocampus works
             </a>
           </fieldset>
 

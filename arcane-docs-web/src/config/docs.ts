@@ -96,9 +96,9 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
           keywords: ["got", "graph of thoughts", "grounded", "verification", "hallucination", "rag", "retrieval", "knowledge graph", "bm25", "document search", "reasoning", "agent", "tools", "harness", "citations"]
         },
         {
-          title: "Reactor",
-          href: "/docs/reactor",
-          keywords: ["reactor", "rag", "retrieval", "memory", "knn", "few-shot", "system 1", "decisions", "classification", "routing", "intent", "tool calling", "model-agnostic", "no fine-tuning", "examples", "harness"]
+          title: "Hippocampus",
+          href: "/docs/hippocampus",
+          keywords: ["hippocampus", "reactor", "neocortex", "episodic memory", "brain", "complementary learning systems", "rag", "retrieval", "memory", "knn", "few-shot", "system 1", "decisions", "classification", "routing", "intent", "tool calling", "model-agnostic", "no fine-tuning", "examples", "harness"]
         },
       ],
     },

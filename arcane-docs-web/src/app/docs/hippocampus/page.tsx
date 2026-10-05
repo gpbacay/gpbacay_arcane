@@ -12,7 +12,7 @@ const link = "font-medium text-[#C785F2] underline hover:text-[#d49cf5]";
 const th = "py-2 pr-4 font-medium";
 const td = "py-2.5 pr-4 tabular-nums text-zinc-300";
 
-const README_URL = "https://github.com/gpbacay/gpbacay_arcane#reactor--use-arc-1-on-your-tools-and-labels-without-fine-tuning";
+const README_URL = "https://github.com/gpbacay/gpbacay_arcane#hippocampus--a-fast-learning-memory-for-any-decision-model";
 
 // Points gained over the base model alone, from the tables below (arc1-tiny, held-out intents and tools).
 const GAINS: [string, string, string, string][] = [
@@ -45,6 +45,14 @@ const CAPABILITIES = [
   },
 ];
 
+const BRAIN: [string, string, string][] = [
+  ["Learns one experience at once", "remember(text, label)", "Takes effect on the next request, no training."],
+  ["A cue brings back similar episodes", "Retrieval of the 8 most similar examples", "BM25 keyword scoring over the stored examples."],
+  ["Recalled episodes bias the cortex", "Vote mixed with the model's probabilities", "Neither side decides alone; combined they beat both."],
+  ["Correcting or losing a memory", "Re-remember the same text, or forget()", "A wrong example is overwritten, not baked into weights."],
+  ["Knowing what you remembered", "neighbors returned with each decision", "Every decision lists the examples behind it."],
+];
+
 const MODELS: [string, string][] = [
   ["None", "Memory only. Decides from the vote; returns label=None when nothing similar is stored, instead of guessing."],
   ["(text, labels) -> {label: probability}", "Any function: a scikit-learn classifier, an embedding model, an LLM asked to score the labels."],
@@ -68,18 +76,19 @@ const TOOLS: [string, string, string, string, string][] = [
   ["10", "99.3%", "54.7%", "99.3%", "100%"],
 ];
 
-export default function ReactorPage() {
+export default function HippocampusPage() {
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
       <header className="not-prose mb-12">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#C785F2]">ARCANE · Harness</p>
         <h1 className="mt-3 max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-[-0.03em] text-zinc-50 sm:text-5xl">
-          Reactor
+          Hippocampus
         </h1>
         <p className="mt-6 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          A memory of decided examples that makes a model better at your labels and tools without retraining it.
+          A fast-learning memory, modeled on the brain&apos;s hippocampus, that makes a model better at your labels
+          and tools without retraining it. Formerly called Reactor.
           RAG lets a language model use your knowledge by retrieving text when a request arrives. Many models,
-          such as classifiers, routers and tool-calling models, can&apos;t read retrieved text, so Reactor retrieves
+          such as classifiers, routers and tool-calling models, can&apos;t read retrieved text, so Hippocampus retrieves
           past <em>decisions</em> instead. The examples most like the request vote for their labels or tools, the
           vote is combined with the model&apos;s own probabilities, and remembered tool calls show where each
           argument sits in a request.
@@ -116,11 +125,47 @@ export default function ReactorPage() {
           . Search needs only numpy, with no API keys or vector database.
         </p>
 
+        <h2 id="brain" className={h2}>
+          Inspired by the brain
+        </h2>
+        <p className={p}>
+          Complementary learning systems theory says the brain keeps two learners. The neocortex learns slowly and
+          holds general knowledge in its connections. The hippocampus stores single episodes at once without
+          rewiring the cortex, and when a similar cue returns it recalls them to steer the cortex&apos;s decision.
+          Hippocampus plays that second role next to any model, which plays the first.
+        </p>
+        <div className="not-prose mt-6 overflow-x-auto">
+          <table className="w-full min-w-[560px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-zinc-500">
+                <th className={th}>In the brain</th>
+                <th className={th}>Here</th>
+                <th className="py-2 font-medium">What it means</th>
+              </tr>
+            </thead>
+            <tbody>
+              {BRAIN.map(([brain, here, body]) => (
+                <tr key={brain} className="border-b border-zinc-900 align-top">
+                  <td className="py-2.5 pr-4 text-zinc-100">{brain}</td>
+                  <td className="py-2.5 pr-4 font-mono text-xs text-zinc-300">{here}</td>
+                  <td className="py-2.5 text-zinc-400">{body}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={`${p} mt-4 text-sm text-zinc-400`}>
+          The analogy is loose. The brain consolidates: it replays hippocampal memories during sleep to train the
+          cortex slowly, whereas Hippocampus never moves examples into the model&apos;s weights, so the memory keeps
+          growing. Its retrieval matches keywords, not meaning and context. And it stores decided examples and counts
+          votes, closer to exemplar theories of categorization than to full episodic memory.
+        </p>
+
         <h2 id="improvement" className={h2}>
           How much it improves
         </h2>
         <p className={p}>
-          Reactor adds accuracy in proportion to how many examples you give it, and the first few help most. Gains
+          Hippocampus adds accuracy in proportion to how many examples you give it, and the first few help most. Gains
           below are percentage points over the same model with no memory, on text and tools the model was never
           trained on.
         </p>
@@ -169,32 +214,32 @@ export default function ReactorPage() {
         </h2>
         <CodeSnippet filename="Terminal" language="bash" lineNumbers={false} code="pip install gpbacay-arcane" />
         <CodeSnippet
-          filename="reactor.py"
+          filename="hippocampus.py"
           language="python"
-          code={`from gpbacay_arcane import Reactor, load_arc1
+          code={`from gpbacay_arcane import Hippocampus, load_arc1
 
-reactor = Reactor(load_arc1())        # or any model, or Reactor() for memory only
+hippocampus = Hippocampus(load_arc1())        # or any model, or Hippocampus() for memory only
 
 # Labels: a text and the label it should get
-reactor.remember("I was charged twice this month", "billing")
-reactor.remember("my parcel never arrived", "shipping")
+hippocampus.remember("I was charged twice this month", "billing")
+hippocampus.remember("my parcel never arrived", "shipping")
 
-out = reactor.classify("why is my card charged again?", ["billing", "shipping"])
+out = hippocampus.classify("why is my card charged again?", ["billing", "shipping"])
 out["label"], out["source"]   # "billing", "model+memory"; out["confidence"] is the mixed probability
 out["neighbors"]              # the remembered examples that voted
 
 # Tools: a request, the tool, and the call's arguments
-reactor.remember("rate Dune 4 stars", "rate_movie", {"title": "Dune", "stars": 4})
-reactor.remember("switch bluetooth off", "toggle_bluetooth", {"enabled": False})
-reactor.remember("thanks, that's all", None)   # None = no tool applies
+hippocampus.remember("rate Dune 4 stars", "rate_movie", {"title": "Dune", "stars": 4})
+hippocampus.remember("switch bluetooth off", "toggle_bluetooth", {"enabled": False})
+hippocampus.remember("thanks, that's all", None)   # None = no tool applies
 
-out = reactor.run("rate spirited away 5 stars", tools=my_tools)
+out = hippocampus.run("rate spirited away 5 stars", tools=my_tools)
 out["function_calls"]     # [{"name": "rate_movie", "arguments": {"title": "spirited away", "stars": 5}}]
 out["memory_arguments"]   # ["rate_movie"]: these arguments came from a remembered request
 
-reactor.react("charged again?")                              # the memory's vote alone, no model call
-reactor.remember("I was charged twice this month", "fraud")  # same text: the label is corrected
-reactor.forget("thanks, that's all")`}
+hippocampus.react("charged again?")                              # the memory's vote alone, no model call
+hippocampus.remember("I was charged twice this month", "fraud")  # same text: the label is corrected
+hippocampus.forget("thanks, that's all")`}
         />
 
         <h2 id="how-it-works" className={h2}>
@@ -253,7 +298,7 @@ reactor.forget("thanks, that's all")`}
           </li>
           <li>
             <strong className="text-zinc-100">Fall back.</strong> A label with no examples, or a request with no
-            similar example, is decided by the model alone. With no model either, Reactor abstains.
+            similar example, is decided by the model alone. With no model either, Hippocampus abstains.
           </li>
         </ol>
         <p className={`${p} mt-4 text-sm text-zinc-400`}>
@@ -266,7 +311,7 @@ reactor.forget("thanks, that's all")`}
           Use it with any model
         </h2>
         <p className={p}>
-          The memory never calls a model, so Reactor works with anything that turns a text and a list of labels into
+          The memory never calls a model, so Hippocampus works with anything that turns a text and a list of labels into
           probabilities.
         </p>
         <div className="not-prose mt-6 overflow-x-auto">
@@ -290,18 +335,18 @@ reactor.forget("thanks, that's all")`}
         <CodeSnippet
           filename="any_model.py"
           language="python"
-          code={`from gpbacay_arcane import Reactor
+          code={`from gpbacay_arcane import Hippocampus
 
 # A scikit-learn pipeline (vectorizer + classifier) trained on your labels
 def sklearn_model(text, labels):
     probs = dict(zip(pipeline.classes_, pipeline.predict_proba([text])[0]))
     return {label: probs.get(label, 0.0) for label in labels}
 
-reactor = Reactor(sklearn_model)
-reactor.remember("my card was declined at checkout", "billing")   # fix a blind spot without retraining
+hippocampus = Hippocampus(sklearn_model)
+hippocampus.remember("my card was declined at checkout", "billing")   # fix a blind spot without retraining
 
 # Memory only: a router that learns from every confirmed decision
-router = Reactor()
+router = Hippocampus()
 for text, label in confirmed_tickets:
     router.remember(text, label)
 router.classify(new_ticket, ["billing", "shipping", "account"])  # label=None when nothing is similar`}
@@ -317,7 +362,7 @@ router.classify(new_ticket, ["billing", "shipping", "account"])  # label=None wh
           </Link>{" "}
           (arc1-tiny) as the base model, with the same weights throughout and no fine-tuning. The memory holds a few
           examples per label; test texts are never in it. Run{" "}
-          <code className={code}>python examples/benchmark_reactor.py --shots 1 2 5 10</code> to reproduce.
+          <code className={code}>python examples/benchmark_hippocampus.py --shots 1 2 5 10</code> to reproduce.
         </p>
         <BarChart
           title="Intents the model never trained on, real text"
@@ -325,12 +370,12 @@ router.classify(new_ticket, ["billing", "shipping", "account"])  # label=None wh
           data={[
             { label: "Model alone", value: 0.565 },
             { label: "Memory alone", value: 0.647 },
-            { label: "Reactor (model + memory)", value: 0.805 },
+            { label: "Hippocampus (model + memory)", value: 0.805 },
           ]}
           max={1}
           ticks={[0, 0.25, 0.5, 0.75, 1]}
           unit="percent"
-          highlight="Reactor (model + memory)"
+          highlight="Hippocampus (model + memory)"
         />
         <p className={`${p} text-sm text-zinc-400`}>
           Neither source is enough on its own with one example. Combined, they beat both, so the model is still doing
@@ -345,7 +390,7 @@ router.classify(new_ticket, ["billing", "shipping", "account"])  # label=None wh
                 <th className={th}>Examples per label</th>
                 <th className={th}>Model alone</th>
                 <th className={th}>Memory alone</th>
-                <th className="py-2 font-medium">Reactor</th>
+                <th className="py-2 font-medium">Hippocampus</th>
               </tr>
             </thead>
             <tbody>
@@ -426,7 +471,7 @@ router.classify(new_ticket, ["billing", "shipping", "account"])  # label=None wh
         </dl>
         <p className={`${p} mt-4 text-sm text-zinc-400`}>
           Adding an example never scans the memory, and a search only touches examples that share words with the
-          request. Reactor&apos;s default graph leaves out the semantic links the document graph normally adds: on
+          request. Hippocampus&apos;s default graph leaves out the semantic links the document graph normally adds: on
           CLINC150 they lowered accuracy (0.811 to 0.790 at 15,000 examples) and made each insert take 15 ms instead
           of 0.09 ms.
         </p>
@@ -443,12 +488,12 @@ router.classify(new_ticket, ["billing", "shipping", "account"])  # label=None wh
           filename="save.py"
           language="python"
           code={`import json
-from gpbacay_arcane import DocumentGraph, Reactor
+from gpbacay_arcane import DocumentGraph, Hippocampus
 
-json.dump(reactor.graph.to_json(), open("memory.json", "w"))
+json.dump(hippocampus.graph.to_json(), open("memory.json", "w"))
 
-reactor = Reactor(model, DocumentGraph.from_json(json.load(open("memory.json"))))
-reactor.labels()   # {"memory-3f2a...": "billing", ...}`}
+hippocampus = Hippocampus(model, DocumentGraph.from_json(json.load(open("memory.json"))))
+hippocampus.labels()   # {"memory-3f2a...": "billing", ...}`}
         />
 
         <h2 id="limitations" className={h2}>
@@ -471,7 +516,7 @@ reactor.labels()   # {"memory-3f2a...": "billing", ...}`}
           ))}
         </ul>
         <p className={`${p} mt-6 text-sm text-zinc-400`}>
-          Source: <code className={code}>gpbacay_arcane/reactor.py</code>. See also the{" "}
+          Source: <code className={code}>gpbacay_arcane/hippocampus.py</code>. See also the{" "}
           <a href={README_URL} target="_blank" rel="noreferrer" className={link}>
             repository README
           </a>

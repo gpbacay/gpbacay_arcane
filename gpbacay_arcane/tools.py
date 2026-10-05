@@ -608,7 +608,7 @@ class Arc1Agent:
         cycles: Optional[int] = None,
         tool_prior: Optional[Dict[str, float]] = None,
     ) -> Dict[str, Any]:
-        """``tool_prior`` (tool name -> probability the tool applies, e.g. retrieval evidence from ``Reactor``)
+        """``tool_prior`` (tool name -> probability the tool applies, e.g. retrieval evidence from ``Hippocampus``)
         is combined with ARC 1's firing probability by noisy-OR, so either can fire a tool; ARC 1 still
         anchors the arguments."""
         from .arc1_codec import ROLE_TOOL

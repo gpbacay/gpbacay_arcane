@@ -259,11 +259,13 @@ sentence-embedding model. `got_tools` is read-only unless you pass `writable=Tru
 is not trained to route these tools, so drive them with an LLM, or fine-tune ARC 1 before you hand them
 to `Arc1Agent`.
 
-#### Reactor — use ARC 1 on your tools and labels without fine-tuning
+#### Hippocampus — a fast-learning memory for any decision model
 
-RAG lets you use an LLM on your own knowledge without fine-tuning it. Reactor does the same for a System 1
+Named for the brain's hippocampus, which learns single episodes at once and lets the slower neocortex use
+them, Hippocampus is a memory of decided examples next to a model, with no change to the model's weights.
+RAG lets you use an LLM on your own knowledge without fine-tuning it. Hippocampus does the same for a System 1
 decision model: instead of training ARC 1 on your tools and labels, give it a few decided examples. A
-model like this can't read retrieved text, so Reactor retrieves *decisions*. Examples live in a
+model like this can't read retrieved text, so Hippocampus retrieves *decisions*. Examples live in a
 `DocumentGraph`. At request time the most similar ones vote for their labels, weighted by search score,
 and the vote is combined with the model's own probabilities. A tool example can also carry its arguments.
 It then works as a pattern ("rate {title} {stars} stars"), and a request that matches it gets its argument
@@ -271,18 +273,18 @@ values copied from its own words. Examples take effect on the next request. Labe
 back to the model alone.
 
 ```python
-from gpbacay_arcane import Reactor, load_arc1
+from gpbacay_arcane import Hippocampus, load_arc1
 
-reactor = Reactor(load_arc1())                                   # or any model, or None for memory only
-reactor.remember("I was charged twice this month", "billing")    # a class label...
-reactor.remember("rate Dune 4 stars", "rate_movie", {"title": "Dune", "stars": 4})  # ...or a tool call
-reactor.remember("switch bluetooth off", "toggle_bluetooth", {"enabled": False})
-reactor.remember("thanks, that's all", None)                     # None = no tool applies
+hippocampus = Hippocampus(load_arc1())                                   # or any model, or None for memory only
+hippocampus.remember("I was charged twice this month", "billing")    # a class label...
+hippocampus.remember("rate Dune 4 stars", "rate_movie", {"title": "Dune", "stars": 4})  # ...or a tool call
+hippocampus.remember("switch bluetooth off", "toggle_bluetooth", {"enabled": False})
+hippocampus.remember("thanks, that's all", None)                     # None = no tool applies
 
-reactor.classify("why is my card charged again?", ["billing", "shipping"])  # + "neighbors" (the evidence)
-reactor.run("rate spirited away 5 stars", tools=my_tools)        # rate_movie(title="spirited away", stars=5)
-reactor.react("charged again?")                                  # the memory's vote alone, no model call
-reactor.forget("thanks, that's all")                             # re-remembering a text replaces it
+hippocampus.classify("why is my card charged again?", ["billing", "shipping"])  # + "neighbors" (the evidence)
+hippocampus.run("rate spirited away 5 stars", tools=my_tools)        # rate_movie(title="spirited away", stars=5)
+hippocampus.react("charged again?")                                  # the memory's vote alone, no model call
+hippocampus.forget("thanks, that's all")                             # re-remembering a text replaces it
 ```
 
 - **Model-agnostic.** `model` can be `None` (memory only; abstains with `label=None` when nothing similar
@@ -301,10 +303,10 @@ reactor.forget("thanks, that's all")                             # re-rememberin
   lowered accuracy and cost 15 ms per insert at 15k examples. Lookups touch only examples that share words
   with the request.
 
-`python examples/benchmark_reactor.py --shots 1 2 5 10` (arc1-tiny, same weights, no fine-tuning).
+`python examples/benchmark_hippocampus.py --shots 1 2 5 10` (arc1-tiny, same weights, no fine-tuning).
 CLINC150 intents held out of ARC 1's training, real text, 5 labels:
 
-| Examples per label | ARC 1 alone | Memory alone | Reactor |
+| Examples per label | ARC 1 alone | Memory alone | Hippocampus |
 |---|---|---|---|
 | none | 56.5% | – | – |
 | 1 | – | 64.7% | **80.5%** |

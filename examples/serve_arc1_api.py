@@ -35,7 +35,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from gpbacay_arcane.arc1 import Arc1Config, Arc1Model
-from gpbacay_arcane.reactor import Reactor
+from gpbacay_arcane.hippocampus import Hippocampus
 from gpbacay_arcane.tokenization import BASE_VOCAB, BytePairTokenizer
 from gpbacay_arcane.tools import Arc1Agent, ToolParam, ToolSpec
 
@@ -177,7 +177,7 @@ def _builtin_tools() -> List[ToolSpec]:
 
 
 def _demo_handlers() -> Dict[str, Any]:
-    """Handlers for the docs site's Reactor scene: tools ARC 1 never trained on."""
+    """Handlers for the docs site's Hippocampus scene: tools ARC 1 never trained on."""
     return {
         "rate_movie": lambda title, stars: {"title": title, "stars": int(stars), "saved": True},
         "play_podcast": lambda name: {"podcast": name, "status": "playing"},
@@ -347,11 +347,11 @@ Memory = Optional[List[MemoryExample]]
 MEMORY_LIMIT = 200
 
 
-def _reactor(memory: List[MemoryExample]) -> Reactor:
-    reactor = Reactor(_agent)
+def _hippocampus(memory: List[MemoryExample]) -> Hippocampus:
+    hippocampus = Hippocampus(_agent)
     for ex in memory:
-        reactor.remember(ex.text, ex.label, ex.arguments)
-    return reactor
+        hippocampus.remember(ex.text, ex.label, ex.arguments)
+    return hippocampus
 
 
 class RunRequest(BaseModel):
@@ -359,7 +359,7 @@ class RunRequest(BaseModel):
     tools: Optional[List[Dict[str, Any]]] = None
     execute: bool = True
     cycles: Optional[int] = None
-    memory: Memory = Field(default=None, max_length=MEMORY_LIMIT)  # set = run through the Reactor harness
+    memory: Memory = Field(default=None, max_length=MEMORY_LIMIT)  # set = run through the Hippocampus harness
 
 
 class ExtractRequest(BaseModel):
@@ -404,7 +404,7 @@ def health():
         "heuristic_fallback": _state.get("heuristic_fallback", ALLOW_HEURISTIC),
         "error": _state["error"],
         "model": "ARC 1",
-        "reactor": True,  # /run and /classify accept "memory"
+        "hippocampus": True,  # /run and /classify accept "memory"
 
     }
 
@@ -416,7 +416,7 @@ def run(req: RunRequest):
     cycles = _check_cycles(req.cycles)
     tools = _tools_from_payload(req.tools)
     try:
-        model = _agent if req.memory is None else _reactor(req.memory)
+        model = _agent if req.memory is None else _hippocampus(req.memory)
         out = model.run(req.prompt, tools=tools, execute=req.execute, cycles=cycles)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"run failed: {exc}") from exc
@@ -447,7 +447,7 @@ def classify(req: ClassifyRequest):
         raise HTTPException(status_code=422, detail="labels must contain at least one non-empty label")
     cycles = _check_cycles(req.cycles)
     try:
-        model = _agent if req.memory is None else _reactor(req.memory)
+        model = _agent if req.memory is None else _hippocampus(req.memory)
         return model.classify(req.text, labels, task=req.task, cycles=cycles, descriptions=req.descriptions)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"classify failed: {exc}") from exc

@@ -1,4 +1,4 @@
-"""Tests for Reactor: a model-agnostic retrieval memory for System 1 decisions (no TensorFlow needed)."""
+"""Tests for Hippocampus: a model-agnostic retrieval memory for System 1 decisions (no TensorFlow needed)."""
 
 import json
 import os
@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from gpbacay_arcane.got import DocumentGraph
-from gpbacay_arcane.reactor import Reactor
+from gpbacay_arcane.hippocampus import Hippocampus
 from gpbacay_arcane.tools import ToolParam, ToolSpec
 
 TICKETS = [("I was charged twice", "billing"), ("refund my last invoice", "billing"),
@@ -27,8 +27,8 @@ class StubArc1:
         return {"function_calls": [], "tool_prior": tool_prior}
 
 
-def reactor(model=None, graph=None):
-    r = Reactor(model, graph)
+def hippocampus(model=None, graph=None):
+    r = Hippocampus(model, graph)
     for text, label in TICKETS:
         r.remember(text, label)
     return r
@@ -37,16 +37,16 @@ def reactor(model=None, graph=None):
 def test_memory_overrules_any_model_and_falls_back_to_it():
     first_label = lambda text, labels: {lab: (0.7 if i == 0 else 0.3) for i, lab in enumerate(labels)}  # any callable
     for model in (StubArc1(), first_label):
-        out = reactor(model).classify("why was my card charged twice for the invoice", ["shipping", "billing"])
+        out = hippocampus(model).classify("why was my card charged twice for the invoice", ["shipping", "billing"])
         assert out["label"] == "billing" and out["source"] == "model+memory"
         assert {h["label"] for h in out["neighbors"]} == {"billing"}
         assert abs(sum(out["distribution"].values()) - 1) < 1e-9
-        assert reactor(model).classify("where is my parcel", ["sales", "account"])["source"] == "model"
-    assert reactor(StubArc1()).classify("track it", ["shipping", "billing"])["latency_ms"] == 1.0  # model fields kept
+        assert hippocampus(model).classify("where is my parcel", ["sales", "account"])["source"] == "model"
+    assert hippocampus(StubArc1()).classify("track it", ["shipping", "billing"])["latency_ms"] == 1.0  # model fields kept
 
 
 def test_memory_only_decides_or_abstains():
-    r = reactor()
+    r = hippocampus()
     assert r.classify("track my parcel", ["billing", "shipping"])["label"] == "shipping"
     out = r.classify("hello there", ["billing", "shipping"])
     assert out["label"] is None and out["source"] == "model"  # nothing similar and no model: abstain
@@ -56,7 +56,7 @@ def test_memory_only_decides_or_abstains():
 
 
 def test_memory_is_dynamic():
-    r = reactor()
+    r = hippocampus()
     r.remember("I was charged twice", "fraud")  # same text again: the label is corrected, not duplicated
     assert len(r.labels()) == 4 and r.classify("charged twice", ["billing", "fraud"])["label"] == "fraud"
     assert r.forget("I was charged twice") and len(r.labels()) == 3
@@ -66,7 +66,7 @@ def test_memory_is_dynamic():
 def test_tool_prior_counts_votes_for_other_tools_and_no_tool():
     g = DocumentGraph()
     g.add_document("# Guide\n\n## Deploy\nPush the build to the server.", "Guide")  # shared graph: documents never vote
-    r = Reactor(StubArc1(), g)
+    r = Hippocampus(StubArc1(), g)
     r.remember("set an alarm for 7am", "set_alarm")
     r.remember("wake me up at six with an alarm", "set_alarm")
     r.remember("thanks, alarm sounds good", None)
@@ -74,7 +74,7 @@ def test_tool_prior_counts_votes_for_other_tools_and_no_tool():
     assert set(prior) == {"set_alarm"} and 0.5 < prior["set_alarm"] < 1.0  # the None example took a share
     assert r.run("deploy the build")["tool_prior"] is None  # nothing similar remembered: the model alone
 
-    restored = Reactor(StubArc1(), DocumentGraph.from_json(json.loads(json.dumps(g.to_json()))))
+    restored = Hippocampus(StubArc1(), DocumentGraph.from_json(json.loads(json.dumps(g.to_json()))))
     assert restored.labels() == r.labels()  # the memory persists with the graph
     assert restored.react("set an alarm")["votes"].keys() == {"set_alarm", None}
 
@@ -93,7 +93,7 @@ BLUETOOTH = ToolSpec("toggle_bluetooth", "Turn bluetooth on or off", [ToolParam(
 
 
 def test_remembered_requests_fill_arguments_for_any_model():
-    r = Reactor(BadSpans())
+    r = Hippocampus(BadSpans())
     r.remember("rate Dune 4 stars", "rate_movie", {"title": "Dune", "stars": 4})
     r.remember("switch bluetooth off", "toggle_bluetooth", {"enabled": False})
 
@@ -107,7 +107,7 @@ def test_remembered_requests_fill_arguments_for_any_model():
     assert out["confidence"] is None and out["results"] == []
     assert r.run("switch bluetooth on", tools=[BLUETOOTH])["function_calls"] == []  # "off" is part of the pattern
 
-    restored = Reactor(BadSpans(), DocumentGraph.from_json(json.loads(json.dumps(r.graph.to_json()))))
+    restored = Hippocampus(BadSpans(), DocumentGraph.from_json(json.loads(json.dumps(r.graph.to_json()))))
     assert restored.arguments("rate Coco two stars", RATE) == {"title": "Coco", "stars": 2}
     assert restored.arguments("rate it", RATE) is None
 
@@ -118,7 +118,7 @@ def test_a_model_call_copying_words_a_pattern_explains_is_dropped():
             return {"function_calls": [{"name": "play_podcast", "arguments": {"name": prompt}}]}
 
     podcast = ToolSpec("play_podcast", "Play a podcast", [ToolParam("name")])
-    r = Reactor(WrongTool())
+    r = Hippocampus(WrongTool())
     r.remember("Inception deserves 3 stars", "rate_movie", {"title": "Inception", "stars": 3})
     out = r.run("Parasite deserves 5 stars", tools=[RATE, podcast], execute=False)
     assert out["function_calls"] == [{"name": "rate_movie", "arguments": {"title": "Parasite", "stars": 5}}]
