@@ -218,6 +218,33 @@ python examples/train_arc1.py --eval-only --out-dir Models/distill2
 python examples/compare_arc1.py old=Models/arc1_arc1_tiny new=Models/distill2/arc1_arc1_tiny
 ```
 
+### Graph of Thought — Document Knowledge Graph and Reasoning Harness
+
+A Python port of [graph-of-thought](https://github.com/gpbacay/graph-of-thought). Headings become nodes,
+linked by structure, by explicit cross-references ("see Configuration") and by similarity. Search uses BM25
+seeds followed by a bounded graph expansion, and every hit says how it was reached. Retrieval needs no
+API keys or vector database. Saved graphs use the same JSON format as the Node package.
+
+```python
+from gpbacay_arcane import DocumentGraph, GraphOfThought, got_tools, load_arc1
+
+graph = DocumentGraph()                          # or DocumentGraph(embed=load_arc1().embed)
+graph.add_document(markdown, "User Guide")       # same title/doc_id again replaces it
+graph.search("config fails")                     # hits with score, hops, via, edgeType, path
+context = graph.retrieve("config fails")         # prompt-ready "### Title [node-id]" blocks
+
+# Graph-of-Thoughts (Besta et al., 2023): generate -> score -> keep best -> aggregate -> refine,
+# re-searching the graph whenever a step reports missing evidence. `llm` is any prompt -> text callable.
+result = GraphOfThought(graph, llm=my_llm).reason("My app cannot reach the database. What should I check?")
+result["answer"], result["citations"], result["thoughts"]
+
+tools = got_tools(graph)                         # Arcane ToolSpecs; schema_dict() for any tool-calling API
+```
+
+With `embed=load_arc1().embed`, ARC 1 embeddings supply the semantic links and extra query seeds. `got_tools`
+is read-only unless you pass `writable=True`. The bundled `arc1-tiny` is not trained to route these tools,
+so drive them with an LLM, or fine-tune ARC 1 before you hand them to `Arc1Agent`.
+
 ### Distilling Qwen2.5-0.5B into ARCANE
 
 The `distill` preset is tuned as a distillation target for a softmax teacher:

@@ -1,3 +1,4 @@
+import path from "path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -23,7 +24,7 @@ const nextConfig: NextConfig = {
   // The model file lives outside public/ so the download route can gate it; make sure deploys ship it.
   outputFileTracingIncludes: { "/api/arc1-download": ["./private/models/**"] },
   turbopack: {
-    root: '..',
+    root: path.join(__dirname, '..'),
   },
 };
 
