@@ -14,11 +14,19 @@ const td = "py-2.5 pr-4 tabular-nums text-zinc-300";
 
 const README_URL = "https://github.com/gpbacay/gpbacay_arcane#reactor--use-arc-1-on-your-tools-and-labels-without-fine-tuning";
 
+// Points gained over the base model alone, from the tables below (arc1-tiny, held-out intents and tools).
+const GAINS: [string, string, string, string][] = [
+  ["+24.0", "points", "Intent accuracy, 1 example per label", "56.5% → 80.5%"],
+  ["+36.8", "points", "Intent accuracy, 10 examples per label", "56.5% → 93.3%"],
+  ["+43.7", "points", "Fully correct tool calls, 5 examples per tool", "42.3% → 86.0%"],
+  ["+43.6", "points", "Right tool chosen, 10 examples per tool", "55.7% → 99.3%"],
+];
+
 const CAPABILITIES = [
   {
     icon: Plug,
     title: "Any model",
-    body: "ARC 1, a classifier, an LLM asked for probabilities, or no model at all.",
+    body: "A classifier, an LLM asked for probabilities, a tool-calling model, or no model at all.",
   },
   {
     icon: RefreshCw,
@@ -53,7 +61,7 @@ const CLINC: [string, string, string, string][] = [
 ];
 
 const TOOLS: [string, string, string, string, string][] = [
-  ["none (ARC 1)", "55.7%", "42.3%", "–", "18.6%"],
+  ["none (model alone)", "55.7%", "42.3%", "–", "18.6%"],
   ["1", "77.0%", "50.3%", "64.0%", "53.3%"],
   ["2", "83.7%", "52.0%", "70.7%", "64.1%"],
   ["5", "93.7%", "54.7%", "86.0%", "83.5%"],
@@ -69,16 +77,21 @@ export default function ReactorPage() {
           Reactor
         </h1>
         <p className="mt-6 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          Use ARC 1 on your own tools and labels without fine-tuning it. RAG lets you use a language model on your
-          knowledge without retraining it, by retrieving text when a request arrives. A decision model can&apos;t
-          read retrieved text, so Reactor retrieves past <em>decisions</em>. The examples most like the request vote
-          for their labels and tools, and remembered tool calls show where each argument sits in a request.
+          A memory of decided examples that makes a model better at your labels and tools without retraining it.
+          RAG lets a language model use your knowledge by retrieving text when a request arrives. Many models,
+          such as classifiers, routers and tool-calling models, can&apos;t read retrieved text, so Reactor retrieves
+          past <em>decisions</em> instead. The examples most like the request vote for their labels or tools, the
+          vote is combined with the model&apos;s own probabilities, and remembered tool calls show where each
+          argument sits in a request.
         </p>
         <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          Give it a few examples and the next request uses them; the weights never change. With 5 examples per
-          tool, fully correct calls on tools ARC 1 never trained on rise from 42.3% to 86.0%, level with its 86.0%
-          on the tools it was trained on. With one example per label, its accuracy on real text for intents it never
-          saw rises from 56.5% to 80.5%.
+          Add an example and the next request uses it; the weights never change. In our benchmarks, a single
+          example per label lifted accuracy on unseen intents by 24 points, and 5 examples per tool lifted fully
+          correct tool calls by 44 points. See{" "}
+          <a href="#improvement" className={link}>
+            how much it improves
+          </a>
+          .
         </p>
       </header>
 
@@ -101,6 +114,54 @@ export default function ReactorPage() {
             Grounded Graph of Thought
           </Link>
           . Search needs only numpy, with no API keys or vector database.
+        </p>
+
+        <h2 id="improvement" className={h2}>
+          How much it improves
+        </h2>
+        <p className={p}>
+          Reactor adds accuracy in proportion to how many examples you give it, and the first few help most. Gains
+          below are percentage points over the same model with no memory, on text and tools the model was never
+          trained on.
+        </p>
+        <dl className="not-prose mt-6 grid gap-px border border-zinc-800 bg-zinc-800 sm:grid-cols-2 lg:grid-cols-4">
+          {GAINS.map(([gain, unit, label, range]) => (
+            <div key={label} className="bg-zinc-950 p-4 sm:p-5">
+              <dd className="text-3xl font-semibold tabular-nums text-zinc-50">
+                {gain} <span className="text-sm font-normal text-zinc-500">{unit}</span>
+              </dd>
+              <dt className="mt-2 text-sm text-zinc-300">{label}</dt>
+              <dd className="mt-1 text-xs tabular-nums text-zinc-500">{range}</dd>
+            </div>
+          ))}
+        </dl>
+        <ul className="mt-6 max-w-2xl list-disc space-y-2 pl-5 text-sm leading-relaxed text-zinc-300">
+          <li>
+            <strong className="text-zinc-100">Classification:</strong> one example per label takes accuracy from
+            56.5% to 80.5%; ten reach 93.3%. The model and the memory are each weaker alone (56.5% and 64.7% at one
+            example), so the gain comes from combining them.
+          </li>
+          <li>
+            <strong className="text-zinc-100">Tool selection:</strong> the right tool is chosen 55.7% of the time
+            with no examples, 77.0% with one per tool and 93.7% with five.
+          </li>
+          <li>
+            <strong className="text-zinc-100">Tool arguments:</strong> storing the arguments raises arguments
+            right from 18.6% to 83.5% with five examples, and fully correct calls from 42.3% to 86.0%.
+          </li>
+          <li>
+            <strong className="text-zinc-100">Memory alone:</strong> with no model, 15,000 examples across 150
+            intents decide 80.6% correctly.
+          </li>
+        </ul>
+        <p className={`${p} mt-4 text-sm text-zinc-400`}>
+          These numbers were measured with one base model, the bundled arc1-tiny. How much another model gains
+          depends on how much it already gets right: a model that is weak on your labels gains the most, and one
+          that already scores near 100% has little left to gain. The{" "}
+          <a href="#results" className={link}>
+            results
+          </a>{" "}
+          section has the full tables and how to reproduce them.
         </p>
 
         <h2 id="quick-start" className={h2}>
@@ -175,8 +236,9 @@ reactor.forget("thanks, that's all")`}
           <li>
             <strong className="text-zinc-100">Combine.</strong> For <code className={code}>classify</code>, the vote
             and the model&apos;s distribution are averaged (<code className={code}>weight=0.5</code>). For{" "}
-            <code className={code}>run</code>, the vote is passed as <code className={code}>tool_prior</code> and
-            ARC 1 fires a tool when either source is confident (noisy-OR).
+            <code className={code}>run</code>, the vote is passed to the model as{" "}
+            <code className={code}>tool_prior</code>; ARC 1, for example, fires a tool when either source is
+            confident (noisy-OR).
           </li>
           <li>
             <strong className="text-zinc-100">Fill arguments.</strong> A remembered call becomes a pattern: its
@@ -249,22 +311,26 @@ router.classify(new_ticket, ["billing", "shipping", "account"])  # label=None wh
           Results
         </h2>
         <p className={p}>
-          The bundled arc1-tiny with the same weights throughout, no fine-tuning. The memory holds a few examples per
-          label; test texts are never in it. Run{" "}
+          All results use the bundled{" "}
+          <Link href="/docs/arc-1" className={link}>
+            ARC 1
+          </Link>{" "}
+          (arc1-tiny) as the base model, with the same weights throughout and no fine-tuning. The memory holds a few
+          examples per label; test texts are never in it. Run{" "}
           <code className={code}>python examples/benchmark_reactor.py --shots 1 2 5 10</code> to reproduce.
         </p>
         <BarChart
-          title="Intents ARC 1 never trained on, real text"
+          title="Intents the model never trained on, real text"
           subtitle="CLINC150 test utterances, 5 labels (chance 20%), one remembered example per label, n = 600"
           data={[
-            { label: "ARC 1 alone", value: 0.565 },
+            { label: "Model alone", value: 0.565 },
             { label: "Memory alone", value: 0.647 },
-            { label: "Reactor (ARC 1 + memory)", value: 0.805 },
+            { label: "Reactor (model + memory)", value: 0.805 },
           ]}
           max={1}
           ticks={[0, 0.25, 0.5, 0.75, 1]}
           unit="percent"
-          highlight="Reactor (ARC 1 + memory)"
+          highlight="Reactor (model + memory)"
         />
         <p className={`${p} text-sm text-zinc-400`}>
           Neither source is enough on its own with one example. Combined, they beat both, so the model is still doing
@@ -277,7 +343,7 @@ router.classify(new_ticket, ["billing", "shipping", "account"])  # label=None wh
             <thead>
               <tr className="border-b border-zinc-800 text-zinc-500">
                 <th className={th}>Examples per label</th>
-                <th className={th}>ARC 1 alone</th>
+                <th className={th}>Model alone</th>
                 <th className={th}>Memory alone</th>
                 <th className="py-2 font-medium">Reactor</th>
               </tr>
@@ -295,7 +361,7 @@ router.classify(new_ticket, ["billing", "shipping", "account"])  # label=None wh
           </table>
         </div>
 
-        <h3 className="mt-10 text-lg font-semibold text-zinc-100">Tools ARC 1 never trained on</h3>
+        <h3 className="mt-10 text-lg font-semibold text-zinc-100">Tools the model never trained on</h3>
         <p className={`${p} mt-2 text-sm text-zinc-400`}>
           The held-out tool split, n = 300. Fully correct means the right tools with every argument right. Correct
           refusals stayed at 100% in every row.
@@ -325,19 +391,19 @@ router.classify(new_ticket, ["billing", "shipping", "account"])  # label=None wh
           </table>
         </div>
         <p className={`${p} mt-4 text-sm text-zinc-400`}>
-          Votes alone fix which tool fires, but calls stay near 55% because arc1-tiny copies the wrong words for
+          Votes alone fix which tool fires, but calls stay near 55% because the base model copies the wrong words for
           arguments of tools it never trained on. Storing the arguments fixes that: with 5 examples, 86.0% of calls
-          are fully right, the same as{" "}
+          are fully right, the same as the{" "}
           <Link href="/docs/arc-1" className={link}>
             86.0%
           </Link>{" "}
-          on the tools ARC 1 was trained on (measured on a different test set).
+          it scores on the tools it was trained on (measured on a different test set).
         </p>
         <p className="not-prose mt-4 max-w-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
           <strong>Read the 10-example row with care.</strong> These held-out tools are tested with the same sentence
           patterns the examples were written from, only with new values, so by 10 examples the memory has seen every
-          phrasing. Real requests vary more. A phrasing no example covers falls back to ARC 1&apos;s own argument
-          copying, so store varied examples.
+          phrasing. Real requests vary more. A phrasing no example covers falls back to the base model&apos;s own
+          argument copying, so store varied examples.
         </p>
 
         <h3 className="mt-10 text-lg font-semibold text-zinc-100">Scale</h3>
@@ -390,9 +456,10 @@ reactor.labels()   # {"memory-3f2a...": "billing", ...}`}
         </h2>
         <ul className="not-prose mt-2 max-w-2xl divide-y divide-zinc-900 border-y border-zinc-800">
           {[
-            ["Keyword retrieval", "A request that shares no words with any example gets no vote and falls back to the model. ARC 1's embeddings as DocumentGraph(embed=...) did not meaningfully help on CLINC150."],
+            ["Measured on one model", "Every improvement figure on this page comes from arc1-tiny. Other models were not benchmarked, so treat the gains as an example of the effect, not a guarantee."],
+            ["Keyword retrieval", "A request that shares no words with any example gets no vote and falls back to the model. Using ARC 1's embeddings as DocumentGraph(embed=...) did not meaningfully help on CLINC150."],
             ["Argument patterns", "A pattern only matches phrasings like a remembered one; others fall back to the model's arguments. A value at the start or end of a pattern stops at punctuation or at and, then, plus or also, so \"Tom and Jerry\" in that position is cut. English joining words only."],
-            ["Uncalibrated mix", "ARC 1's probabilities are calibrated; the combined confidence has not been re-fitted, so treat it as a ranking."],
+            ["Uncalibrated mix", "Even if the model's probabilities are calibrated, the combined confidence has not been re-fitted, so treat it as a ranking."],
             ["Tested up to 15,000 examples", "Lookups slow down when common words match many examples. Expect that somewhere past about 100,000; it has not been measured."],
             ["Shared graphs", "If the graph also holds documents, each lookup filters across all stored examples. The default graph holds only examples."],
             ["Tool calling needs tool_prior", "Any model can classify, but run() needs a model that accepts tool_prior. Arc1Agent does; other tool-calling models need that one argument."],
