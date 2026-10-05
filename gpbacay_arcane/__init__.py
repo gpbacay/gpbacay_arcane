@@ -105,7 +105,7 @@ from .tools import (
 
 from .arc1_codec import Arc1Codec
 
-from .got import DocumentGraph, GraphOfThought, got_tools
+from .got import DocumentGraph, GroundedGraphOfThought, got_tools
 
 from .rcn import load_arc1, load_rcn, read_header as read_rcn_header, save_rcn
 

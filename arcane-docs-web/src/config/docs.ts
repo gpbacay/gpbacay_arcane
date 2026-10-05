@@ -91,9 +91,9 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
       title: "Harness",
       items: [
         {
-          title: "Graph of Thought",
+          title: "Grounded Graph of Thought",
           href: "/docs/graph-of-thought",
-          keywords: ["got", "graph of thoughts", "rag", "retrieval", "knowledge graph", "bm25", "document search", "reasoning", "agent", "tools", "harness", "citations"]
+          keywords: ["got", "graph of thoughts", "grounded", "verification", "hallucination", "rag", "retrieval", "knowledge graph", "bm25", "document search", "reasoning", "agent", "tools", "harness", "citations"]
         },
       ],
     },

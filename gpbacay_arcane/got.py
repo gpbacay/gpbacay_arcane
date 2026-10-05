@@ -1,12 +1,16 @@
-"""Graph of Thought: a document knowledge graph, graph retrieval and Graph-of-Thoughts reasoning.
+"""Grounded Graph of Thought: a document knowledge graph, graph retrieval and verified reasoning.
 
-Python port of https://github.com/gpbacay/graph-of-thought (v2), wired into ARC 1:
+The document graph is a Python port of https://github.com/gpbacay/graph-of-thought (v2):
 
-- ``DocumentGraph(embed=agent.embed)`` links sections and seeds queries with ARC 1 embeddings
-  (without ``embed`` it links by shared distinctive terms and needs only numpy).
+- ``DocumentGraph()`` links sections by structure, references and shared distinctive terms (numpy only).
+  ``embed=`` takes any ``text -> vector`` function for semantic links; arc1-tiny's embeddings are too
+  weak for this, so use a sentence-embedding model.
+- ``DocumentGraph.support(claim, node_ids)`` checks a claim against sections without an LLM.
+- ``GroundedGraphOfThought(graph, llm).reason(question)`` runs Graph-of-Thoughts (Besta et al., 2023)
+  with that check in place of the LLM judge: unsupported claims become graph queries, and a merge or
+  rewrite that lowers the answer's grounding is rejected.
 - ``got_tools(graph)`` returns Arcane ``ToolSpec``s: map ``schema_dict()`` onto any LLM tool-calling
   API, or hand them to ``Arc1Agent`` (the bundled arc1-tiny is not trained on them; fine-tune first).
-- ``GraphOfThought(graph, llm).reason(question)`` runs Graph-of-Thoughts (Besta et al., 2023).
 
 Saved graphs (``to_json``) use the Node package's v2 format, so either side can load them.
 """
@@ -37,6 +41,8 @@ _WORD = re.compile(r"[^\w]+|_+")
 _ATX = re.compile(r"^ {0,3}(#{1,6})\s+(.+?)\s*#*\s*$")
 _FENCE = re.compile(r"^ {0,3}(```|~~~)")
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
+_LINK_TARGET = re.compile(r"\]\([^)]*\)")  # markdown link URLs repeat the label and inflate term counts
+_SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
 
 PARENT_CHILD, REFERENCE, NEXT = 0.8, 0.75, 0.4
 UPWARD_FACTOR = 0.5  # walking child -> parent is weaker than going down
@@ -65,7 +71,7 @@ def _stem(word: str) -> str:
 
 def tokenize(text: str) -> List[str]:
     """Lowercase stemmed word tokens without stopwords."""
-    return [_stem(w) for w in _words(text) if len(w) > 1 and w not in _STOPWORDS]
+    return [_stem(w) for w in _words(_LINK_TARGET.sub("]", text)) if len(w) > 1 and w not in _STOPWORDS]
 
 
 def parse_sections(text: str) -> List[tuple]:
@@ -322,6 +328,27 @@ class DocumentGraph:
         """Prompt-ready context: ``### Title [node-id]`` blocks for the search hits."""
         return "\n\n".join(f"### {h['title']} [{h['nodeId']}]\n{h['content']}" for h in self.search(query, **search_kwargs))
 
+    # ponytail: lexical check; paraphrases undercount and negations pass ("never edit X" matches "edit X").
+    # Swap in an NLI model here if contradictions matter.
+    def support(self, claim: str, node_ids: Sequence[str], max_nodes: int = 2) -> tuple:
+        """How far ``node_ids`` back ``claim``, without an LLM.
+
+        Greedily picks up to ``max_nodes`` sections covering the claim's terms, each term weighted by
+        its IDF, so a rare term absent from every section (a likely hallucination) costs the most.
+        Returns ``(share of the claim's term mass covered, supporting node ids, term mass)``.
+        """
+        need = {t: self._idf(t) for t in set(tokenize(claim))}
+        mass = sum(need.values())
+        used: List[str] = []
+        while need and len(used) < max_nodes:
+            gain, best = max(((sum(w for t, w in need.items() if t in self._tf[n]), n)
+                              for n in node_ids if n in self._tf and n not in used), default=(0.0, None))
+            if not gain:
+                break
+            used.append(best)
+            need = {t: w for t, w in need.items() if t not in self._tf[best]}
+        return (1 - sum(need.values()) / mass if mass else 1.0), used, mass
+
     # ------------------------------------------------------------- serialization
     def to_json(self) -> Dict[str, Any]:
         edges = list({id(e): e for links in self.adj.values() for e in links.values()}.values())
@@ -433,6 +460,9 @@ class DocumentGraph:
 
 # ----------------------------------------------------------------------------- reasoning
 
+UNSUPPORTED_PENALTY = 2.0  # an unsupported unit of an answer costs twice what a supported one earns
+
+
 def _loose_json(text: str) -> Dict[str, Any]:
     m = _JSON_OBJECT.search(text or "")
     try:
@@ -442,38 +472,59 @@ def _loose_json(text: str) -> Dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _union(*lists: Sequence[str]) -> List[str]:
+    return list(dict.fromkeys(i for lst in lists for i in lst))
+
+
+def _net(t: Dict[str, Any]) -> float:
+    """Supported term mass minus penalized unsupported mass: rewards grounded content, not just short answers."""
+    return t["grounded"] - UNSUPPORTED_PENALTY * (t["mass"] - t["grounded"])
+
+
 class _Run:
     """State of one ``reason()`` call: the thought graph, its frontier and the evidence seen."""
 
-    def __init__(self, got: "GraphOfThought", question: str):
+    def __init__(self, got: "GroundedGraphOfThought", question: str):
         self.got, self.question = got, question
         self.thoughts: Dict[str, Dict[str, Any]] = {}
         self.frontier: List[Dict[str, Any]] = []
         self.calls = 0
+        self.exhausted = False
 
     def add(self, content: str, operation: str, parents: List[Dict[str, Any]], evidence: List[str], **meta) -> Dict[str, Any]:
-        t = {"id": f"t{len(self.thoughts) + 1}", "content": content, "score": None, "operation": operation,
-             "parents": [p["id"] for p in parents], "evidence": evidence, **meta}
+        """Record a thought, verifying each of its sentences against its evidence (no LLM call)."""
+        claims = []
+        for text in _SENTENCE.split(content):
+            text = text.strip(" \t-*")
+            share, nodes, mass = self.got.graph.support(text, evidence)
+            if mass:
+                claims.append({"text": text, "support": share, "nodes": nodes, "mass": mass,
+                               "supported": share >= self.got.min_support})
+        mass = sum(c["mass"] for c in claims)
+        grounded = sum(c["support"] * c["mass"] for c in claims)
+        t = {"id": f"t{len(self.thoughts) + 1}", "content": content, "operation": operation,
+             "parents": [p["id"] for p in parents], "evidence": evidence, "claims": claims,
+             "score": grounded / mass if mass else 0.0, "grounded": grounded, "mass": mass, **meta}
         self.thoughts[t["id"]] = t
         return t
 
     def ask(self, prompt: str) -> Optional[str]:
         if self.calls >= self.got.max_llm_calls:
+            self.exhausted = True
             return None
         self.calls += 1
         return self.got.llm(prompt)
 
-    def retrieve(self, query: str) -> List[str]:
-        return [h["nodeId"] for h in self.got.graph.search(query, **self.got.search_kwargs)]
+    def retrieve(self, query: str, max_results: Optional[int] = None) -> List[str]:
+        kwargs = dict(self.got.search_kwargs, **({"max_results": max_results} if max_results else {}))
+        return [h["nodeId"] for h in self.got.graph.search(query, **kwargs)]
 
     def derive(self, operation: str, parents: List[Dict[str, Any]], cand: Dict[str, Any]) -> Dict[str, Any]:
         """Thought from an LLM candidate; a non-empty ``missing`` runs a follow-up graph search."""
         evidence = _union(*(p["evidence"] for p in parents))
-        cited = [i for i in cand.get("evidence") or [] if isinstance(i, str) and i in self.got.graph.nodes]
-        evidence = _union(cited, evidence)
         follow_up = str(cand.get("missing") or "").strip()
         if follow_up:
-            evidence = _union(evidence, self.retrieve(follow_up))
+            evidence = _union(self.retrieve(follow_up), evidence)  # newest first, so the next prompt shows it
         return self.add(str(cand["answer"]), operation, parents, evidence, followUp=follow_up)
 
     def header(self, evidence: List[str]) -> str:
@@ -481,22 +532,21 @@ class _Run:
         for nid in evidence[: self.got.max_evidence]:
             n = self.got.graph.nodes.get(nid)
             if n:
-                text = n["content"][: self.got.max_evidence_chars]
-                blocks.append(f"[{nid}] {n['title']}\n{text}")
+                blocks.append(f"[{nid}] {n['title']}\n{n['content'][: self.got.max_evidence_chars]}")
         return f"Question: {self.question}\n\nEvidence:\n" + ("\n\n".join(blocks) or "(no evidence found)")
 
 
-def _union(*lists: Sequence[str]) -> List[str]:
-    return list(dict.fromkeys(i for lst in lists for i in lst))
-
-
-_RULES = ('Answer only from the evidence. Cite the node ids you used in "evidence". If something needed is not in '
-          'the evidence, put a short search query for it in "missing" (otherwise "").')
-_ANSWER_JSON = 'Reply with JSON only:\n{"answer": "...", "evidence": ["node-id"], "missing": ""}'
+_RULES = ("Answer only from the evidence and reuse its wording. If something needed is not in the evidence, "
+          'put a short search query for it in "missing" (otherwise "").')
+_ANSWER_JSON = 'Reply with JSON only:\n{"answer": "...", "missing": ""}'
 
 
 class ops:
-    """Graph-of-Thoughts operations. A plan is a list of them, applied in order to the frontier."""
+    """Graph-of-Thoughts operations. A plan is a list of them, applied in order to the frontier.
+
+    Every thought is scored when it is created, by checking its sentences against the document graph,
+    so there is no LLM scoring step.
+    """
 
     @staticmethod
     def retrieve(query: Optional[str] = None):
@@ -504,21 +554,21 @@ class ops:
         def run(r: _Run):
             ids = r.retrieve(query or r.question)
             if not r.frontier:
-                r.frontier = [r.add(f"Evidence for: {r.question}", "retrieve", [], ids)]
+                r.frontier = [r.add("", "retrieve", [], ids)]
             for t in r.frontier:
                 t["evidence"] = _union(t["evidence"], ids)
         return run
 
     @staticmethod
     def generate(k: int = 3):
-        """Branch every frontier thought into ``k`` candidate answers."""
+        """Branch every frontier thought into ``k`` candidate answers (one LLM call per thought)."""
         def run(r: _Run):
             nxt = []
             for parent in r.frontier:
                 base = "" if parent["operation"] == "retrieve" else f"\n\nBuild on this partial answer:\n{parent['content']}"
                 reply = r.ask(f"{r.header(parent['evidence'])}{base}\n\nPropose {k} distinct candidate answers "
                               f"(different readings of the question, evidence or lines of reasoning). {_RULES}\n\n"
-                              'Reply with JSON only:\n{"thoughts": [{"answer": "...", "evidence": ["node-id"], "missing": ""}]}')
+                              'Reply with JSON only:\n{"thoughts": [{"answer": "...", "missing": ""}]}')
                 if reply is None:
                     nxt.append(parent)
                     continue
@@ -529,117 +579,124 @@ class ops:
         return run
 
     @staticmethod
-    def score():
-        """Rate each frontier thought 0-10 against its evidence (stored as 0-1) with a critique."""
-        def run(r: _Run):
-            for t in r.frontier:
-                if t["operation"] == "retrieve":
-                    continue
-                reply = r.ask(f"{r.header(t['evidence'])}\n\nCandidate answer:\n{t['content']}\n\nRate the candidate "
-                              "from 0 to 10 for correctness, completeness and grounding in the evidence (unsupported "
-                              'claims lower the score).\n\nReply with JSON only:\n{"score": 0, "critique": "..."}')
-                if reply is None:
-                    continue
-                data = _loose_json(reply)
-                raw = data.get("score")
-                if raw is None:
-                    m = re.search(r"\d+(?:\.\d+)?", reply)
-                    raw = m.group(0) if m else None
-                try:
-                    t["score"] = max(0.0, min(1.0, float(raw) / 10))
-                except (TypeError, ValueError):
-                    pass
-                if data.get("critique"):
-                    t["critique"] = data["critique"]
-        return run
-
-    @staticmethod
     def keep_best(n: int = 1):
-        """Prune the frontier to the ``n`` highest-scoring thoughts."""
+        """Keep the ``n`` most grounded thoughts; candidates under two-thirds supported (net <= 0) are
+        dropped while a better one exists, so a later merge has nothing ungrounded to blend in."""
         def run(r: _Run):
-            r.frontier = sorted(r.frontier, key=lambda t: -(t["score"] or 0))[:n]
+            ranked = sorted(r.frontier, key=lambda t: -_net(t))
+            r.frontier = [t for t in ranked[:n] if _net(t) > 0] or ranked[:1]
         return run
 
     @staticmethod
     def aggregate():
-        """Merge the frontier into one thought (the step a tree of thoughts can't do)."""
+        """Merge the frontier into one thought (the step a tree of thoughts can't do).
+
+        The merge is kept only if it is at least as grounded as the best thought it came from.
+        """
         def run(r: _Run):
             if len(r.frontier) < 2:
                 return
-            listing = "\n\n".join(
-                f"Candidate {i}" + (f" (score {round(t['score'] * 10)}/10)" if t["score"] is not None else "") + f":\n{t['content']}"
-                for i, t in enumerate(r.frontier, 1))
+            listing = "\n\n".join(f"Candidate {i}:\n{t['content']}" for i, t in enumerate(r.frontier, 1))
             reply = r.ask(f"{r.header(_union(*(t['evidence'] for t in r.frontier)))}\n\n{listing}\n\nMerge the candidates "
                           "into one answer: keep every supported point, resolve conflicts using the evidence, drop "
                           f"unsupported claims. {_RULES}\n\n{_ANSWER_JSON}")
-            if reply is not None:
-                data = _loose_json(reply)
-                r.frontier = [r.derive("aggregate", r.frontier, data if data.get("answer") else {"answer": reply.strip()})]
+            if reply is None:
+                return
+            data = _loose_json(reply)
+            merged = r.derive("aggregate", r.frontier, data if data.get("answer") else {"answer": reply.strip()})
+            best = max(r.frontier, key=_net)
+            r.frontier = [merged if _net(merged) >= _net(best) else best]
         return run
 
     @staticmethod
-    def refine(max_rounds: int = 2):
-        """Improve each thought; repeats while the model asks for (and gets) more evidence."""
+    def refine(max_rounds: int = 2, per_claim: int = 3):
+        """Repair unsupported sentences.
+
+        Each round first searches the graph with every unsupported sentence as the query (no LLM call);
+        a sentence the new evidence backs is then grounded as written. Only sentences still unsupported
+        go to the LLM for a rewrite, and a rewrite that does not raise the grounding is discarded.
+        """
         def run(r: _Run):
             out = []
             for cur in r.frontier:
                 for _ in range(max_rounds):
-                    critique = f"\n\nCritique:\n{cur['critique']}" if cur.get("critique") else ""
-                    reply = r.ask(f"{r.header(cur['evidence'])}\n\nCurrent answer:\n{cur['content']}{critique}\n\n"
-                                  "Improve the answer: fix errors, fill gaps from the evidence, remove unsupported "
-                                  f"claims. {_RULES}\n\n{_ANSWER_JSON}")
+                    weak = [c["text"] for c in cur["claims"] if not c["supported"]]
+                    if not weak:
+                        break
+                    evidence = _union(*(r.retrieve(text, per_claim) for text in weak), cur["evidence"])
+                    if evidence != cur["evidence"]:
+                        cur = r.add(cur["content"], "ground", [cur], evidence)
+                        weak = [c["text"] for c in cur["claims"] if not c["supported"]]
+                        if not weak:
+                            break
+                    listing = "\n".join(f"- {text}" for text in weak)
+                    reply = r.ask(f"{r.header(cur['evidence'])}\n\nCurrent answer:\n{cur['content']}\n\nThese sentences "
+                                  f"are not supported by the evidence:\n{listing}\n\nRewrite the answer: correct or "
+                                  f"remove those sentences and keep everything else. {_RULES}\n\n{_ANSWER_JSON}")
                     if reply is None:
                         break
                     data = _loose_json(reply)
-                    cur = r.derive("refine", [cur], data if data.get("answer") else {"answer": reply.strip()})
-                    if not cur["followUp"]:
+                    nxt = r.derive("refine", [cur], data if data.get("answer") else {"answer": reply.strip()})
+                    if _net(nxt) <= _net(cur):
                         break
+                    cur = nxt
                 out.append(cur)
             r.frontier = out
         return run
 
 
 def default_plan() -> List[Callable[[_Run], None]]:
-    """retrieve -> generate(3) -> score -> keep_best(2) -> aggregate -> refine -> score (about 7 LLM calls)."""
-    return [ops.retrieve(), ops.generate(3), ops.score(), ops.keep_best(2), ops.aggregate(), ops.refine(), ops.score()]
+    """retrieve -> generate(3) -> keep_best(2) -> aggregate -> refine: 1 to 4 LLM calls."""
+    return [ops.retrieve(), ops.generate(3), ops.keep_best(2), ops.aggregate(), ops.refine()]
 
 
-class GraphOfThought:
-    """Graph-of-Thoughts reasoning (Besta et al., 2023) grounded in a ``DocumentGraph``.
+class GroundedGraphOfThought:
+    """Graph-of-Thoughts reasoning (Besta et al., 2023) verified against a ``DocumentGraph``.
 
-    Thoughts are vertices and their ``parents`` are the edges. Any generate/aggregate/refine step may
-    report ``missing`` information, which triggers a new graph search mid-reasoning.
+    Thoughts are vertices and their ``parents`` are the edges. Each thought's sentences are checked
+    against the document graph when it is created (``DocumentGraph.support``), and that check replaces
+    the LLM judge: it ranks candidates, gates merges and rewrites, turns unsupported sentences into
+    graph queries, and decides which sections are cited.
 
     Args:
         graph: the ``DocumentGraph`` to search.
         llm: any ``prompt -> text`` callable (Claude, OpenAI, Ollama, a local model...).
+        min_support: share of a sentence's term mass the evidence must cover for it to count as supported.
         search_kwargs: forwarded to ``DocumentGraph.search``.
     """
 
-    def __init__(self, graph: DocumentGraph, llm: Callable[[str], str], max_llm_calls: int = 24,
-                 max_evidence: int = 10, max_evidence_chars: int = 1500, **search_kwargs):
+    def __init__(self, graph: DocumentGraph, llm: Callable[[str], str], max_llm_calls: int = 16,
+                 max_evidence: int = 10, max_evidence_chars: int = 1500, min_support: float = 0.5, **search_kwargs):
         self.graph, self.llm = graph, llm
-        self.max_llm_calls = max_llm_calls
+        self.max_llm_calls, self.min_support = max_llm_calls, min_support
         self.max_evidence, self.max_evidence_chars = max_evidence, max_evidence_chars
         self.search_kwargs = search_kwargs
 
-    # ponytail: LLM calls run sequentially; fan out generate/score with a ThreadPoolExecutor if latency matters
+    # ponytail: LLM calls run sequentially; fan out generate with a ThreadPoolExecutor if latency matters
     def reason(self, question: str, plan: Optional[Sequence[Callable[[_Run], None]]] = None) -> Dict[str, Any]:
-        """Answer ``question``. Returns ``answer``, ``citations``, the whole ``thoughts`` graph and ``llm_calls``."""
+        """Answer ``question``.
+
+        Returns ``answer``; ``claims`` (each sentence with its support and supporting nodes);
+        ``unsupported`` sentences; ``citations`` (only sections that back a supported sentence);
+        the whole ``thoughts`` graph; ``llm_calls``; and ``budget_exhausted`` when a step was skipped.
+        """
         r = _Run(self, question)
         for op in plan or default_plan():
             op(r)
         answers = [t for t in r.frontier if t["operation"] != "retrieve"]
-        best = max(answers, key=lambda t: t["score"] if t["score"] is not None else -1, default=None)
-        citations = [{"nodeId": i, "docId": self.graph.nodes[i]["docId"], "title": self.graph.nodes[i]["title"]}
-                     for i in (best["evidence"] if best else []) if i in self.graph.nodes]
-        return {"question": question, "answer": best["content"] if best else "", "best": best,
-                "thoughts": list(r.thoughts.values()), "citations": citations, "llm_calls": r.calls}
+        best = max(answers, key=_net, default=None)
+        claims = best["claims"] if best else []
+        cited = _union(*(c["nodes"] for c in claims if c["supported"]))
+        return {"question": question, "answer": best["content"] if best else "", "best": best, "claims": claims,
+                "unsupported": [c["text"] for c in claims if not c["supported"]],
+                "citations": [{"nodeId": i, "docId": self.graph.nodes[i]["docId"], "title": self.graph.nodes[i]["title"]}
+                              for i in cited],
+                "thoughts": list(r.thoughts.values()), "llm_calls": r.calls, "budget_exhausted": r.exhausted}
 
 
 # ----------------------------------------------------------------------------- harness
 
-def got_tools(graph: DocumentGraph, reasoner: Optional[GraphOfThought] = None, writable: bool = False) -> List[ToolSpec]:
+def got_tools(graph: DocumentGraph, reasoner: Optional[GroundedGraphOfThought] = None, writable: bool = False) -> List[ToolSpec]:
     """Agent tools over ``graph`` as ``ToolSpec``s.
 
     Map ``spec.schema_dict()`` onto any LLM tool-calling API and run ``execute_tools(calls, specs)``.
@@ -682,7 +739,7 @@ def got_tools(graph: DocumentGraph, reasoner: Optional[GraphOfThought] = None, w
                      [p("doc_id", "document id")], graph.remove_document),
         ]
     if reasoner:
-        tools.append(ToolSpec("got_reason", "Answer a question from the documents with cited sections",
+        tools.append(ToolSpec("got_reason", "Answer a question from the documents; every sentence is checked against the cited sections",
                               [p("question", "the question to answer")],
-                              lambda question: {k: v for k, v in reasoner.reason(question).items() if k in ("answer", "citations")}))
+                              lambda question: {k: v for k, v in reasoner.reason(question).items() if k in ("answer", "citations", "unsupported")}))
     return tools

@@ -218,32 +218,43 @@ python examples/train_arc1.py --eval-only --out-dir Models/distill2
 python examples/compare_arc1.py old=Models/arc1_arc1_tiny new=Models/distill2/arc1_arc1_tiny
 ```
 
-### Graph of Thought — Document Knowledge Graph and Reasoning Harness
+### Grounded Graph of Thought — Document Knowledge Graph and Verified Reasoning
 
-A Python port of [graph-of-thought](https://github.com/gpbacay/graph-of-thought). Headings become nodes,
-linked by structure, by explicit cross-references ("see Configuration") and by similarity. Search uses BM25
-seeds followed by a bounded graph expansion, and every hit says how it was reached. Retrieval needs no
-API keys or vector database. Saved graphs use the same JSON format as the Node package.
+The document graph is a Python port of [graph-of-thought](https://github.com/gpbacay/graph-of-thought).
+Headings become nodes, linked by structure, by explicit cross-references ("see Configuration") and by shared
+terms. Search uses BM25 seeds followed by a bounded graph expansion, and every hit says how it was reached.
+Retrieval needs no API keys or vector database. Saved graphs use the same JSON format as the Node package.
 
 ```python
-from gpbacay_arcane import DocumentGraph, GraphOfThought, got_tools, load_arc1
+from gpbacay_arcane import DocumentGraph, GroundedGraphOfThought, got_tools
 
-graph = DocumentGraph()                          # or DocumentGraph(embed=load_arc1().embed)
+graph = DocumentGraph()
 graph.add_document(markdown, "User Guide")       # same title/doc_id again replaces it
 graph.search("config fails")                     # hits with score, hops, via, edgeType, path
 context = graph.retrieve("config fails")         # prompt-ready "### Title [node-id]" blocks
 
-# Graph-of-Thoughts (Besta et al., 2023): generate -> score -> keep best -> aggregate -> refine,
-# re-searching the graph whenever a step reports missing evidence. `llm` is any prompt -> text callable.
-result = GraphOfThought(graph, llm=my_llm).reason("My app cannot reach the database. What should I check?")
-result["answer"], result["citations"], result["thoughts"]
+# Graph-of-Thoughts (Besta et al., 2023) with the LLM judge replaced by a check against the graph.
+# `llm` is any prompt -> text callable. Default plan: 1 to 4 LLM calls.
+result = GroundedGraphOfThought(graph, llm=my_llm).reason("My app cannot reach the database. What should I check?")
+result["answer"], result["claims"], result["unsupported"], result["citations"]
 
 tools = got_tools(graph)                         # Arcane ToolSpecs; schema_dict() for any tool-calling API
 ```
 
-With `embed=load_arc1().embed`, ARC 1 embeddings supply the semantic links and extra query seeds. `got_tools`
-is read-only unless you pass `writable=True`. The bundled `arc1-tiny` is not trained to route these tools,
-so drive them with an LLM, or fine-tune ARC 1 before you hand them to `Arc1Agent`.
+Every thought's sentences are checked against the document graph when the thought is created
+(`graph.support(sentence, node_ids)`, IDF-weighted term coverage, no LLM call). That check:
+
+- **ranks candidates** in place of an LLM scoring step;
+- **gates merges and rewrites**: a merge or rewrite that lowers the answer's grounding is discarded;
+- **drives retrieval**: each unsupported sentence is used as a graph query before any rewrite, and only
+  sentences still unsupported go back to the LLM;
+- **decides citations**: only sections that back a supported sentence are cited.
+
+The check is lexical: paraphrases score lower and a negated claim still matches. `embed=` takes any
+`text -> vector` function for semantic links; arc1-tiny's embeddings are too weak for this, so use a
+sentence-embedding model. `got_tools` is read-only unless you pass `writable=True`. The bundled `arc1-tiny`
+is not trained to route these tools, so drive them with an LLM, or fine-tune ARC 1 before you hand them
+to `Arc1Agent`.
 
 ### Distilling Qwen2.5-0.5B into ARCANE
 

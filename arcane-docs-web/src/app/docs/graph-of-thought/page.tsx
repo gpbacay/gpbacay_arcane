@@ -10,7 +10,7 @@ const p = "max-w-2xl leading-relaxed";
 const link = "font-medium text-[#C785F2] underline hover:text-[#d49cf5]";
 
 const GOT_REPO = "https://github.com/gpbacay/graph-of-thought";
-const README_URL = "https://github.com/gpbacay/gpbacay_arcane#graph-of-thought--document-knowledge-graph-and-reasoning-harness";
+const README_URL = "https://github.com/gpbacay/gpbacay_arcane#grounded-graph-of-thought--document-knowledge-graph-and-verified-reasoning";
 
 const CAPABILITIES = [
   {
@@ -30,8 +30,8 @@ const CAPABILITIES = [
   },
   {
     icon: GitMerge,
-    title: "Reasons in a graph",
-    body: "Drafts several answers, scores them, merges the best and searches again when evidence is missing.",
+    title: "Verified reasoning",
+    body: "Every sentence is checked against the documents. Unsupported ones trigger a search, then a rewrite.",
   },
 ];
 
@@ -39,16 +39,15 @@ const EDGES: [string, string, string][] = [
   ["parent-child", "Heading hierarchy. Walking up to a parent counts half as much as walking down.", "0.8"],
   ["reference", "A section's text names another section's title, as in \"see Configuration\".", "0.75"],
   ["next", "Reading order between neighbouring sections and chunks.", "0.4"],
-  ["semantic", "Shared distinctive terms, or ARC 1 embedding similarity when enabled. Up to 5 per node.", "0.3 to 0.9"],
+  ["semantic", "Shared distinctive terms, or embedding similarity when you pass an embedder. Up to 5 per node.", "0.3 to 0.9"],
 ];
 
 const OPS: [string, string][] = [
   ["ops.retrieve(query=None)", "Searches the graph for the question or a sub-query and attaches the hits as evidence."],
-  ["ops.generate(k)", "Branches each thought into k candidate answers."],
-  ["ops.score()", "The LLM rates each thought from 0 to 10 against its evidence and writes a critique."],
-  ["ops.keep_best(n)", "Keeps the n highest-scoring thoughts."],
-  ["ops.aggregate()", "Merges several thoughts into one, the step a tree of thoughts can't do."],
-  ["ops.refine(max_rounds)", "Improves a thought, and repeats while the model asks for more evidence."],
+  ["ops.generate(k)", "Branches each thought into k candidate answers in one LLM call."],
+  ["ops.keep_best(n)", "Keeps the n most grounded thoughts, and drops any under two-thirds supported while a better one exists."],
+  ["ops.aggregate()", "Merges several thoughts into one, the step a tree of thoughts can't do. The merge is kept only if it is at least as grounded as its best parent."],
+  ["ops.refine(max_rounds)", "Searches the graph with each unsupported sentence first, then asks the LLM to rewrite only what is still unsupported. A rewrite that lowers grounding is discarded."],
 ];
 
 const TOOLS: [string, string][] = [
@@ -66,16 +65,17 @@ export default function GraphOfThoughtPage() {
       <header className="not-prose mb-12">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#C785F2]">ARCANE · Harness</p>
         <h1 className="mt-3 max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-[-0.03em] text-zinc-50 sm:text-5xl">
-          Graph of Thought
+          Grounded Graph of Thought
         </h1>
         <p className="mt-6 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          A document knowledge graph, retrieval that explains itself and Graph-of-Thoughts reasoning, built into
-          ARCANE. Give it your documents and it finds the sections that answer a question, including the ones a
-          keyword search would miss because they are only linked to the match.
+          A document knowledge graph, retrieval that explains itself and Graph-of-Thoughts reasoning that checks
+          every sentence against your documents. Give it your documents and it finds the sections that answer a
+          question, including the ones a keyword search would miss because they are only linked to the match.
         </p>
         <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
           Retrieval runs offline with no API keys, embeddings or vector database. Add an LLM and the same graph
-          grounds multi-step reasoning with citations. Add ARC 1 and its embeddings link sections by meaning.
+          verifies its reasoning: unsupported sentences are searched for, rewritten or reported, and only sections
+          that back a sentence are cited.
         </p>
       </header>
 
@@ -93,11 +93,11 @@ export default function GraphOfThoughtPage() {
           ))}
         </ul>
         <p className={`${p} mt-4 text-sm text-zinc-400`}>
-          It is a Python port of{" "}
+          The document graph is a Python port of{" "}
           <a href={GOT_REPO} target="_blank" rel="noreferrer" className={link}>
             graph-of-thought
           </a>
-          , extended with ARC 1 embeddings and ARCANE&apos;s tool specs.
+          . The verified reasoning and ARCANE tool specs are added on top.
         </p>
 
         <h2 id="quick-start" className={h2}>
@@ -151,7 +151,7 @@ context = graph.retrieve("deploy")       # "### Deployment [user-guide#3]\\nPush
           chart={`flowchart LR
   DOC["Markdown documents"] --> PARSE["Headings become nodes<br/>long sections become chunks"]
   PARSE --> G["Document graph<br/>parent-child, reference, next, semantic"]
-  Q["Query"] --> BM["BM25 keyword scoring<br/>(+ ARC 1 similarity)"]
+  Q["Query"] --> BM["BM25 keyword scoring<br/>(+ embedding similarity)"]
   G --> BM
   BM --> SEEDS["Top seeds"]
   SEEDS --> WALK["Bounded multi-source walk<br/>score weakens each hop"]
@@ -199,49 +199,55 @@ context = graph.retrieve("deploy")       # "### Deployment [user-guide#3]\\nPush
         </div>
 
         <h2 id="reasoning" className={h2}>
-          Graph-of-Thoughts reasoning
+          Grounded Graph-of-Thoughts reasoning
         </h2>
         <p className={p}>
-          <code className={code}>GraphOfThought</code> follows{" "}
+          <code className={code}>GroundedGraphOfThought</code> follows{" "}
           <a href="https://arxiv.org/abs/2308.09687" target="_blank" rel="noreferrer" className={link}>
             Besta et al., 2023
           </a>
-          . Thoughts are vertices and each one links to the thoughts it came from. A plan is a list of operations
-          applied in order. Any step that reports missing information runs a new graph search, so retrieval follows
-          what the reasoning turns out to need.
+          , except that the LLM never grades its own answers. Each thought&apos;s sentences are checked against the
+          document graph when the thought is created, by how much of each sentence&apos;s rare-word weight its evidence
+          covers. No LLM call is involved. That one check ranks candidates, decides whether a merge or rewrite is
+          kept, turns each unsupported sentence into a graph search, and picks the citations.
         </p>
         <Mermaid
           minWidth={560}
           chart={`flowchart LR
   R["retrieve"] --> GEN["generate 3"]
-  GEN --> S1["score"]
-  S1 --> KB["keep best 2"]
-  KB --> AGG["aggregate"]
-  AGG --> REF["refine"]
-  REF --> S2["score"]
-  REF -. "missing evidence" .-> SEARCH["new graph search"]
-  SEARCH -.-> REF`}
+  GEN --> KB["keep best 2<br/>by grounding"]
+  KB --> AGG["aggregate<br/>kept only if not less grounded"]
+  AGG --> CHK{"unsupported<br/>sentences?"}
+  CHK -- "no" --> OUT["answer + citations"]
+  CHK -- "yes" --> SEARCH["search graph<br/>with each sentence"]
+  SEARCH --> CHK2{"still<br/>unsupported?"}
+  CHK2 -- "no" --> OUT
+  CHK2 -- "yes" --> REW["LLM rewrites<br/>those sentences"]
+  REW --> CHK`}
         />
         <CodeSnippet
           filename="reason.py"
           language="python"
-          code={`from gpbacay_arcane import GraphOfThought
+          code={`from gpbacay_arcane import GroundedGraphOfThought
 from gpbacay_arcane.got import ops
 
 def my_llm(prompt: str) -> str:
     ...  # call any model (hosted, Ollama, local) and return its text
 
-got = GraphOfThought(graph, llm=my_llm)          # max_llm_calls=24 by default
+got = GroundedGraphOfThought(graph, llm=my_llm)  # max_llm_calls=16, min_support=0.5
 result = got.reason("My config fails. What should I check?")
 
-result["answer"]      # final answer
-result["citations"]   # [{"nodeId": "user-guide#2", "docId": "user-guide", "title": "Configuration"}, ...]
-result["thoughts"]    # the whole thought graph: ids, parents, scores, evidence
-result["llm_calls"]
+result["answer"]       # final answer
+result["claims"]       # each sentence with its support (0-1) and the sections backing it
+result["unsupported"]  # sentences the documents do not back
+result["citations"]    # only sections that back a supported sentence
+result["thoughts"]     # the whole thought graph: ids, parents, evidence, grounding
+result["llm_calls"], result["budget_exhausted"]
+
+graph.support("Set DATABASE_URL before starting.", ["user-guide#3"])  # (1.0, ["user-guide#3"], mass)
 
 # Custom plan
-got.reason(question, [ops.retrieve(), ops.generate(5), ops.score(), ops.keep_best(3),
-                      ops.aggregate(), ops.refine(3), ops.score()])`}
+got.reason(question, [ops.retrieve(), ops.generate(5), ops.keep_best(3), ops.aggregate(), ops.refine(3)])`}
         />
         <ul className="not-prose mt-6 max-w-2xl divide-y divide-zinc-900 border-y border-zinc-800">
           {OPS.map(([name, body]) => (
@@ -252,33 +258,38 @@ got.reason(question, [ops.retrieve(), ops.generate(5), ops.score(), ops.keep_bes
           ))}
         </ul>
         <p className={`${p} mt-4 text-sm text-zinc-400`}>
-          The default plan makes about 7 LLM calls. Every call is capped by <code className={code}>max_llm_calls</code>
-          , and once the budget is spent the remaining steps keep what they have.
+          The default plan makes 1 to 4 LLM calls: one to generate, one to merge if two candidates are grounded,
+          and up to two rewrites if sentences stay unsupported after searching. Every call is capped by{" "}
+          <code className={code}>max_llm_calls</code>, and <code className={code}>budget_exhausted</code> tells you
+          when a step was skipped.
         </p>
 
-        <h2 id="arc-1-embeddings" className={h2}>
-          ARC 1 embeddings
+        <h2 id="embeddings" className={h2}>
+          Embeddings
         </h2>
         <p className={p}>
-          Without embeddings, semantic edges come from shared distinctive terms. Pass{" "}
-          <Link href="/docs/arc-1" className={link}>
-            ARC 1
-          </Link>
-          &apos;s embedder and sections are linked by meaning instead, and the closest sections by meaning also become
-          search seeds. Each section costs one ARC 1 forward pass when it is added.
+          Without embeddings, semantic edges come from shared distinctive terms. Pass any{" "}
+          <code className={code}>text -&gt; vector</code> function and sections are linked by meaning instead, and the
+          closest sections by meaning also become search seeds. Links and seeds need a cosine similarity of at least
+          0.3 by default; change it with <code className={code}>min_similarity</code>.
         </p>
         <CodeSnippet
           filename="embed.py"
           language="python"
-          code={`from gpbacay_arcane import DocumentGraph, load_arc1
+          code={`from gpbacay_arcane import DocumentGraph
 
-graph = DocumentGraph(embed=load_arc1().embed)   # any text -> vector function works
+graph = DocumentGraph(embed=my_sentence_embedder)   # any text -> vector function
 graph.add_document(guide, "User Guide")`}
         />
-        <p className={`${p} mt-4 text-sm text-zinc-400`}>
-          On the guide above, <code className={code}>deploy</code> and the Deployment section have a cosine similarity
-          of 0.56, while unrelated pairs mostly stay below 0.25. Links and seeds need at least 0.3 by default; change
-          it with <code className={code}>min_similarity</code>.
+        <p className="not-prose mt-4 border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+          <strong>Don&apos;t use arc1-tiny&apos;s embedder here yet.</strong> Its similarities don&apos;t follow meaning
+          (&quot;install the package with pip&quot; vs &quot;how to set up the library&quot; scores -0.02), so it adds
+          misleading links. Use a sentence-embedding model, or leave <code className="text-amber-100">embed</code> unset.
+          See{" "}
+          <Link href="/docs/arc-1" className="underline">
+            ARC 1
+          </Link>{" "}
+          for what it is trained on.
         </p>
 
         <h2 id="agent-tools" className={h2}>
@@ -349,6 +360,8 @@ graph = DocumentGraph.from_json(json.load(open("graph.json")))`}
             ["Simple stemming", "Common suffixes are removed, but it is not a full stemmer, so some word forms still miss."],
             ["Size", "Semantic linking compares each new section with every other section, which suits up to tens of thousands of sections."],
             ["Term links age", "Term-based links use word rarity at the time a document is added. Re-add a document to refresh them."],
+            ["Lexical verification", "The check counts shared words, so an honest paraphrase scores lower and a negated claim (\"never edit config.json\") still matches. It catches invented facts, not contradictions."],
+            ["Not benchmarked yet", "The design is tested with scripted models only. Its effect on answer quality against a real LLM has not been measured."],
             ["Sequential LLM calls", "Reasoning steps call the model one at a time, so a plan's latency is the sum of its calls."],
             ["Tool routing", "Use an LLM to pick tools; arc1-tiny is not trained for them yet."],
           ].map(([title, body]) => (

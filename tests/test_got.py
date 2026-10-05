@@ -8,7 +8,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from gpbacay_arcane.got import DocumentGraph, GraphOfThought, got_tools, ops, parse_sections
+from gpbacay_arcane.got import DocumentGraph, GroundedGraphOfThought, got_tools, parse_sections
 from gpbacay_arcane.tools import execute_tools
 
 GUIDE = """# User Guide
@@ -83,33 +83,83 @@ def test_embedding_seeds():
     assert titles(g.search("how do I ship it"))[0] == "Deployment"
 
 
-def test_reasoner_merges_and_follows_up():
+def test_link_targets_are_not_indexed():
+    g = DocumentGraph()
+    g.add_document("# Notes\n\n## Links\n- [guide](distillation-guide.md)\n\n## Distillation\nTrain a student.", "Notes")
+    assert all(h["lexicalScore"] == 0 for h in g.search("distillation") if h["title"] == "Links")
+
+
+def test_support_is_checked_without_an_llm():
     g = DocumentGraph()
     g.add_document(GUIDE, "User Guide")
-    prompts = []
+    share, nodes, _ = g.support("Edit config.json and set DATABASE_URL.", list(g.nodes))
+    assert share == 1.0 and set(nodes) == {"user-guide#2", "user-guide#3"}  # one claim, two sections
+    assert g.support("Reinstall the kubernetes helm chart.", list(g.nodes))[0] == 0.0
+
+
+def scripted(*replies):
+    """LLM stub that returns ``replies`` in order and records the prompts."""
+    prompts, queue = [], list(replies)
 
     def llm(prompt):
         prompts.append(prompt)
-        if "Propose 2" in prompt:
-            return '{"thoughts": [{"answer": "Edit config.json", "evidence": ["user-guide#2"]}, {"answer": "Reinstall"}]}'
-        if "Rate the candidate" in prompt:
-            return '{"score": 8, "critique": "ok"}' if "config.json" in prompt.split("Candidate answer:")[1] else '{"score": 2}'
-        return '{"answer": "Edit config.json and set DATABASE_URL", "evidence": ["user-guide#3"], "missing": ""}'
+        return queue.pop(0)
+    return llm, prompts
 
-    plan = [ops.retrieve(), ops.generate(2), ops.score(), ops.keep_best(2), ops.aggregate(), ops.refine(1), ops.score()]
-    out = GraphOfThought(g, llm).reason("config fails, what now?", plan)
-    assert out["answer"] == "Edit config.json and set DATABASE_URL"
-    assert {"user-guide#2", "user-guide#3"} <= {c["nodeId"] for c in out["citations"]}
-    assert out["llm_calls"] == len(prompts) == 6  # generate 1, score 2, aggregate 1, refine 1, score 1
-    assert out["best"]["operation"] == "refine" and out["best"]["score"] == 0.8
-    capped = GraphOfThought(g, llm, max_llm_calls=1).reason("config fails")
-    assert capped["llm_calls"] == 1
+
+GROUNDED, DB = "Edit config.json to customize settings.", "Edit config.json. Set DATABASE_URL before starting."
+HALLUCINATED = "Reinstall the kubernetes helm chart."
+
+
+def test_ungrounded_candidates_are_pruned_before_merging():
+    g = DocumentGraph()
+    g.add_document(GUIDE, "User Guide")
+    llm, _ = scripted(json.dumps({"thoughts": [{"answer": GROUNDED}, {"answer": HALLUCINATED}]}))
+    out = GroundedGraphOfThought(g, llm).reason("config fails, what now?")
+    assert out["answer"] == GROUNDED and out["unsupported"] == []
+    assert out["llm_calls"] == 1  # no judge calls, and nothing left to merge or repair
+    assert [c["nodeId"] for c in out["citations"]] == ["user-guide#2"]
+
+
+def test_merge_that_adds_unsupported_claims_is_rejected():
+    g = DocumentGraph()
+    g.add_document(GUIDE, "User Guide")
+    llm, _ = scripted(json.dumps({"thoughts": [{"answer": GROUNDED}, {"answer": DB}]}),
+                      json.dumps({"answer": f"{DB} {HALLUCINATED}"}))
+    out = GroundedGraphOfThought(g, llm).reason("config fails, what now?")
+    assert out["answer"] == DB and out["llm_calls"] == 2
+    assert any(t["operation"] == "aggregate" for t in out["thoughts"])  # recorded, not chosen
+    assert {c["nodeId"] for c in out["citations"]} == {"user-guide#2", "user-guide#3"}
+
+
+def test_unsupported_claim_is_grounded_by_searching_for_it():
+    g = DocumentGraph()
+    g.add_document(GUIDE, "User Guide")
+    llm, _ = scripted(json.dumps({"thoughts": [{"answer": DB}]}))
+    out = GroundedGraphOfThought(g, llm, max_results=2).reason("config fails, what now?")
+    assert "user-guide#3" not in out["thoughts"][0]["evidence"]  # the first search missed Database
+    assert out["best"]["operation"] == "ground" and out["unsupported"] == []
+    assert out["llm_calls"] == 1  # grounded by a graph search, not a rewrite
+
+
+def test_follow_up_evidence_reaches_the_prompt_and_budget_is_reported():
+    g = DocumentGraph()
+    g.add_document(GUIDE, "User Guide")
+    first = json.dumps({"thoughts": [{"answer": HALLUCINATED, "missing": "DATABASE_URL"}]})
+    llm, prompts = scripted(first, json.dumps({"answer": "Set DATABASE_URL before starting."}))
+    out = GroundedGraphOfThought(g, llm, max_results=2, max_evidence=1).reason("config fails, what now?")
+    assert "[user-guide#3]" in prompts[1]  # newest evidence comes first, even with one evidence slot
+    assert out["answer"] == "Set DATABASE_URL before starting." and not out["budget_exhausted"]
+
+    llm, _ = scripted(first)
+    capped = GroundedGraphOfThought(g, llm, max_results=2, max_llm_calls=1).reason("config fails, what now?")
+    assert capped["budget_exhausted"] and capped["unsupported"] == [HALLUCINATED]
 
 
 def test_tools_run_through_arcane_executor():
     g = DocumentGraph()
     assert "got_remove_document" not in [t.name for t in got_tools(g)]  # write tools are opt-in
-    tools = got_tools(g, GraphOfThought(g, lambda p: '{"answer": "x"}'), writable=True)
+    tools = got_tools(g, GroundedGraphOfThought(g, lambda p: '{"answer": "x"}'), writable=True)
     assert [t.name for t in tools][-1] == "got_reason"
     calls = [{"name": "got_add_document", "arguments": {"content": GUIDE, "title": "User Guide"}},
              {"name": "got_search", "arguments": {"query": "deploy"}},
