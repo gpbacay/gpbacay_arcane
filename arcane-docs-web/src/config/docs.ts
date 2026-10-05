@@ -98,7 +98,7 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
         {
           title: "Hippocampus",
           href: "/docs/hippocampus",
-          keywords: ["hippocampus", "reactor", "neocortex", "episodic memory", "brain", "complementary learning systems", "rag", "retrieval", "memory", "knn", "few-shot", "system 1", "decisions", "classification", "routing", "intent", "tool calling", "model-agnostic", "no fine-tuning", "examples", "harness"]
+          keywords: ["hippocampus", "neocortex", "episodic memory", "brain", "complementary learning systems", "rag", "retrieval", "memory", "knn", "few-shot", "system 1", "decisions", "classification", "routing", "intent", "tool calling", "model-agnostic", "no fine-tuning", "examples", "harness"]
         },
       ],
     },

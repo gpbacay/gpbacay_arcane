@@ -274,6 +274,3 @@ class Hippocampus:
             out["source"] = "model+memory"
         out["memory_arguments"], out["neighbors"] = filled, memory["neighbors"]
         return out
-
-
-Reactor = Hippocampus  # former name, kept so existing imports keep working

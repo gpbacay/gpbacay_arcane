@@ -86,7 +86,7 @@ export default function HippocampusPage() {
         </h1>
         <p className="mt-6 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
           A fast-learning memory, modeled on the brain&apos;s hippocampus, that makes a model better at your labels
-          and tools without retraining it. Formerly called Reactor.
+          and tools without retraining it.
           RAG lets a language model use your knowledge by retrieving text when a request arrives. Many models,
           such as classifiers, routers and tool-calling models, can&apos;t read retrieved text, so Hippocampus retrieves
           past <em>decisions</em> instead. The examples most like the request vote for their labels or tools, the
