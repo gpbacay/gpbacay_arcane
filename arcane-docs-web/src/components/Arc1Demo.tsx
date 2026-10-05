@@ -10,6 +10,8 @@ import {
   Copy,
   FileText,
   Info,
+  Library,
+  Plus,
   Home,
   LayoutGrid,
   MessageSquare,
@@ -34,12 +36,18 @@ type Health = {
   binding_cycles?: number;
   layers?: number;
   error?: string | null;
+  reactor?: boolean;
 };
+
+/** A decided example in Reactor's memory: a class label or tool name (null = no tool applies). */
+type MemoryItem = { text: string; label: string | null; arguments?: Record<string, unknown> };
+
+type Neighbor = { text: string; label: string | null; score: number };
 
 type Decision = {
   tool: string;
   param: string;
-  kind: "anchor" | "select" | "fire";
+  kind: "anchor" | "select" | "fire" | "memory";
   present: boolean;
   value: unknown;
   p: number;
@@ -72,6 +80,8 @@ type Result = {
   decisions?: { tools: Record<string, number>; arguments: Decision[] } | Decision[];
   latency_ms?: number;
   stats?: Stats;
+  neighbors?: Neighbor[];
+  memory_arguments?: string[];
 };
 
 type ToolDef = {
@@ -98,6 +108,8 @@ type Scene = {
   labels?: string[];
   task?: string;
   state: Array<{ key: string; label: string; value: string }>;
+  /** Examples preloaded into Reactor's memory for this scene. */
+  memory?: MemoryItem[];
 };
 
 /* ------------------------------------------------------------------ scenes */
@@ -136,7 +148,57 @@ const TOOL_MSG: ToolDef = {
   ],
 };
 
+/* Tools from ARC 1's held-out split: it never trained on them. */
+const TOOL_RATE: ToolDef = {
+  name: "rate_movie",
+  description: "Rate a movie from 1 to 5 stars.",
+  parameters: [
+    { name: "title", type: "string", description: "Movie title", required: true },
+    { name: "stars", type: "integer", description: "Rating 1-5", required: true },
+  ],
+};
+
+const TOOL_PODCAST: ToolDef = {
+  name: "play_podcast",
+  description: "Play a podcast by name.",
+  parameters: [{ name: "name", type: "string", description: "Podcast name", required: true }],
+};
+
+const TOOL_FOOD: ToolDef = {
+  name: "find_restaurant",
+  description: "Find restaurants by cuisine in a city.",
+  parameters: [
+    { name: "cuisine", type: "string", description: "Type of food", required: true },
+    { name: "city", type: "string", description: "City", required: true },
+  ],
+};
+
 const SCENES: Scene[] = [
+  {
+    id: "new-tools",
+    label: "New tools (Reactor)",
+    description: "Tools ARC 1 never trained on. Switch the harness to Reactor to teach them by example",
+    icon: Library,
+    mode: "run",
+    tools: [TOOL_RATE, TOOL_PODCAST, TOOL_FOOD],
+    prompts: [
+      "rate spirited away 5 stars",
+      "start The Daily podcast",
+      "Parasite deserves 5 stars",
+      "find Ethiopian food in Nairobi",
+      "tell me a joke",
+    ],
+    memory: [
+      { text: "rate Dune 4 stars", label: "rate_movie", arguments: { title: "Dune", stars: 4 } },
+      { text: "Inception deserves 3 stars", label: "rate_movie", arguments: { title: "Inception", stars: 3 } },
+      { text: "play the Radiolab podcast", label: "play_podcast", arguments: { name: "Radiolab" } },
+      { text: "start Serial podcast", label: "play_podcast", arguments: { name: "Serial" } },
+      { text: "find Thai food in Cebu", label: "find_restaurant", arguments: { cuisine: "Thai", city: "Cebu" } },
+      { text: "where can I eat Italian in Rome", label: "find_restaurant", arguments: { cuisine: "Italian", city: "Rome" } },
+      { text: "thanks, that's all", label: null },
+    ],
+    state: [{ key: "__last", label: "Last action", value: "None yet" }],
+  },
   {
     id: "home",
     label: "Smart home",
@@ -317,8 +379,14 @@ const SCENES: Scene[] = [
     ],
     task: "Classify the search intent of the query.",
     state: [],
+    memory: [
+      { text: "best budget phones 2026", label: "commercial" },
+      { text: "how to tie a tie", label: "informational" },
+    ],
   },
 ];
+
+const DEFAULT_SCENE = SCENES.find((s) => s.id === "home") || SCENES[0];
 
 /** "billing: charges, refunds" -> ["billing", "charges, refunds"]. */
 function splitLabel(entry: string): [string, string] {
@@ -554,13 +622,159 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
+type Draft = { text: string; label: string; args: Record<string, string> };
+
+const EMPTY_DRAFT: Draft = { text: "", label: "", args: {} };
+
+function describeMemory(m: MemoryItem) {
+  const args = m.arguments && Object.keys(m.arguments).length
+    ? `(${Object.entries(m.arguments).map(([k, v]) => `${k}=${formatValue(v)}`).join(", ")})`
+    : "";
+  return m.label ? `${m.label}${args}` : "no tool";
+}
+
+/** Reactor's memory for the scene: what ARC 1 retrieves at request time, and a form to teach it more. */
+function MemoryPanel({
+  scene,
+  labelNames,
+  memory,
+  draft,
+  setDraft,
+  onRemember,
+  onForget,
+  textRef,
+}: {
+  scene: Scene;
+  labelNames: string[];
+  memory: MemoryItem[];
+  draft: Draft;
+  setDraft: (d: Draft) => void;
+  onRemember: (item: MemoryItem) => void;
+  onForget: (text: string) => void;
+  textRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  const isRun = scene.mode === "run";
+  const tool = scene.tools.find((t) => t.name === draft.label);
+  const choices = isRun ? scene.tools.map((t) => t.name) : labelNames;
+  const label = draft.label || (isRun ? "" : choices[0] || "");
+  const add = () => {
+    const text = draft.text.trim();
+    if (!text || (!isRun && !label)) return;
+    const args: Record<string, unknown> = {};
+    for (const p of tool?.parameters || []) {
+      const raw = (draft.args[p.name] || "").trim();
+      if (!raw) continue;
+      args[p.name] = (p.type === "integer" || p.type === "number") && raw !== "" && !isNaN(Number(raw)) ? Number(raw) : raw;
+    }
+    onRemember({ text, label: label || null, ...(Object.keys(args).length ? { arguments: args } : {}) });
+    setDraft(EMPTY_DRAFT);
+  };
+  const field = "min-w-0 border border-zinc-800 bg-black px-2.5 py-1.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-[#835BD9]";
+
+  return (
+    <div className="mt-4 border border-zinc-800">
+      <div className="flex items-baseline justify-between gap-3 border-b border-zinc-800 px-3 py-2">
+        <h3 className="text-sm font-medium text-zinc-200">Reactor memory</h3>
+        <span className="text-xs tabular-nums text-zinc-500">
+          {memory.length} example{memory.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <p className="px-3 pt-2 text-xs leading-relaxed text-zinc-500">
+        Decided examples ARC 1 retrieves at request time, instead of fine-tuning.{" "}
+        {isRun
+          ? "A tool example with its arguments also shows where each argument sits in a request."
+          : "The most similar ones vote for their label."}
+      </p>
+      {memory.length > 0 && (
+        <ul className="mt-2 max-h-44 divide-y divide-zinc-900 overflow-y-auto border-y border-zinc-900">
+          {memory.map((m) => (
+            <li key={m.text} className="flex items-start gap-2 px-3 py-1.5 text-xs">
+              <span className="min-w-0 flex-1">
+                <span className="text-zinc-200">{m.text}</span>
+                <span className="text-zinc-600"> → </span>
+                <code className="break-words text-[#C785F2]">{describeMemory(m)}</code>
+              </span>
+              <button
+                type="button"
+                onClick={() => onForget(m.text)}
+                aria-label={`Forget "${m.text}"`}
+                className="shrink-0 p-0.5 text-zinc-600 hover:text-zinc-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="grid gap-2 p-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          add();
+        }}
+      >
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            ref={textRef}
+            value={draft.text}
+            onChange={(e) => setDraft({ ...draft, text: e.target.value })}
+            placeholder={isRun ? "An example request" : "An example message"}
+            aria-label="Example text"
+            maxLength={500}
+            className={`${field} flex-1`}
+          />
+          <select
+            value={label}
+            onChange={(e) => setDraft({ ...draft, label: e.target.value, args: {} })}
+            aria-label={isRun ? "Tool it should call" : "Label it should get"}
+            className={`${field} sm:w-44`}
+          >
+            {isRun && <option value="">no tool</option>}
+            {choices.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+        {tool && tool.parameters.length > 0 && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {tool.parameters.map((p) => (
+              <input
+                key={p.name}
+                value={draft.args[p.name] || ""}
+                onChange={(e) => setDraft({ ...draft, args: { ...draft.args, [p.name]: e.target.value } })}
+                placeholder={`${p.name} (${p.type}), as written in the text`}
+                aria-label={`Argument ${p.name}`}
+                className={field}
+              />
+            ))}
+          </div>
+        )}
+        <button
+          type="submit"
+          disabled={!draft.text.trim()}
+          className="inline-flex items-center justify-center gap-1.5 justify-self-start border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:border-zinc-500 hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2] disabled:opacity-40"
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden />
+          Remember
+        </button>
+      </form>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ demo */
 
 export function Arc1Demo() {
   const [health, setHealth] = useState<Health | null>(null);
   const [checking, setChecking] = useState(true);
-  const [sceneId, setSceneId] = useState(SCENES[0].id);
-  const [input, setInput] = useState(SCENES[0].prompts[0]);
+  const [sceneId, setSceneId] = useState(DEFAULT_SCENE.id);
+  const [input, setInput] = useState(DEFAULT_SCENE.prompts[0]);
+  const [useReactor, setUseReactor] = useState(false);
+  // Reactor memory per scene, seeded from the scene's examples. It lives in this page and is sent with
+  // each request, so the server stays stateless and visitors never share a memory.
+  const [memories, setMemories] = useState<Record<string, MemoryItem[]>>({});
   const [cycles, setCycles] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -569,8 +783,31 @@ export function Arc1Demo() {
   const [state, setState] = useState<Record<string, string>>({});
   const [labels, setLabels] = useState<string[]>([]);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const memoryTextRef = useRef<HTMLInputElement | null>(null);
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const labelNames = labels.map((l) => splitLabel(l)[0]);
 
-  const scene = useMemo(() => SCENES.find((s) => s.id === sceneId) || SCENES[0], [sceneId]);
+  const scene = useMemo(() => SCENES.find((s) => s.id === sceneId) || DEFAULT_SCENE, [sceneId]);
+  const memory = useMemo(() => memories[scene.id] ?? scene.memory ?? [], [memories, scene]);
+  const reactorReady = Boolean(health?.reactor) && scene.mode !== "extract";
+  const reactorOn = useReactor && reactorReady;
+  const remember = useCallback(
+    (item: MemoryItem) =>
+      setMemories((prev) => {
+        // Same text again replaces it, as Reactor.remember does.
+        const current = (prev[scene.id] ?? scene.memory ?? []).filter((m) => m.text !== item.text);
+        return { ...prev, [scene.id]: [...current, item].slice(-200) };
+      }),
+    [scene]
+  );
+  const forget = useCallback(
+    (text: string) =>
+      setMemories((prev) => ({
+        ...prev,
+        [scene.id]: (prev[scene.id] ?? scene.memory ?? []).filter((m) => m.text !== text),
+      })),
+    [scene]
+  );
 
   // Grow the input with its text so long requests are never cut off.
   useEffect(() => {
@@ -609,6 +846,15 @@ export function Arc1Demo() {
     setState({});
   }, []);
 
+  const resetScene = useCallback(() => {
+    setMemories((prev) => {
+      const next = { ...prev };
+      delete next[scene.id];
+      return next;
+    });
+    selectScene(scene);
+  }, [scene, selectScene]);
+
   const applyEffects = useCallback((data: Result) => {
     const next: Record<string, string> = {};
     (data.function_calls || []).forEach((call, i) => {
@@ -624,6 +870,11 @@ export function Arc1Demo() {
       if (call.name === "get_weather" && r.city) {
         next[String(r.city).toLowerCase()] = `${r.temp_c}°C, ${r.sky}`;
         next.__last = `Checked weather in ${r.city}`;
+      }
+      if (call.name === "rate_movie") next.__last = `Rated ${call.arguments.title} ${call.arguments.stars} stars`;
+      if (call.name === "play_podcast") next.__last = `Playing ${call.arguments.name}`;
+      if (call.name === "find_restaurant") {
+        next.__last = `Found ${call.arguments.cuisine} restaurants in ${call.arguments.city}`;
       }
       if (call.name === "send_message") {
         const to = String(call.arguments.to || "").toLowerCase();
@@ -654,9 +905,10 @@ export function Arc1Demo() {
     setError(null);
     try {
       const isRun = scene.mode === "run";
+      const withMemory = reactorOn ? { memory } : {};
       const [url, body] =
         scene.mode === "run"
-          ? ["/api/arc1-run", { prompt: text, tools: scene.tools, execute: true, cycles: activeCycles }]
+          ? ["/api/arc1-run", { prompt: text, tools: scene.tools, execute: true, cycles: activeCycles, ...withMemory }]
           : scene.mode === "extract"
             ? ["/api/arc1-extract", { text, schema: scene.extractSchema, cycles: activeCycles }]
             : [
@@ -667,6 +919,7 @@ export function Arc1Demo() {
                   descriptions: Object.fromEntries(labels.map(splitLabel).filter(([, d]) => d)),
                   task: scene.task,
                   cycles: activeCycles,
+                  ...withMemory,
                 },
               ];
       const res = await fetch(url, {
@@ -684,24 +937,36 @@ export function Arc1Demo() {
     } finally {
       setSending(false);
     }
-  }, [input, sending, health, scene, labels, activeCycles, applyEffects]);
+  }, [input, sending, health, scene, labels, activeCycles, applyEffects, reactorOn, memory]);
 
   const decisions = useMemo(() => (result ? argumentDecisions(result) : []), [result]);
   const calls = result?.function_calls || [];
   const fired = new Set(calls.map((c) => c.name));
-  const colorOf = useMemo(() => {
-    const map = new Map<string, string>();
-    decisions.forEach((d) => {
-      const key = `${d.tool}.${d.param}`;
-      if (!map.has(key)) map.set(key, ARG_COLORS[map.size % ARG_COLORS.length]);
-    });
-    return map;
-  }, [decisions]);
-  const shown = decisions.filter(
-    (d) => d.present && (scene.mode === "extract" || fired.has(d.tool))
-  );
+  // Arguments Reactor copied through a remembered pattern replace ARC 1's anchors for that tool.
+  const memTools = new Set(result?.memory_arguments || []);
+  const fromMemory: Decision[] = calls
+    .filter((c) => memTools.has(c.name))
+    .flatMap((c) =>
+      Object.entries(c.arguments).map(([param, value]) => {
+        const surface = typeof value === "string" || typeof value === "number" ? String(value) : "";
+        const at = surface ? ranText.toLowerCase().indexOf(surface.toLowerCase()) : -1;
+        return {
+          tool: c.name, param, kind: "memory" as const, present: true, value, p: NaN,
+          span: at >= 0 ? ([at, at + surface.length] as [number, number]) : undefined,
+        };
+      })
+    );
+  const colorOf = new Map<string, string>();
+  [...decisions, ...fromMemory].forEach((d) => {
+    const key = `${d.tool}.${d.param}`;
+    if (!colorOf.has(key)) colorOf.set(key, ARG_COLORS[colorOf.size % ARG_COLORS.length]);
+  });
+  const shown = [
+    ...decisions.filter((d) => d.present && (scene.mode === "extract" || fired.has(d.tool)) && !memTools.has(d.tool)),
+    ...fromMemory,
+  ];
   const anchors = shown
-    .filter((d) => d.kind === "anchor" && d.span)
+    .filter((d) => (d.kind === "anchor" || d.kind === "memory") && d.span)
     .map((d) => ({ span: d.span as [number, number], color: colorOf.get(`${d.tool}.${d.param}`)!, label: d.param }));
 
   const offline = !checking && !health?.ready;
@@ -818,6 +1083,18 @@ export function Arc1Demo() {
               ))}
             </div>
             {scene.mode === "classify" && <LabelEditor labels={labels} onChange={setLabels} />}
+            {reactorOn && (
+              <MemoryPanel
+                scene={scene}
+                labelNames={labelNames}
+                memory={memory}
+                draft={draft}
+                setDraft={setDraft}
+                onRemember={remember}
+                onForget={forget}
+                textRef={memoryTextRef}
+              />
+            )}
             {error && (
               <p role="alert" className="mt-3 border border-red-900/60 bg-red-950/30 px-3 py-2 text-sm text-red-200">
                 {error}
@@ -872,9 +1149,11 @@ export function Arc1Demo() {
                           <code className="shrink-0 text-zinc-400">{d.param}</code>
                           <code className="min-w-0 flex-1 truncate text-zinc-100">{formatValue(d.value)}</code>
                           <span className="hidden shrink-0 text-xs text-zinc-500 sm:inline">
-                            {d.kind === "anchor" ? "copied" : d.kind === "select" ? "selected" : "decided"}
+                            {d.kind === "anchor" ? "copied" : d.kind === "select" ? "selected" : d.kind === "memory" ? "copied via memory" : "decided"}
                           </span>
-                          <span className="w-10 shrink-0 text-right text-xs tabular-nums text-zinc-400">{pct(d.p)}</span>
+                          <span className="w-10 shrink-0 text-right text-xs tabular-nums text-zinc-400">
+                            {Number.isNaN(d.p) ? "–" : pct(d.p)}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -915,6 +1194,61 @@ export function Arc1Demo() {
                     These weights are untrained, so a keyword fallback produced this call. Train ARC 1 for real decisions.
                   </p>
                 )}
+
+                {result.neighbors && (
+                  <div>
+                    <h3 className="mb-2 text-sm font-medium text-zinc-400">Reactor: remembered examples used</h3>
+                    {result.neighbors.length ? (
+                      <ul className="divide-y divide-zinc-900 border-y border-zinc-900">
+                        {result.neighbors.map((n) => (
+                          <li key={n.text} className="flex items-baseline gap-3 py-1.5 text-xs">
+                            <span className="min-w-0 flex-1 truncate text-zinc-300">{n.text}</span>
+                            <code className="shrink-0 text-[#C785F2]">{n.label ?? "no tool"}</code>
+                            <span className="w-10 shrink-0 text-right tabular-nums text-zinc-500">{pct(n.score)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-zinc-500">
+                        No remembered example shares words with this text, so ARC 1 decided alone.
+                      </p>
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
+                      {scene.mode === "classify" ? (
+                        <>
+                          <span className="mr-1">Remember this text as</span>
+                          {labelNames.map((name) => (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => remember({ text: ranText, label: name })}
+                              className="border border-zinc-800 px-2 py-1 text-zinc-300 hover:border-[#835BD9] hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
+                            >
+                              {name}
+                            </button>
+                          ))}
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const call = calls[0];
+                            setDraft({
+                              text: ranText,
+                              label: call?.name ?? "",
+                              args: Object.fromEntries(Object.entries(call?.arguments ?? {}).map(([k, v]) => [k, String(v)])),
+                            });
+                            memoryTextRef.current?.focus();
+                          }}
+                          className="inline-flex items-center gap-1.5 border border-zinc-800 px-2 py-1 text-zinc-300 hover:border-[#835BD9] hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
+                        >
+                          <Plus className="h-3.5 w-3.5" aria-hidden />
+                          Correct and remember this request
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -923,6 +1257,55 @@ export function Arc1Demo() {
         {/* Side column: controls, measurements, state */}
         <aside className="border-t border-zinc-800 p-4 sm:p-5 lg:border-t-0">
           <fieldset>
+            <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium text-zinc-200">
+              Harness
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="About the Reactor harness"
+                    className="text-zinc-500 transition-colors hover:text-zinc-200 focus-visible:text-zinc-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
+                  >
+                    <Info className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-56 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
+                  Reactor gives ARC 1 a memory of decided examples. Similar examples vote and show where arguments
+                  sit, so it handles new tools and labels without fine-tuning.
+                </TooltipContent>
+              </Tooltip>
+            </legend>
+            <div className="grid grid-cols-2 gap-px bg-zinc-800" role="radiogroup" aria-label="Harness">
+              {[
+                { on: false, label: "ARC 1" },
+                { on: true, label: "+ Reactor" },
+              ].map((opt) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  role="radio"
+                  aria-checked={reactorOn === opt.on}
+                  disabled={opt.on && !reactorReady}
+                  onClick={() => setUseReactor(opt.on)}
+                  className={`py-1.5 text-sm transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2] disabled:cursor-not-allowed disabled:opacity-40 ${
+                    reactorOn === opt.on ? "bg-[#835BD9] text-white" : "bg-zinc-950 text-zinc-400 hover:text-zinc-100"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {scene.mode === "extract" ? (
+              <p className="mt-1.5 text-[11px] leading-snug text-zinc-500">Reactor covers tools and labels, not extraction.</p>
+            ) : health?.ready && !health.reactor ? (
+              <p className="mt-1.5 text-[11px] leading-snug text-zinc-500">This ARC 1 server doesn&apos;t support Reactor yet.</p>
+            ) : null}
+            <a href="/docs/reactor" className="mt-1.5 inline-block text-[11px] text-zinc-500 underline hover:text-zinc-200">
+              How Reactor works
+            </a>
+          </fieldset>
+
+          <fieldset className="mt-6">
             <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium text-zinc-200">
               Binding cycles
               <Tooltip>
@@ -1021,7 +1404,7 @@ export function Arc1Demo() {
 
           <button
             type="button"
-            onClick={() => selectScene(scene)}
+            onClick={resetScene}
             className="mt-6 inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden />

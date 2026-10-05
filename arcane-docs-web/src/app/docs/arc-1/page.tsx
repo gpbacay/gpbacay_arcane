@@ -128,7 +128,14 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
         <h2 id="try-it" className={h2Base}>
           Try it live
         </h2>
-        <p className={`${p} mb-5`}>Runs the real model on a live server. Pick an example or type your own request.</p>
+        <p className={`${p} mb-5`}>
+          Runs the real model on a live server. Pick an example or type your own request. Switch the harness to{" "}
+          <strong className="text-zinc-100">+ Reactor</strong> to give ARC 1 a memory of examples: the{" "}
+          <em>New tools</em> scene uses tools it never trained on, taught by a few examples instead of fine-tuning.{" "}
+          <Link href="/docs/reactor" className="font-medium text-[#C785F2] underline hover:text-[#d49cf5]">
+            How Reactor works
+          </Link>
+        </p>
         <Arc1Demo />
 
         <h2 id="what-it-does" className={h2}>
@@ -343,8 +350,12 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           </p>
         )}
         <p className="not-prose mt-4 border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
-          <strong>Needs fine-tuning.</strong> This download is a base checkpoint, not a finished model. Fine-tune it on
-          your own data and tools before relying on it in your application.
+          <strong>Needs fine-tuning or Reactor.</strong> This download is a base checkpoint, not a finished model.
+          Fine-tune it on your own data and tools, or give it a few decided examples of each through the{" "}
+          <Link href="/docs/reactor" className="underline">
+            Reactor
+          </Link>{" "}
+          harness, and test it on your own requests before relying on it in your application.
         </p>
         <div className="not-prose mt-4 flex flex-col gap-3 border border-zinc-800 bg-zinc-950 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">

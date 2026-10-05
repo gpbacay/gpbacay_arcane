@@ -259,6 +259,78 @@ sentence-embedding model. `got_tools` is read-only unless you pass `writable=Tru
 is not trained to route these tools, so drive them with an LLM, or fine-tune ARC 1 before you hand them
 to `Arc1Agent`.
 
+#### Reactor — use ARC 1 on your tools and labels without fine-tuning
+
+RAG lets you use an LLM on your own knowledge without fine-tuning it. Reactor does the same for a System 1
+decision model: instead of training ARC 1 on your tools and labels, give it a few decided examples. A
+model like this can't read retrieved text, so Reactor retrieves *decisions*. Examples live in a
+`DocumentGraph`. At request time the most similar ones vote for their labels, weighted by search score,
+and the vote is combined with the model's own probabilities. A tool example can also carry its arguments.
+It then works as a pattern ("rate {title} {stars} stars"), and a request that matches it gets its argument
+values copied from its own words. Examples take effect on the next request. Labels with no examples fall
+back to the model alone.
+
+```python
+from gpbacay_arcane import Reactor, load_arc1
+
+reactor = Reactor(load_arc1())                                   # or any model, or None for memory only
+reactor.remember("I was charged twice this month", "billing")    # a class label...
+reactor.remember("rate Dune 4 stars", "rate_movie", {"title": "Dune", "stars": 4})  # ...or a tool call
+reactor.remember("switch bluetooth off", "toggle_bluetooth", {"enabled": False})
+reactor.remember("thanks, that's all", None)                     # None = no tool applies
+
+reactor.classify("why is my card charged again?", ["billing", "shipping"])  # + "neighbors" (the evidence)
+reactor.run("rate spirited away 5 stars", tools=my_tools)        # rate_movie(title="spirited away", stars=5)
+reactor.react("charged again?")                                  # the memory's vote alone, no model call
+reactor.forget("thanks, that's all")                             # re-remembering a text replaces it
+```
+
+- **Model-agnostic.** `model` can be `None` (memory only; abstains with `label=None` when nothing similar
+  is stored), any `(text, labels) -> {label: probability}` callable (a classifier, or an LLM asked for
+  probabilities), or an object with `classify(text, labels, **kw)` returning a `"distribution"`, like
+  `Arc1Agent`. For tool calling, the model needs `run(prompt, tools=, tool_prior=, execute=)` returning
+  `function_calls`; `Arc1Agent.run` combines the prior with its own firing probability by noisy-OR.
+  Arguments copied from a matching pattern replace the model's for that tool, and a call the model held
+  back is added; `confidence` is then `None`, since the model's calibrated probability no longer describes
+  the call. A model call that copies words a matched pattern explains is dropped (a word belongs to one
+  argument). `memory_arguments` names the tools whose arguments came from memory.
+- **Dynamic.** `remember` / `forget` take effect immediately. Labels and tools are given per request, and
+  `to_json` / `from_json` save the memory, arguments included, with the graph (examples are documents with
+  ids starting `memory-`).
+- **Scalable.** Inserts don't scan the memory. The default graph skips semantic links, which on CLINC150
+  lowered accuracy and cost 15 ms per insert at 15k examples. Lookups touch only examples that share words
+  with the request.
+
+`python examples/benchmark_reactor.py --shots 1 2 5 10` (arc1-tiny, same weights, no fine-tuning).
+CLINC150 intents held out of ARC 1's training, real text, 5 labels:
+
+| Examples per label | ARC 1 alone | Memory alone | Reactor |
+|---|---|---|---|
+| none | 56.5% | – | – |
+| 1 | – | 64.7% | **80.5%** |
+| 5 | – | 87.3% | **90.5%** |
+| 10 | – | 92.0% | **93.3%** |
+
+The held-out tool split (tools ARC 1 never trained on), 300 requests. Fully correct means the right tools
+with every argument right:
+
+| Examples per tool | Right tool | Fully correct, labels only | Fully correct, with arguments | Arguments right |
+|---|---|---|---|---|
+| none (ARC 1) | 55.7% | 42.3% | – | 18.6% |
+| 1 | 77.0% | 50.3% | **64.0%** | 53.3% |
+| 2 | 83.7% | 52.0% | **70.7%** | 64.1% |
+| 5 | 93.7% | 54.7% | **86.0%** | 83.5% |
+| 10 | 99.3% | 54.7% | **99.3%** | 100% |
+
+For comparison, arc1-tiny's fully correct calls on the tools it *was* trained on: 86.0% (a different test set). Refusals stayed at
+100% throughout. Caveat: these held-out tools are tested with the same sentence patterns used to write the
+examples, only with new values, so by 10 examples the memory has seen every phrasing. Real requests vary
+more, and a phrasing no example covers falls back to ARC 1's own argument copying. Store varied examples.
+
+Memory only, all 150 CLINC150 intents with 15,000 examples: 80.6% (150-way), 0.13 ms per insert, 3.4 ms
+median / 11 ms p90 per decision on a busy laptop CPU. Retrieval is lexical; ARC 1's embeddings as
+`DocumentGraph(embed=...)` did not meaningfully help on CLINC150.
+
 ### Distilling Qwen2.5-0.5B into ARCANE
 
 The `distill` preset is tuned as a distillation target for a softmax teacher:

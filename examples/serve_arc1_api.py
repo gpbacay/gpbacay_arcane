@@ -35,6 +35,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from gpbacay_arcane.arc1 import Arc1Config, Arc1Model
+from gpbacay_arcane.reactor import Reactor
 from gpbacay_arcane.tokenization import BASE_VOCAB, BytePairTokenizer
 from gpbacay_arcane.tools import Arc1Agent, ToolParam, ToolSpec
 
@@ -175,11 +176,21 @@ def _builtin_tools() -> List[ToolSpec]:
     ]
 
 
+def _demo_handlers() -> Dict[str, Any]:
+    """Handlers for the docs site's Reactor scene: tools ARC 1 never trained on."""
+    return {
+        "rate_movie": lambda title, stars: {"title": title, "stars": int(stars), "saved": True},
+        "play_podcast": lambda name: {"podcast": name, "status": "playing"},
+        "find_restaurant": lambda cuisine, city: {"cuisine": cuisine, "city": city, "results": 3},
+    }
+
+
 def _tools_from_payload(payload: Optional[List[Dict[str, Any]]]) -> List[ToolSpec]:
     if not payload:
         return _builtin_tools()
     tools = []
-    builtins = {t.name: t for t in _builtin_tools()}
+    builtins = {t.name: t.handler for t in _builtin_tools()}
+    builtins.update(_demo_handlers())
     for item in payload:
         name = item.get("name")
         if not name:
@@ -194,7 +205,7 @@ def _tools_from_payload(payload: Optional[List[Dict[str, Any]]]) -> List[ToolSpe
             )
             for p in item.get("parameters", [])
         ]
-        handler = builtins[name].handler if name in builtins else None
+        handler = builtins.get(name)
         tools.append(
             ToolSpec(
                 name=name,
@@ -325,11 +336,30 @@ def _check_cycles(cycles: Optional[int]) -> Optional[int]:
     return int(cycles)
 
 
+class MemoryExample(BaseModel):
+    text: str = Field(..., min_length=1, max_length=500)
+    label: Optional[str] = Field(default=None, max_length=200)  # a class label or tool name; None = no tool
+    arguments: Optional[Dict[str, Any]] = None
+
+
+# The memory travels with each request, so the server stays stateless and visitors never share one.
+Memory = Optional[List[MemoryExample]]
+MEMORY_LIMIT = 200
+
+
+def _reactor(memory: List[MemoryExample]) -> Reactor:
+    reactor = Reactor(_agent)
+    for ex in memory:
+        reactor.remember(ex.text, ex.label, ex.arguments)
+    return reactor
+
+
 class RunRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=2000)
     tools: Optional[List[Dict[str, Any]]] = None
     execute: bool = True
     cycles: Optional[int] = None
+    memory: Memory = Field(default=None, max_length=MEMORY_LIMIT)  # set = run through the Reactor harness
 
 
 class ExtractRequest(BaseModel):
@@ -344,6 +374,7 @@ class ClassifyRequest(BaseModel):
     task: Optional[str] = Field(default=None, max_length=500)
     descriptions: Optional[Dict[str, str]] = None
     cycles: Optional[int] = None
+    memory: Memory = Field(default=None, max_length=MEMORY_LIMIT)
 
 
 class EmbedRequest(BaseModel):
@@ -373,6 +404,8 @@ def health():
         "heuristic_fallback": _state.get("heuristic_fallback", ALLOW_HEURISTIC),
         "error": _state["error"],
         "model": "ARC 1",
+        "reactor": True,  # /run and /classify accept "memory"
+
     }
 
 
@@ -383,7 +416,8 @@ def run(req: RunRequest):
     cycles = _check_cycles(req.cycles)
     tools = _tools_from_payload(req.tools)
     try:
-        out = _agent.run(req.prompt, tools=tools, execute=req.execute, cycles=cycles)
+        model = _agent if req.memory is None else _reactor(req.memory)
+        out = model.run(req.prompt, tools=tools, execute=req.execute, cycles=cycles)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"run failed: {exc}") from exc
     return out
@@ -413,7 +447,8 @@ def classify(req: ClassifyRequest):
         raise HTTPException(status_code=422, detail="labels must contain at least one non-empty label")
     cycles = _check_cycles(req.cycles)
     try:
-        return _agent.classify(req.text, labels, task=req.task, cycles=cycles, descriptions=req.descriptions)
+        model = _agent if req.memory is None else _reactor(req.memory)
+        return model.classify(req.text, labels, task=req.task, cycles=cycles, descriptions=req.descriptions)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"classify failed: {exc}") from exc
 

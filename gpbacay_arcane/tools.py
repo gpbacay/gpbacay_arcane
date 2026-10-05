@@ -606,19 +606,24 @@ class Arc1Agent:
         tools: Optional[Sequence[ToolSpec]] = None,
         execute: bool = True,
         cycles: Optional[int] = None,
+        tool_prior: Optional[Dict[str, float]] = None,
     ) -> Dict[str, Any]:
+        """``tool_prior`` (tool name -> probability the tool applies, e.g. retrieval evidence from ``Reactor``)
+        is combined with ARC 1's firing probability by noisy-OR, so either can fire a tool; ARC 1 still
+        anchors the arguments."""
         from .arc1_codec import ROLE_TOOL
 
         t0 = time.perf_counter()
         active = list(tools if tools is not None else self.tools)
         probes = self._plan(active)
-        tool_probs: Dict[str, float] = {}
+        prior, tool_probs = tool_prior or {}, {}
         decisions: List[Dict[str, Any]] = []
         stats: Dict[str, Any] = {"tokens": 0, "probes": 0, "cycles": self.model.arc1_config.resolve_cycles(cycles)}
         if probes:
             utt, out, stats = self._bind(prompt, probes, cycles)
             p_fire = _sigmoid(out["fire"], self._temp("fire"))
-            tool_probs = {p.tool: float(p_fire[i]) for i, p in enumerate(probes) if p.role == ROLE_TOOL}
+            tool_probs = {p.tool: 1.0 - (1.0 - float(p_fire[i])) * (1.0 - prior.get(p.tool, 0.0))
+                          for i, p in enumerate(probes) if p.role == ROLE_TOOL}
             fired = {name for name, p in tool_probs.items() if p >= self.tool_threshold}
             keep = [p.tool in fired for p in probes]
             decisions = self._read_arguments(

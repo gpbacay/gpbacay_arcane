@@ -329,6 +329,19 @@ def test_agent_output_is_schema_valid_even_untrained():
     assert len(agent.embed("hello")) == model.arc1_config.d_model
 
 
+def test_tool_prior_fires_a_tool_and_arguments_stay_anchored():
+    agent = Arc1Agent(_small_model(), BytePairTokenizer(512))
+    tools = [ToolSpec("get_weather", "Get the weather.", [ToolParam("city")]), ToolSpec("set_alarm", "Set an alarm.")]
+    text = "what's the weather in Lagos?"
+    base = agent.run(text, tools=tools, execute=False, cycles=1)["decisions"]["tools"]
+    out = agent.run(text, tools=tools, execute=False, cycles=1, tool_prior={"get_weather": 0.99})
+    p = out["decisions"]["tools"]
+    assert abs(p["get_weather"] - (1 - (1 - base["get_weather"]) * 0.01)) < 1e-6  # noisy-OR
+    assert abs(p["set_alarm"] - base["set_alarm"]) < 1e-6  # no prior, no change
+    call = next(c for c in out["function_calls"] if c["name"] == "get_weather")
+    assert call["arguments"]["city"] in text
+
+
 def test_schema_memory_caches_engrams():
     model = _small_model()
     agent = Arc1Agent(model, BytePairTokenizer(512))
