@@ -1,21 +1,24 @@
 {
   "name": "gpbacay-arcane",
   "version": "4.1.0",
-  "description": "ARC 1 structured decisions (tool calling, extraction, classification, embeddings) for Node.js and the browser",
+  "description": "ARC 1 structured decisions (tool calling, extraction, classification, embeddings) and Hippocampus memory for Node.js and the browser",
   "main": "index.js",
   "exports": {
     ".": "./index.js",
-    "./web": "./web.mjs"
+    "./web": "./web.mjs",
+    "./hippocampus": "./hippocampus.mjs"
   },
   "files": [
     "index.js",
     "web.mjs",
+    "tools.mjs",
+    "hippocampus.mjs",
     "web/arc1.onnx",
     "web/arc1.json",
     "README.md"
   ],
   "scripts": {
-    "test": "node test.js && node test-web.mjs"
+    "test": "node test.js && node test-web.mjs && node test-hippocampus.mjs"
   },
   "engines": {
     "node": ">=18"
@@ -27,7 +30,9 @@
     "extraction",
     "classification",
     "onnx",
-    "browser"
+    "browser",
+    "hippocampus",
+    "memory"
   ],
   "author": "Gianne P. Bacay",
   "license": "MIT",

@@ -241,6 +241,36 @@ hippocampus.react("charged again?")                              # the memory's 
 hippocampus.remember("I was charged twice this month", "fraud")  # same text: the label is corrected
 hippocampus.forget("thanks, that's all")`}
         />
+        <p className={`${p} mt-6`}>
+          In JavaScript (the browser, Next.js or Node), Hippocampus runs client-side next to ARC 1&apos;s{" "}
+          <Link href="/docs/arc-1" className={link}>
+            browser build
+          </Link>
+          , with no server and no Python. It has the same API and returns the same decisions; only{" "}
+          <code className={code}>classify</code> and <code className={code}>run</code> are async. For memory-only
+          decisions, import it from <code className={code}>gpbacay-arcane/hippocampus</code>, which doesn&apos;t need
+          onnxruntime-web.
+        </p>
+        <CodeSnippet filename="Terminal" language="bash" lineNumbers={false} code="npm install gpbacay-arcane onnxruntime-web" />
+        <CodeSnippet
+          filename="Hippocampus.tsx"
+          language="tsx"
+          code={`"use client";  // Next.js: use it in a client component
+import { load, Hippocampus } from "gpbacay-arcane/web";
+
+const agent = await load();                    // once, e.g. in useEffect
+const hippocampus = new Hippocampus(agent);    // or new Hippocampus() for memory only
+
+hippocampus.remember("I was charged twice this month", "billing");
+hippocampus.remember("rate Dune 4 stars", "rate_movie", { title: "Dune", stars: 4 });
+
+await hippocampus.classify("why is my card charged again?", ["billing", "shipping"]);
+await hippocampus.run("rate spirited away 5 stars", myTools);
+// function_calls -> [{ name: "rate_movie", arguments: { title: "spirited away", stars: 5 } }]
+
+localStorage.memory = JSON.stringify(hippocampus);   // save; Python's graph.to_json() loads too
+new Hippocampus(agent, { memory: JSON.parse(localStorage.memory) });`}
+        />
 
         <h2 id="how-it-works" className={h2}>
           How it works

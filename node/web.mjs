@@ -2,6 +2,9 @@
 // Port of gpbacay_arcane/tools.py Arc1Agent + arc1_codec.py + tokenization.py.
 // Model files come from examples/export_arc1_onnx.py (web/arc1.onnx, web/arc1.json).
 import * as ort from "onnxruntime-web";
+import { coerceValue, normalizeTool, validateCalls } from "./tools.mjs";
+
+export { Hippocampus } from "./hippocampus.mjs";
 
 const PAD = 0, BOS = 3, BYTE_OFFSET = 4, BASE_VOCAB = 260, NEG = -1e9;
 const ROLE_TOOL = 0, ROLE_SPAN = 1, ROLE_BOOL = 2, ROLE_ENUM = 3, ROLE_OPTION = 4;
@@ -68,51 +71,12 @@ function bestSpan(start, end, lo, hi, t, maxWidth = 64) {
 }
 
 // ----------------------------------------------------------------- decoding
-const WORD_NUMBERS = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
-  eleven: 11, twelve: 12, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, hundred: 100, a: 1, an: 1 };
-const roundHalfEven = (x) => (Math.abs(x % 1) === 0.5 ? 2 * Math.round(x / 2) : Math.round(x));
-
-function coerceValue(type, text) {
-  type = (type || "string").toLowerCase();
-  if (!["integer", "int", "number", "float"].includes(type)) return [Boolean(text), text];
-  const m = text.match(/-?\d+(?:[.,]\d+)*/);
-  const word = text.trim().toLowerCase();
-  const num = m ? Number(m[0].replaceAll(",", "")) : word in WORD_NUMBERS ? WORD_NUMBERS[word] : NaN;
-  if (Number.isNaN(num)) return [false, null];
-  return [true, type === "integer" || type === "int" ? roundHalfEven(num) : num];
-}
-
 const sigmoid = (x, t) => 1 / (1 + Math.exp(-x / t));
 const softmax = (xs, t) => {
   const z = xs.map((x) => x / t), m = Math.max(...z), e = z.map((v) => Math.exp(v - m)), s = e.reduce((a, b) => a + b, 0);
   return e.map((v) => v / s);
 };
 const repr = (v) => (typeof v === "string" ? `'${v}'` : String(v));
-
-function normalizeTool(t) {
-  return {
-    name: t.name, description: t.description || "",
-    parameters: (t.parameters || []).map((p) => ({
-      name: p.name, type: p.type || "string", description: p.description || "",
-      required: p.required ?? true, enum: p.enum || null, enum_descriptions: p.enum_descriptions || null,
-    })),
-  };
-}
-
-function validateCalls(calls, tools) {
-  const byName = new Map(tools.map((t) => [t.name, t]));
-  return calls.flatMap((call) => {
-    const spec = byName.get(call.name || "");
-    if (!spec) return [];
-    const allowed = new Map(spec.parameters.map((p) => [p.name, p]));
-    const cleaned = {};
-    for (const [k, v] of Object.entries(call.arguments || {})) {
-      const p = allowed.get(k);
-      if (p && !(p.enum && !p.enum.includes(String(v)))) cleaned[k] = v;
-    }
-    return spec.parameters.some((p) => p.required && !(p.name in cleaned)) ? [] : [{ name: spec.name, arguments: cleaned }];
-  });
-}
 
 // ---------------------------------------------------------------------- load
 const DEFAULT_MODEL = new URL("./web/arc1.onnx", import.meta.url);
@@ -270,16 +234,18 @@ export async function load(options = {}) {
   const pick = (out, keep) => Object.fromEntries(Object.entries(out).map(([k, v]) => [k, k === "embedding" ? v : v.filter((_, i) => keep[i])]));
 
   return {
-    /** Pick a tool and fill its arguments. tools: [{ name, description, parameters: [{ name, type, description, required, enum }] }] */
-    async run(prompt, tools = []) {
-      const t0 = performance.now();
+    /** Pick a tool and fill its arguments. tools: [{ name, description, parameters: [{ name, type, description, required, enum }] }]
+     *  opts.toolPrior: { toolName: probability the tool applies } (e.g. from Hippocampus), combined with ARC 1's
+     *  firing probability by noisy-OR, so either can fire a tool; ARC 1 still anchors the arguments. */
+    async run(prompt, tools = [], opts = {}) {
+      const t0 = performance.now(), prior = opts.toolPrior || {};
       const active = tools.map(normalizeTool), probes = plan(active);
       let toolProbs = {}, decisions = [], stats = { tokens: 0, probes: 0, cycles };
       if (probes.length) {
         const b = await bind(prompt, probes);
         stats = b.stats;
         const pFire = b.out.fire.map((x) => sigmoid(x, temp("fire")));
-        probes.forEach((p, i) => p.role === ROLE_TOOL && (toolProbs[p.tool] = pFire[i]));
+        probes.forEach((p, i) => p.role === ROLE_TOOL && (toolProbs[p.tool] = 1 - (1 - pFire[i]) * (1 - (prior[p.tool] ?? 0))));
         const keep = probes.map((p) => toolProbs[p.tool] >= toolThreshold);
         if (keep.some(Boolean)) decisions = readArguments(b.utt, probes.filter((_, i) => keep[i]), pick(b.out, keep), pFire.filter((_, i) => keep[i]));
       }
