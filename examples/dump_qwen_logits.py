@@ -29,7 +29,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from gpbacay_arcane.distillation import write_shard
+from gpbacay_arcane.distillation import assistant_token_mask, write_shard
 from gpbacay_arcane.qwen_vocab import QWEN_MODEL_ID, QwenVocabAdapter, load_qwen_tokenizer
 from gpbacay_arcane.tokenization import BOS_ID, EOS_ID
 
@@ -54,6 +54,13 @@ def parse_args():
     p.add_argument("--time-budget-min", type=float, default=None,
                    help="Stop cleanly after this many minutes, flushing what is done.")
     p.add_argument("--rebuild-vocab", action="store_true")
+    p.add_argument(
+        "--assistant-only",
+        action="store_true",
+        help="Score only assistant content in User:/Assistant: dialogue text.",
+    )
+    p.add_argument("--assistant-marker", default="Assistant:")
+    p.add_argument("--user-marker", default="User:")
     return p.parse_args()
 
 
@@ -101,7 +108,18 @@ def main():
 
     seq_len = args.seq_len
     stride = args.stride or seq_len
+    role_mask = None
+    if args.assistant_only:
+        assistant_ids = tokenizer.encode(args.assistant_marker, add_special_tokens=False)
+        user_ids = tokenizer.encode(args.user_marker, add_special_tokens=False)
+        role_mask = assistant_token_mask(qwen_ids, assistant_ids, user_ids)
+        print(
+            f"assistant-only loss: {int(role_mask.sum()):,}/{len(role_mask):,} "
+            "tokens supervised"
+        )
     starts = list(range(0, max(len(qwen_ids) - seq_len - 1, 0), stride))
+    if role_mask is not None:
+        starts = [s for s in starts if np.any(role_mask[s + 1 : s + seq_len + 1])]
     if args.max_windows:
         starts = starts[: args.max_windows]
     if not starts:
@@ -160,12 +178,12 @@ def main():
         return model(tokens).logits.float().index_select(-1, gather_idx)
 
     os.makedirs(args.out_dir, exist_ok=True)
-    buf_in, buf_lab, buf_ids, buf_val = [], [], [], []
+    buf_in, buf_lab, buf_ids, buf_val, buf_mask = [], [], [], [], []
     shard_idx = total = 0
     started = time.time()
 
     def flush():
-        nonlocal shard_idx, buf_in, buf_lab, buf_ids, buf_val
+        nonlocal shard_idx, buf_in, buf_lab, buf_ids, buf_val, buf_mask
         if not buf_in:
             return
         path = os.path.join(args.out_dir, f"shard_{shard_idx:05d}.tfrecord")
@@ -175,11 +193,12 @@ def main():
             np.stack(buf_lab),
             np.stack(buf_ids),
             np.stack(buf_val),
+            np.stack(buf_mask) if role_mask is not None else None,
         )
         size_mb = os.path.getsize(path) / 1e6
         print(f"  wrote {path} ({len(buf_in)} windows, {size_mb:.1f} MB)")
         shard_idx += 1
-        buf_in, buf_lab, buf_ids, buf_val = [], [], [], []
+        buf_in, buf_lab, buf_ids, buf_val, buf_mask = [], [], [], [], []
 
     with torch.no_grad():
         for b0 in range(0, len(starts), args.batch_size):
@@ -200,6 +219,8 @@ def main():
             buf_lab.extend(y)
             buf_ids.extend(to_numpy(student_topk, np.int32))
             buf_val.extend(to_numpy(vals, np.float16))
+            if role_mask is not None:
+                buf_mask.extend([role_mask[s + 1 : s + seq_len + 1] for s in batch_starts])
             total += len(batch_starts)
 
             if len(buf_in) >= args.windows_per_shard:
@@ -228,6 +249,9 @@ def main():
         "stride": stride,
         "vocab_adapter": args.vocab_adapter,
         "vocab_coverage": coverage,
+        "assistant_only": bool(args.assistant_only),
+        "assistant_marker": args.assistant_marker if args.assistant_only else None,
+        "user_marker": args.user_marker if args.assistant_only else None,
     }
     meta_path = os.path.join(args.out_dir, "meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:

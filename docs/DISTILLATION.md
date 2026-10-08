@@ -188,10 +188,11 @@ asserts it against a real build.
 L = alpha * CE(student, hard labels) + (1 - alpha) * T^2 * KL(teacher || student)
 ```
 
-Defaults are `alpha=0.4`, `T=2.0`. Both distributions are renormalised over the
-teacher's top-k support, so the KL is proper (two distributions on a shared
-support), and the `T^2` factor keeps the KD gradient comparable to CE as
-temperature moves.
+Defaults are `alpha=0.4`, `T=2.0`. The sparse teacher is renormalised over its
+retained top-k support, while the student softmax remains normalised over the
+full vocabulary before those entries are gathered. This prevents the student
+from hiding probability mass on tokens omitted by the sparse teacher. The
+`T^2` factor keeps the KD gradient comparable to CE as temperature moves.
 
 Padding positions are masked out of both terms.
 

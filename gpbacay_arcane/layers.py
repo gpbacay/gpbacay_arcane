@@ -11,7 +11,11 @@ from .mechanisms import (
     ConceptEngram,
     FieldAttention,
     FieldResonance,
+    GatedShortConv,
+    GroupedQueryFieldAttention,
+    SelectiveCausalResonance,
 )
+from .activations import graded_spike
 
 class ExpandDimensionLayer(tf.keras.layers.Layer):
     def __init__(self, axis=1, **kwargs):
@@ -934,6 +938,183 @@ class ResonantChannelMixer(tf.keras.layers.Layer):
                 "gate_normalize": self.gate_normalize,
             }
         )
+        return config
+
+
+class ResonantSwiGLU(tf.keras.layers.Layer):
+    """SwiGLU channel expansion with an ARCANE graded-spike residual write.
+
+    The main residual stream remains continuous.  Only the nonlinear branch is
+    quantised, avoiding the information bottleneck of repeatedly spiking the
+    complete hidden state while retaining a learned sparse/bursting write.
+    """
+
+    def __init__(self, d_model, hidden_dim, spike_threshold=0.4,
+                 dropout_rate=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.d_model = int(d_model)
+        self.hidden_dim = int(hidden_dim)
+        self.spike_threshold = float(spike_threshold)
+        self.dropout_rate = float(dropout_rate)
+        self.in_proj = tf.keras.layers.Dense(2 * self.hidden_dim, use_bias=False, name="in_proj")
+        self.out_proj = tf.keras.layers.Dense(self.d_model, use_bias=False, name="out_proj")
+        self.dropout = tf.keras.layers.Dropout(self.dropout_rate)
+
+    def build(self, input_shape):
+        self.in_proj.build(input_shape)
+        hidden_shape = list(input_shape)
+        hidden_shape[-1] = self.hidden_dim
+        self.out_proj.build(hidden_shape)
+        self.threshold = self.add_weight(
+            name="spike_threshold", shape=(self.hidden_dim,),
+            initializer=tf.keras.initializers.Constant(self.spike_threshold), trainable=True)
+        self.leak_logit = self.add_weight(
+            name="spike_leak", shape=(self.hidden_dim,),
+            initializer=tf.keras.initializers.Constant(-3.0), trainable=True)
+        super().build(input_shape)
+
+    def call(self, inputs, training=False):
+        gate, value = tf.split(self.in_proj(inputs), 2, axis=-1)
+        hidden = tf.nn.silu(gate) * value
+        hidden = graded_spike(hidden, tf.abs(self.threshold), tf.sigmoid(self.leak_logit))
+        return self.dropout(self.out_proj(hidden), training=training)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "d_model": self.d_model,
+            "hidden_dim": self.hidden_dim,
+            "spike_threshold": self.spike_threshold,
+            "dropout_rate": self.dropout_rate,
+        })
+        return config
+
+
+class Arc1HybridBlock(tf.keras.layers.Layer):
+    """ARC 1 LM v2 block: LIV local/GQA global + resonant SwiGLU + memory.
+
+    ``sequence_type`` is either ``"conv"`` for inexpensive input-varying local
+    mixing or ``"attention"`` for exact global lookup.  Both variants retain
+    ARCANE's engram memory and resonance as separate residual branches.
+    """
+
+    def __init__(self, d_model, num_heads, num_kv_heads=2, sequence_type="conv",
+                 ffn_hidden_dim=None, conv_kernel_size=3, dropout_rate=0.0,
+                 spike_threshold=0.4, resonance_decays=(0.5, 0.9, 0.99),
+                 use_rope=True, rope_base=10000.0, max_position=2048,
+                 use_engram=False, engram_table_size=4096, engram_rows=4,
+                 ngram_sizes=(2, 3), residual_scale=1.0, **kwargs):
+        super().__init__(**kwargs)
+        self.d_model = int(d_model)
+        self.num_heads = int(num_heads)
+        self.num_kv_heads = int(num_kv_heads)
+        self.sequence_type = str(sequence_type)
+        self.ffn_hidden_dim = int(ffn_hidden_dim or (2 * d_model))
+        self.conv_kernel_size = int(conv_kernel_size)
+        self.dropout_rate = float(dropout_rate)
+        self.spike_threshold = float(spike_threshold)
+        self.resonance_decays = tuple(float(x) for x in resonance_decays)
+        self.use_rope = bool(use_rope)
+        self.rope_base = float(rope_base)
+        self.max_position = int(max_position)
+        self.use_engram = bool(use_engram)
+        self.engram_table_size = int(engram_table_size)
+        self.engram_rows = int(engram_rows)
+        self.ngram_sizes = tuple(int(x) for x in ngram_sizes)
+        self.residual_scale = float(residual_scale)
+        if self.sequence_type == "conv":
+            self.sequence = GatedShortConv(
+                self.d_model, self.conv_kernel_size, self.dropout_rate, name="gated_short_conv")
+        elif self.sequence_type == "attention":
+            self.sequence = GroupedQueryFieldAttention(
+                self.d_model, self.num_heads, self.num_kv_heads, self.dropout_rate,
+                use_rope=self.use_rope, rope_base=self.rope_base,
+                max_position=self.max_position, name="grouped_query_attention")
+        else:
+            raise ValueError("sequence_type must be 'conv' or 'attention'")
+        self.sequence_norm = RMSNorm(name="sequence_norm")
+        self.ffn_norm = RMSNorm(name="ffn_norm")
+        self.ffn = ResonantSwiGLU(
+            self.d_model, self.ffn_hidden_dim, self.spike_threshold,
+            self.dropout_rate, name="resonant_swiglu")
+        self.resonance_norm = RMSNorm(name="resonance_norm")
+        self.resonance = SelectiveCausalResonance(
+            self.d_model, self.resonance_decays, self.spike_threshold,
+            self.dropout_rate, name="selective_resonance")
+        self.engram = ConceptEngram(
+            d_model=self.d_model, table_size=self.engram_table_size,
+            ngram_sizes=self.ngram_sizes, rows_per_token=self.engram_rows,
+            spike_threshold=self.spike_threshold, name="concept_engram",
+        ) if self.use_engram else None
+
+    def call(self, inputs, token_ids=None, token_mask=None, training=False):
+        scale = tf.cast(self.residual_scale, inputs.dtype)
+        x = inputs + scale * self.sequence(
+            self.sequence_norm(inputs), token_mask=token_mask, training=training)
+        x = x + scale * self.ffn(self.ffn_norm(x), training=training)
+        if self.engram is not None:
+            x = self.engram(x, token_ids=token_ids, training=training)
+        x = x + scale * self.resonance(
+            self.resonance_norm(x), token_mask=token_mask, training=training)
+        if token_mask is not None:
+            x *= tf.cast(tf.expand_dims(token_mask, -1), x.dtype)
+        return x
+
+    def call_with_cache(self, inputs, token_ids=None, token_mask=None, training=False):
+        """Full prompt pass returning the minimal state needed for decoding."""
+        scale = tf.cast(self.residual_scale, inputs.dtype)
+        seq_out, seq_cache = self.sequence.call_with_cache(
+            self.sequence_norm(inputs), token_mask=token_mask, training=training)
+        x = inputs + scale * seq_out
+        x = x + scale * self.ffn(self.ffn_norm(x), training=training)
+        if self.engram is not None:
+            x = self.engram(x, token_ids=token_ids, training=training)
+        res_out, res_cache = self.resonance.call_with_cache(
+            self.resonance_norm(x), token_mask=token_mask, training=training)
+        x = x + scale * res_out
+        if token_mask is not None:
+            x *= tf.cast(tf.expand_dims(token_mask, -1), x.dtype)
+        return x, {"sequence": seq_cache, "resonance": res_cache}
+
+    def step(self, inputs, state, position, recent_token_ids, training=False):
+        """One-token cached decode. ``inputs`` has shape ``(B, 1, D)``."""
+        scale = tf.cast(self.residual_scale, inputs.dtype)
+        normed = self.sequence_norm(inputs)
+        if self.sequence_type == "attention":
+            seq_out, seq_cache = self.sequence.step(
+                normed, state["sequence"], position=position, training=training)
+        else:
+            seq_out, seq_cache = self.sequence.step(normed, state["sequence"], training=training)
+        x = inputs + scale * seq_out
+        x = x + scale * self.ffn(self.ffn_norm(x), training=training)
+        if self.engram is not None:
+            x = self.engram.step(x, recent_token_ids, training=training)
+        res_out, res_cache = self.resonance.step(
+            self.resonance_norm(x), state["resonance"], training=training)
+        x = x + scale * res_out
+        return x, {"sequence": seq_cache, "resonance": res_cache}
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "d_model": self.d_model,
+            "num_heads": self.num_heads,
+            "num_kv_heads": self.num_kv_heads,
+            "sequence_type": self.sequence_type,
+            "ffn_hidden_dim": self.ffn_hidden_dim,
+            "conv_kernel_size": self.conv_kernel_size,
+            "dropout_rate": self.dropout_rate,
+            "spike_threshold": self.spike_threshold,
+            "resonance_decays": self.resonance_decays,
+            "use_rope": self.use_rope,
+            "rope_base": self.rope_base,
+            "max_position": self.max_position,
+            "use_engram": self.use_engram,
+            "engram_table_size": self.engram_table_size,
+            "engram_rows": self.engram_rows,
+            "ngram_sizes": self.ngram_sizes,
+            "residual_scale": self.residual_scale,
+        })
         return config
 
 

@@ -764,7 +764,7 @@ def build_rope_cache(max_position, head_dim, base=10000.0):
     return np.cos(angles).astype(np.float32), np.sin(angles).astype(np.float32)
 
 
-def apply_rope(x, cos, sin):
+def apply_rope(x, cos, sin, offset=0):
     """Rotate ``(batch, heads, seq, head_dim)`` using the split-half convention.
 
     ``(x1, x2) -> (x1 cos - x2 sin, x2 cos + x1 sin)``, matching the reference
@@ -777,8 +777,9 @@ def apply_rope(x, cos, sin):
     cos_t = tf.convert_to_tensor(cos, dtype=x.dtype)
     sin_t = tf.convert_to_tensor(sin, dtype=x.dtype)
     # expand_dims rather than [None, None]: new-axis slicing has no TFLite builtin.
-    c = tf.expand_dims(tf.expand_dims(cos_t[:seq_len], 0), 0)
-    s = tf.expand_dims(tf.expand_dims(sin_t[:seq_len], 0), 0)
+    positions = tf.range(tf.cast(offset, tf.int32), tf.cast(offset, tf.int32) + seq_len)
+    c = tf.expand_dims(tf.expand_dims(tf.gather(cos_t, positions), 0), 0)
+    s = tf.expand_dims(tf.expand_dims(tf.gather(sin_t, positions), 0), 0)
     x1, x2 = tf.split(x, 2, axis=-1)
     return tf.concat([x1 * c - x2 * s, x2 * c + x1 * s], axis=-1)
 
@@ -1567,6 +1568,19 @@ class ConceptEngram(Layer):
         gate = tf.nn.sigmoid(sharpness * (gate_pre - tf.cast(self.spike_threshold, dtype)))
         return x + gate * memory
 
+    def step(self, inputs, recent_token_ids, training=False):
+        """Apply the engram write to one token using its causal n-gram history."""
+        keys = self._lookup_keys(recent_token_ids)[:, -1:]  # (B, 1, R)
+        gathered = tf.gather(self.table, keys)
+        memory = tf.reduce_mean(tf.cast(gathered, inputs.dtype), axis=2)
+        memory *= tf.cast(self.value_scale, inputs.dtype)
+        gate_pre = tf.matmul(inputs, tf.cast(self.gate_kernel, inputs.dtype))
+        gate_pre += tf.cast(self.gate_bias, inputs.dtype)
+        sharpness = 1.0 / tf.maximum(tf.cast(self.leak_rate, inputs.dtype), 1e-3)
+        gate = tf.nn.sigmoid(sharpness * (
+            gate_pre - tf.cast(self.spike_threshold, inputs.dtype)))
+        return inputs + gate * memory
+
     def get_config(self):
         config = super().get_config()
         config.update(
@@ -1711,6 +1725,308 @@ class FieldResonance(Layer):
             "d_model": self.d_model, "resonance_factor": self.resonance_factor,
             "resonance_cycles": self.resonance_cycles, "spike_threshold": self.spike_threshold,
             "causal": self.causal,
+        })
+        return config
+
+
+class GatedShortConv(Layer):
+    """Input-varying, double-gated causal depthwise convolution.
+
+    This is the useful local-mixing idea behind LFM2's LIV blocks, expressed as
+    a small standalone ARCANE mechanism::
+
+        B, C, V = split(W_in x)
+        y = W_out(C * DepthwiseConv(B * V))
+
+    The convolution weights are fixed after training, while both multiplicative
+    gates depend on the current input.  The effective temporal operator is thus
+    input-varying without requiring a recurrent state during full-sequence
+    training.  Incremental runtimes only need ``kernel_size - 1`` prior values.
+    """
+
+    def __init__(self, d_model, kernel_size=3, dropout_rate=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.d_model = int(d_model)
+        self.kernel_size = int(kernel_size)
+        self.dropout_rate = float(dropout_rate)
+        if self.kernel_size < 1:
+            raise ValueError("kernel_size must be positive")
+        self.in_proj = Dense(3 * self.d_model, use_bias=False, name="in_proj")
+        self.out_proj = Dense(self.d_model, use_bias=False, name="out_proj")
+        self.dropout = Dropout(self.dropout_rate)
+
+    def build(self, input_shape):
+        self.in_proj.build(input_shape)
+        self.out_proj.build(input_shape)
+        self.kernel = self.add_weight(
+            name="depthwise_kernel",
+            shape=(self.kernel_size, self.d_model),
+            initializer="glorot_uniform",
+            trainable=True,
+        )
+        super().build(input_shape)
+
+    def _project(self, inputs):
+        b, c, value = tf.split(self.in_proj(inputs), 3, axis=-1)
+        return b * value, c
+
+    def _finish(self, mixed, c, token_mask, training):
+        out = self.out_proj(c * mixed)
+        if token_mask is not None:
+            out *= tf.cast(tf.expand_dims(token_mask, -1), out.dtype)
+        return self.dropout(out, training=training)
+
+    def call(self, inputs, token_mask=None, training=False):
+        gated, c = self._project(inputs)
+        # depthwise_conv2d has a reliable CPU kernel across the TensorFlow
+        # versions supported by ARCANE.  Width is the time dimension.
+        padded = tf.pad(gated, [[0, 0], [self.kernel_size - 1, 0], [0, 0]])
+        padded = tf.expand_dims(padded, axis=1)  # (B, 1, T + K - 1, D)
+        filt = tf.reshape(self.kernel, (1, self.kernel_size, self.d_model, 1))
+        mixed = tf.nn.depthwise_conv2d(padded, filt, strides=[1, 1, 1, 1], padding="VALID")
+        mixed = tf.squeeze(mixed, axis=1)
+        return self._finish(mixed, c, token_mask, training)
+
+    def call_with_cache(self, inputs, token_mask=None, training=False):
+        out = self(inputs, token_mask=token_mask, training=training)
+        gated, _ = self._project(inputs)
+        keep = max(self.kernel_size - 1, 0)
+        cache = gated[:, -keep:] if keep else gated[:, :0]
+        if keep:
+            missing = tf.maximum(keep - tf.shape(cache)[1], 0)
+            cache = tf.pad(cache, [[0, 0], [missing, 0], [0, 0]])
+        return out, cache
+
+    def step(self, inputs, cache, training=False):
+        """One-token decode using the previous ``kernel_size - 1`` gated values."""
+        gated, c = self._project(inputs)
+        history = tf.concat([cache, gated], axis=1)
+        mixed = tf.reduce_sum(history * tf.reshape(
+            self.kernel, (1, self.kernel_size, self.d_model)), axis=1, keepdims=True)
+        keep = max(self.kernel_size - 1, 0)
+        new_cache = history[:, -keep:] if keep else history[:, :0]
+        return self._finish(mixed, c, None, training), new_cache
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "d_model": self.d_model,
+            "kernel_size": self.kernel_size,
+            "dropout_rate": self.dropout_rate,
+        })
+        return config
+
+
+class GroupedQueryFieldAttention(Layer):
+    """Causal grouped-query attention with RoPE and parameter-free QK norm.
+
+    Query heads retain their full count while key/value heads are shared in
+    groups.  This preserves exact content lookup and substantially reduces the
+    projection and future KV-cache footprint compared with full MHA.
+    """
+
+    def __init__(self, d_model, num_heads, num_kv_heads=2, dropout_rate=0.0,
+                 use_rope=True, rope_base=10000.0, max_position=2048, **kwargs):
+        super().__init__(**kwargs)
+        self.d_model = int(d_model)
+        self.num_heads = int(num_heads)
+        self.num_kv_heads = int(num_kv_heads)
+        self.dropout_rate = float(dropout_rate)
+        self.use_rope = bool(use_rope)
+        self.rope_base = float(rope_base)
+        self.max_position = int(max_position)
+        if self.d_model % self.num_heads:
+            raise ValueError("d_model must be divisible by num_heads")
+        if self.num_heads % self.num_kv_heads:
+            raise ValueError("num_heads must be divisible by num_kv_heads")
+        self.depth = self.d_model // self.num_heads
+        if self.use_rope and self.depth % 2:
+            raise ValueError("RoPE requires an even head dimension")
+        self.kv_dim = self.num_kv_heads * self.depth
+        self.query = Dense(self.d_model, use_bias=False, name="query")
+        self.key = Dense(self.kv_dim, use_bias=False, name="key")
+        self.value = Dense(self.kv_dim, use_bias=False, name="value")
+        self.out = Dense(self.d_model, use_bias=False, name="out")
+        self.dropout = Dropout(self.dropout_rate)
+
+    def build(self, input_shape):
+        for layer in (self.query, self.key, self.value, self.out):
+            layer.build(input_shape)
+        if self.use_rope:
+            self.rope_cos, self.rope_sin = build_rope_cache(
+                self.max_position, self.depth, self.rope_base
+            )
+        super().build(input_shape)
+
+    @staticmethod
+    def _qk_norm(x):
+        return x * tf.math.rsqrt(tf.reduce_mean(tf.square(x), axis=-1, keepdims=True) + 1e-6)
+
+    def _heads(self, x, batch, seq, heads):
+        return tf.transpose(tf.reshape(x, (batch, seq, heads, self.depth)), [0, 2, 1, 3])
+
+    def _project(self, inputs, offset=0):
+        batch, seq = tf.shape(inputs)[0], tf.shape(inputs)[1]
+        q = self._heads(self.query(inputs), batch, seq, self.num_heads)
+        k = self._heads(self.key(inputs), batch, seq, self.num_kv_heads)
+        v = self._heads(self.value(inputs), batch, seq, self.num_kv_heads)
+        q, k = self._qk_norm(q), self._qk_norm(k)
+        if self.use_rope:
+            q = apply_rope(q, self.rope_cos, self.rope_sin, offset=offset)
+            k = apply_rope(k, self.rope_cos, self.rope_sin, offset=offset)
+        return q, k, v
+
+    def _expand_kv(self, x):
+        return tf.repeat(x, repeats=self.num_heads // self.num_kv_heads, axis=1)
+
+    def call(self, inputs, token_mask=None, training=False):
+        batch, seq = tf.shape(inputs)[0], tf.shape(inputs)[1]
+        q, k_cache, v_cache = self._project(inputs)
+        k, v = self._expand_kv(k_cache), self._expand_kv(v_cache)
+        scores = tf.matmul(q, k, transpose_b=True) / tf.sqrt(tf.cast(self.depth, inputs.dtype))
+        causal = tf.linalg.band_part(tf.ones((seq, seq), dtype=tf.bool), -1, 0)
+        valid = causal[None, None, :, :]
+        if token_mask is not None:
+            keys = tf.reshape(tf.cast(token_mask, tf.bool), (batch, 1, 1, seq))
+            valid = tf.logical_and(valid, keys)
+        scores = tf.where(valid, scores, tf.cast(_MASK_NEG, inputs.dtype))
+        weights = self.dropout(tf.nn.softmax(scores, axis=-1), training=training)
+        context = tf.matmul(weights, v)
+        context = tf.reshape(tf.transpose(context, [0, 2, 1, 3]), (batch, seq, self.d_model))
+        out = self.out(context)
+        if token_mask is not None:
+            out *= tf.cast(tf.expand_dims(token_mask, -1), out.dtype)
+        return self.dropout(out, training=training)
+
+    def call_with_cache(self, inputs, token_mask=None, training=False):
+        out = self(inputs, token_mask=token_mask, training=training)
+        _, k, v = self._project(inputs)
+        return out, (k, v)
+
+    def step(self, inputs, cache, position, training=False):
+        """One-token decode against cached, unexpanded key/value heads."""
+        q, k_new, v_new = self._project(inputs, offset=position)
+        k = tf.concat([cache[0], k_new], axis=2)
+        v = tf.concat([cache[1], v_new], axis=2)
+        scores = tf.matmul(q, self._expand_kv(k), transpose_b=True)
+        scores /= tf.sqrt(tf.cast(self.depth, inputs.dtype))
+        weights = tf.nn.softmax(scores, axis=-1)
+        context = tf.matmul(weights, self._expand_kv(v))
+        batch = tf.shape(inputs)[0]
+        context = tf.reshape(tf.transpose(context, [0, 2, 1, 3]), (batch, 1, self.d_model))
+        out = self.dropout(self.out(context), training=training)
+        return out, (k, v)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "d_model": self.d_model,
+            "num_heads": self.num_heads,
+            "num_kv_heads": self.num_kv_heads,
+            "dropout_rate": self.dropout_rate,
+            "use_rope": self.use_rope,
+            "rope_base": self.rope_base,
+            "max_position": self.max_position,
+        })
+        return config
+
+
+class SelectiveCausalResonance(Layer):
+    """Input-gated causal memory over several temporal horizons.
+
+    The legacy field resonance uses a single uniform prefix mean.  This layer
+    keeps several finite causal summaries, lets each token choose their mixture,
+    and writes the result through an input-dependent gate and ARCANE's graded
+    spike.  Prefix sums make it causal and O(T) without a slow recurrent scan.
+
+    ``decays`` specify an equivalent EMA memory horizon ``round(1/(1-decay))``;
+    for example (0.5, 0.9, 0.99) become windows of roughly (2, 10, 100).
+    """
+
+    def __init__(self, d_model, decays=(0.5, 0.9, 0.99), spike_threshold=0.4,
+                 dropout_rate=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.d_model = int(d_model)
+        self.decays = tuple(float(x) for x in decays)
+        self.spike_threshold = float(spike_threshold)
+        self.dropout_rate = float(dropout_rate)
+        if not self.decays or any(x < 0.0 or x >= 1.0 for x in self.decays):
+            raise ValueError("decays must be non-empty values in [0, 1)")
+        self.value = Dense(self.d_model, use_bias=False, name="value")
+        self.selector = Dense(len(self.decays), name="selector")
+        self.gate = Dense(self.d_model, name="write_gate")
+        self.out = Dense(self.d_model, use_bias=False, name="out")
+        self.dropout = Dropout(self.dropout_rate)
+
+    def build(self, input_shape):
+        self.value.build(input_shape)
+        self.selector.build(input_shape)
+        gate_shape = list(input_shape)
+        gate_shape[-1] = 2 * self.d_model
+        self.gate.build(gate_shape)
+        self.out.build(input_shape)
+        self.spike_params = _add_spike_params(self, self.d_model)
+        super().build(input_shape)
+
+    def load_own_variables(self, store):
+        _load_with_default_spike_params(self, store, super().load_own_variables)
+
+    def _horizons(self):
+        return tuple(max(1, int(round(1.0 / max(1.0 - decay, 1e-3)))) for decay in self.decays)
+
+    def _memory(self, inputs, values):
+        prefix = tf.concat([tf.zeros_like(values[:, :1]), tf.cumsum(values, axis=1)], axis=1)
+        seq = tf.shape(values)[1]
+        positions = tf.range(1, seq + 1)
+        traces = []
+        for window in self._horizons():
+            starts = tf.maximum(positions - window, 0)
+            total = prefix[:, 1:] - tf.gather(prefix, starts, axis=1)
+            denom = tf.cast(tf.minimum(positions, window), inputs.dtype)
+            traces.append(total / tf.reshape(denom, (1, -1, 1)))
+        traces = tf.stack(traces, axis=2)                          # (B, T, S, D)
+        mix = tf.nn.softmax(self.selector(inputs), axis=-1)
+        return tf.reduce_sum(traces * tf.expand_dims(mix, -1), axis=2)
+
+    def _finish(self, inputs, memory, token_mask, training):
+        gate = tf.nn.sigmoid(self.gate(tf.concat([inputs, memory], axis=-1)))
+        write = gate * self.out(memory)
+        write = _spike(self, write)
+        if token_mask is not None:
+            write *= tf.cast(tf.expand_dims(token_mask, -1), write.dtype)
+        return self.dropout(write, training=training)
+
+    def call(self, inputs, token_mask=None, training=False):
+        values = self.value(inputs)
+        return self._finish(inputs, self._memory(inputs, values), token_mask, training)
+
+    def call_with_cache(self, inputs, token_mask=None, training=False):
+        values = self.value(inputs)
+        out = self._finish(inputs, self._memory(inputs, values), token_mask, training)
+        keep = max(self._horizons()) - 1
+        cache = values[:, -keep:] if keep else values[:, :0]
+        return out, cache
+
+    def step(self, inputs, cache, training=False):
+        value = self.value(inputs)
+        history = tf.concat([cache, value], axis=1)
+        traces = []
+        for window in self._horizons():
+            traces.append(tf.reduce_mean(history[:, -window:], axis=1, keepdims=True))
+        traces = tf.stack(traces, axis=2)
+        mix = tf.nn.softmax(self.selector(inputs), axis=-1)
+        memory = tf.reduce_sum(traces * tf.expand_dims(mix, -1), axis=2)
+        keep = max(self._horizons()) - 1
+        new_cache = history[:, -keep:] if keep else history[:, :0]
+        return self._finish(inputs, memory, None, training), new_cache
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "d_model": self.d_model,
+            "decays": self.decays,
+            "spike_threshold": self.spike_threshold,
+            "dropout_rate": self.dropout_rate,
         })
         return config
 

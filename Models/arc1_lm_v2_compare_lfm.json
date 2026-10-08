@@ -1,0 +1,48 @@
+{
+  "arc1_lm_v1": {
+    "parameters": 9478144,
+    "fp32_parameter_mb": 37.912576,
+    "layers": 6,
+    "hidden_size": 256,
+    "vocab_size": 8000,
+    "context": 256,
+    "learned_checkpoint": true,
+    "prefill_ms": {
+      "64": 89.07719999842811
+    },
+    "decode_ms": 91.97580000181915,
+    "decode_mode": "full_recompute"
+  },
+  "arc1_lm_v2": {
+    "parameters": 12643108,
+    "fp32_parameter_mb": 50.572432,
+    "layers": 12,
+    "hidden_size": 256,
+    "vocab_size": 8000,
+    "context": 2048,
+    "learned_checkpoint": false,
+    "prefill_ms": {
+      "64": 197.33519999863347
+    },
+    "decode_ms": 11.356099999829894,
+    "decode_mode": "cached"
+  },
+  "lfm2_5_230m": {
+    "parameters": 229693184,
+    "layers": 14,
+    "hidden_size": 1024,
+    "vocab_size": 65536,
+    "conv_blocks": 8,
+    "attention_blocks": 6,
+    "query_heads": 16,
+    "kv_heads": 8,
+    "context": 32768,
+    "source": "https://huggingface.co/LiquidAI/LFM2.5-230M",
+    "fp32_parameter_mb": 918.772736,
+    "prefill_ms": {
+      "64": 243.24300000080257
+    },
+    "decode_mode": "cached",
+    "decode_ms": 123.44920000032289
+  }
+}

@@ -41,7 +41,7 @@ from typing import Dict, List, Optional, Tuple
 import tensorflow as tf
 
 from .arc1_codec import NUM_ROLES
-from .layers import Arc1PerceptionBlock
+from .layers import Arc1HybridBlock, Arc1PerceptionBlock
 from .mechanisms import RMSNorm, ResonantBinding
 
 _NEG = -1e9
@@ -69,6 +69,50 @@ ARC1_PRESETS: Dict[str, Dict] = {
         "engram_rows": 8,
         "binding_heads": 8,
         "binding_cycles": 1,
+    },
+    # Hybrid causal LM: LFM-style local/global scheduling while retaining
+    # ARCANE engrams, graded spikes, and selective resonance.  The engram table
+    # is deliberately smaller so capacity moves from lexical lookup into depth.
+    "arc1-lm-v2": {
+        "vocab_size": 8000,
+        "d_model": 256,
+        "num_layers": 12,
+        "num_heads": 8,
+        "seq_len": 2048,
+        "engram_table_size": 4096,
+        "engram_rows": 4,
+        "binding_heads": 8,
+        "binding_cycles": 1,
+        "lm_architecture": "hybrid",
+        "lm_block_pattern": ("conv", "conv", "attention") * 4,
+        "num_kv_heads": 2,
+        "ffn_mult": 1.5,
+        "conv_kernel_size": 3,
+        "resonance_decays": (0.5, 0.9, 0.99),
+        "rope_base": 100000.0,
+        "residual_scale": 0.5,
+    },
+    # Same ARC 1 LM v2 mechanisms, scaled to a practical compact-chat budget.
+    # 94,681,648 trainable parameters: 11 local convolution blocks and five
+    # global GQA blocks.  A 64-wide attention head keeps the KV cache small.
+    "arc1-lm-100m": {
+        "vocab_size": 16000,
+        "d_model": 640,
+        "num_layers": 16,
+        "num_heads": 10,
+        "seq_len": 4096,
+        "engram_table_size": 8192,
+        "engram_rows": 4,
+        "binding_heads": 10,
+        "binding_cycles": 1,
+        "lm_architecture": "hybrid",
+        "lm_block_pattern": ("conv", "conv", "attention") * 5 + ("conv",),
+        "num_kv_heads": 2,
+        "ffn_mult": 1.5,
+        "conv_kernel_size": 3,
+        "resonance_decays": (0.5, 0.9, 0.99),
+        "rope_base": 100000.0,
+        "residual_scale": 0.5,
     },
     "arc1": {
         "vocab_size": 2048,
@@ -116,6 +160,15 @@ class Arc1Config:
     binding_cycles: int = 3
     active_cycles: Optional[int] = None  # None = binding_cycles
     calibration: Dict[str, float] = field(default_factory=_default_calibration)
+    # Causal-LM-only options.  ``legacy`` preserves every existing checkpoint.
+    lm_architecture: str = "legacy"
+    lm_block_pattern: Tuple[str, ...] = ()
+    num_kv_heads: int = 2
+    ffn_mult: float = 1.5
+    conv_kernel_size: int = 3
+    resonance_decays: Tuple[float, ...] = (0.5, 0.9, 0.99)
+    rope_base: float = 10000.0
+    residual_scale: float = 1.0
 
     def resolve_cycles(self, cycles: Optional[int] = None) -> int:
         if cycles is None:
@@ -143,6 +196,10 @@ class Arc1Config:
         data = {k: v for k, v in dict(payload).items() if k in known}
         if "ngram_sizes" in data:
             data["ngram_sizes"] = tuple(data["ngram_sizes"])
+        if "lm_block_pattern" in data:
+            data["lm_block_pattern"] = tuple(data["lm_block_pattern"])
+        if "resonance_decays" in data:
+            data["resonance_decays"] = tuple(data["resonance_decays"])
         if "calibration" in data:
             merged = _default_calibration()
             merged.update({k: float(v) for k, v in (data["calibration"] or {}).items() if k in merged})
@@ -152,6 +209,8 @@ class Arc1Config:
     def to_dict(self) -> Dict:
         data = asdict(self)
         data["ngram_sizes"] = list(self.ngram_sizes)
+        data["lm_block_pattern"] = list(self.lm_block_pattern)
+        data["resonance_decays"] = list(self.resonance_decays)
         data["calibration"] = dict(self.calibration)
         return data
 
@@ -183,6 +242,38 @@ def _perception_blocks(cfg: Arc1Config, causal: bool = False) -> List[Arc1Percep
             name=f"perception_{i}",
         )
         for i in range(cfg.num_layers)
+    ]
+
+
+def _hybrid_lm_blocks(cfg: Arc1Config) -> List[Arc1HybridBlock]:
+    pattern = tuple(cfg.lm_block_pattern)
+    if not pattern:
+        pattern = tuple("attention" if (i + 1) % 3 == 0 else "conv" for i in range(cfg.num_layers))
+    if len(pattern) != cfg.num_layers:
+        raise ValueError("lm_block_pattern length must equal num_layers")
+    hidden = max(int(round(cfg.d_model * cfg.ffn_mult)), 16)
+    return [
+        Arc1HybridBlock(
+            d_model=cfg.d_model,
+            num_heads=cfg.num_heads,
+            num_kv_heads=cfg.num_kv_heads,
+            sequence_type=kind,
+            ffn_hidden_dim=hidden,
+            conv_kernel_size=cfg.conv_kernel_size,
+            dropout_rate=cfg.dropout_rate,
+            spike_threshold=cfg.spike_threshold,
+            resonance_decays=cfg.resonance_decays,
+            use_rope=cfg.use_rope,
+            rope_base=cfg.rope_base,
+            max_position=max(cfg.seq_len, 128),
+            use_engram=(i == 0),
+            engram_table_size=cfg.engram_table_size,
+            engram_rows=cfg.engram_rows,
+            ngram_sizes=cfg.ngram_sizes,
+            residual_scale=cfg.residual_scale,
+            name=f"hybrid_{i}_{kind}",
+        )
+        for i, kind in enumerate(pattern)
     ]
 
 
@@ -382,7 +473,11 @@ class Arc1LanguageModel(tf.keras.Model):
         cfg = self.slm_config
         self.token_embedding = tf.keras.layers.Embedding(cfg.vocab_size, cfg.d_model, name="token_embedding")
         self.embed_dropout = tf.keras.layers.Dropout(cfg.dropout_rate)
-        self.blocks = _perception_blocks(cfg, causal=True)
+        self.blocks = (
+            _hybrid_lm_blocks(cfg)
+            if cfg.lm_architecture == "hybrid"
+            else _perception_blocks(cfg, causal=True)
+        )
         self.final_norm = RMSNorm(name="final_norm")
 
     @classmethod
@@ -396,21 +491,98 @@ class Arc1LanguageModel(tf.keras.Model):
             x = block(x, token_ids=token_ids, token_mask=mask, training=training)
         return tf.matmul(self.final_norm(x), self.token_embedding.embeddings, transpose_b=True)
 
+    def prefill(self, token_ids):
+        """Run a hybrid prompt once and return logits plus incremental state.
+
+        This API is intentionally limited to the v2 hybrid architecture; legacy
+        checkpoints retain their exact historical execution path.
+        """
+        if self.slm_config.lm_architecture != "hybrid":
+            raise ValueError("prefill is available only for the hybrid ARC 1 LM")
+        token_ids = tf.convert_to_tensor(token_ids, dtype=tf.int32)
+        mask = tf.not_equal(token_ids, self.slm_config.pad_id)
+        x = self.token_embedding(token_ids)
+        states = []
+        for block in self.blocks:
+            x, state = block.call_with_cache(
+                x, token_ids=token_ids, token_mask=mask, training=False)
+            states.append(state)
+        logits = tf.matmul(self.final_norm(x), self.token_embedding.embeddings, transpose_b=True)
+        keep = max(self.slm_config.ngram_sizes, default=1) - 1
+        recent = token_ids[:, -keep:] if keep else token_ids[:, :0]
+        return logits, {
+            "blocks": states,
+            "position": tf.shape(token_ids)[1],
+            "recent_token_ids": recent,
+        }
+
+    @tf.function(reduce_retracing=True)
+    def decode_step(self, token_ids, state):
+        """Decode one new token using state returned by :meth:`prefill`."""
+        if self.slm_config.lm_architecture != "hybrid":
+            raise ValueError("decode_step is available only for the hybrid ARC 1 LM")
+        token_ids = tf.convert_to_tensor(token_ids, dtype=tf.int32)
+        if len(token_ids.shape) == 1:
+            token_ids = tf.expand_dims(token_ids, 1)
+        recent = tf.concat([state["recent_token_ids"], token_ids], axis=1)
+        max_ngram = max(self.slm_config.ngram_sizes, default=1)
+        recent = recent[:, -max_ngram:]
+        x = self.token_embedding(token_ids)
+        next_states = []
+        for block, block_state in zip(self.blocks, state["blocks"]):
+            x, next_state = block.step(
+                x, block_state, position=state["position"], recent_token_ids=recent,
+                training=False)
+            next_states.append(next_state)
+        logits = tf.matmul(self.final_norm(x), self.token_embedding.embeddings, transpose_b=True)
+        keep = max_ngram - 1
+        return logits, {
+            "blocks": next_states,
+            "position": state["position"] + 1,
+            "recent_token_ids": recent[:, -keep:] if keep else recent[:, :0],
+        }
+
     def build_model(self) -> "Arc1LanguageModel":
-        self(tf.ones((1, self.slm_config.seq_len), dtype=tf.int32), training=False)
+        # Layers build dynamically in sequence length; avoid an unnecessary
+        # quadratic full-context pass merely to create their variables.
+        self(tf.ones((1, min(self.slm_config.seq_len, 8)), dtype=tf.int32), training=False)
         return self
 
-    def generate(self, token_ids, max_new_tokens=50, temperature=0.8, top_k=40, eos_id=1,
-                 allowed_token_ids=None) -> List[int]:
+    def generate(self, token_ids, max_new_tokens=50, temperature=0.3, top_k=40, eos_id=1,
+                 allowed_token_ids=None, repetition_penalty=1.08,
+                 no_repeat_ngram_size=3) -> List[int]:
         from .language_model import _sample_logits
 
         cfg = self.slm_config
         tokens = [int(t) for t in token_ids] or [1]
+        if cfg.lm_architecture == "hybrid":
+            window = tokens[-cfg.seq_len:]
+            logits, state = self.prefill(tf.constant([window], dtype=tf.int32))
+            next_logits = logits[0, -1]
+            for _ in range(max_new_tokens):
+                next_id = _sample_logits(
+                    next_logits, temperature=temperature, top_k=top_k,
+                    allowed_ids=allowed_token_ids, previous_ids=tokens,
+                    repetition_penalty=repetition_penalty,
+                    no_repeat_ngram_size=no_repeat_ngram_size,
+                )
+                tokens.append(int(next_id))
+                if eos_id is not None and next_id == eos_id:
+                    break
+                if int(state["position"].numpy()) >= cfg.seq_len:
+                    break
+                step_logits, state = self.decode_step(tf.constant([next_id]), state)
+                next_logits = step_logits[0, -1]
+            return tokens
         # ponytail: full-window recompute per token, add a KV cache if chat latency matters
         for _ in range(max_new_tokens):
             window = tokens[-cfg.seq_len:]
             logits = self(tf.constant([window], dtype=tf.int32), training=False)[0, -1]
-            next_id = _sample_logits(logits, temperature=temperature, top_k=top_k, allowed_ids=allowed_token_ids)
+            next_id = _sample_logits(
+                logits, temperature=temperature, top_k=top_k, allowed_ids=allowed_token_ids,
+                previous_ids=tokens, repetition_penalty=repetition_penalty,
+                no_repeat_ngram_size=no_repeat_ngram_size,
+            )
             tokens.append(int(next_id))
             if eos_id is not None and next_id == eos_id:
                 break

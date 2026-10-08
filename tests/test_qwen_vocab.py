@@ -65,6 +65,22 @@ def test_unmapped_tokens_become_unk(adapter):
     assert adapter.decode(ids) == ""  # specials are dropped on decode
 
 
+def test_optional_byte_fallback_is_lossless_for_unmapped_text(tmp_path):
+    adapter = QwenVocabAdapter.build(
+        ["aaaa"], vocab_size=NUM_SPECIAL + 256 + 8,
+        tokenizer=StubTokenizer(), byte_fallback=True,
+    )
+    assert adapter.byte_start is not None
+    ids = adapter.encode("az")
+    assert UNK_ID not in ids
+    assert adapter.decode(ids) == "az"
+    path = str(tmp_path / "byte-adapter.json")
+    adapter.save(path)
+    loaded = QwenVocabAdapter.load(path, tokenizer=StubTokenizer())
+    assert loaded.byte_start == adapter.byte_start
+    assert loaded.decode(loaded.encode("z")) == "z"
+
+
 def test_map_qwen_ids_is_vectorised(adapter):
     arr = np.array([[ord("h"), ord("z")], [ord("e"), ord("l")]])
     out = adapter.map_qwen_ids(arr)

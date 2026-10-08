@@ -24,8 +24,16 @@ from gpbacay_arcane.arc1_codec import (
 )
 from gpbacay_arcane.arc1_data import build_tool_library, sample_extract_example, sample_tool_example
 from gpbacay_arcane.arc1_train import BATCH_SIGNATURE, compute_losses, sample_batch
-from gpbacay_arcane.layers import Arc1PerceptionBlock, ResonantChannelMixer
-from gpbacay_arcane.mechanisms import ConceptEngram, FieldAttention, FieldResonance, ResonantBinding
+from gpbacay_arcane.layers import Arc1HybridBlock, Arc1PerceptionBlock, ResonantChannelMixer
+from gpbacay_arcane.mechanisms import (
+    ConceptEngram,
+    FieldAttention,
+    FieldResonance,
+    GatedShortConv,
+    GroupedQueryFieldAttention,
+    ResonantBinding,
+    SelectiveCausalResonance,
+)
 from gpbacay_arcane.tokenization import BytePairTokenizer
 from gpbacay_arcane.tools import (
     Arc1Agent,
@@ -500,6 +508,68 @@ def test_arc1_language_model_is_causal():
     assert np.abs(a[0, 10:] - b[0, 10:]).max() > 1e-4
     out = lm.generate([1, 5, 6], max_new_tokens=4, eos_id=None)
     assert len(out) == 7 and all(0 <= t < 64 for t in out)
+
+
+def test_arc1_v2_mechanisms_are_causal_and_differentiable():
+    tf.random.set_seed(2)
+    x = tf.Variable(tf.random.normal((2, 12, 32)))
+    layers = [
+        GatedShortConv(32, kernel_size=3),
+        GroupedQueryFieldAttention(32, num_heads=4, num_kv_heads=2, max_position=32),
+        SelectiveCausalResonance(32, decays=(0.5, 0.9)),
+    ]
+    for layer in layers:
+        with tf.GradientTape() as tape:
+            y = layer(x)
+            loss = tf.reduce_sum(y)
+        grads = tape.gradient(loss, [x] + layer.trainable_variables)
+        assert y.shape == x.shape
+        assert all(g is not None for g in grads)
+        changed = tf.tensor_scatter_nd_add(x, [[0, 9, 0]], [5.0])
+        a, b = layer(x).numpy(), layer(changed).numpy()
+        np.testing.assert_allclose(a[0, :9], b[0, :9], atol=1e-5)
+
+
+def test_arc1_language_model_v2_hybrid_layout_and_causality():
+    cfg = Arc1Config(
+        vocab_size=64, d_model=32, num_layers=3, num_heads=4, num_kv_heads=2,
+        seq_len=32, engram_table_size=64, engram_rows=2, dropout_rate=0.0,
+        lm_architecture="hybrid", lm_block_pattern=("conv", "conv", "attention"),
+        ffn_mult=1.5,
+    )
+    lm = Arc1LanguageModel(cfg).build_model()
+    assert all(isinstance(block, Arc1HybridBlock) for block in lm.blocks)
+    assert [block.sequence_type for block in lm.blocks] == ["conv", "conv", "attention"]
+    x = np.random.RandomState(4).randint(2, 64, (1, 16)).astype(np.int32)
+    changed = x.copy()
+    changed[0, 10] = 1
+    a, b = lm(x).numpy(), lm(changed).numpy()
+    np.testing.assert_allclose(a[0, :10], b[0, :10], atol=1e-5)
+    assert np.abs(a[0, 10:] - b[0, 10:]).max() > 1e-4
+    assert lm.count_params() < 60_000
+    prompt = tf.constant([[3, 4, 5, 6, 7]])
+    _, state = lm.prefill(prompt)
+    cached, _ = lm.decode_step(tf.constant([8]), state)
+    full = lm(tf.constant([[3, 4, 5, 6, 7, 8]]))
+    np.testing.assert_allclose(cached.numpy()[0, -1], full.numpy()[0, -1], atol=1e-5)
+
+
+def test_arc1_lm_v2_preset_stays_small():
+    lm = Arc1LanguageModel.from_preset("arc1-lm-v2").build_model()
+    assert lm.slm_config.seq_len >= 2048
+    assert lm.count_params() < 16_000_000
+    assert sum(block.sequence_type == "attention" for block in lm.blocks) == 4
+
+
+def test_arc1_lm_100m_preset_matches_budget_and_hybrid_schedule():
+    lm = Arc1LanguageModel.from_preset("arc1-lm-100m").build_model()
+    cfg = lm.slm_config
+    assert cfg.d_model == 640
+    assert cfg.seq_len == 4096
+    assert cfg.num_kv_heads == 2
+    assert 90_000_000 <= lm.count_params() <= 100_000_000
+    assert sum(block.sequence_type == "attention" for block in lm.blocks) == 5
+    assert sum(block.sequence_type == "conv" for block in lm.blocks) == 11
 
 
 if __name__ == "__main__":

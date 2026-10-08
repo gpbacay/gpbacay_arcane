@@ -147,7 +147,8 @@ class ArcaneSLMConfig:
         attn_linear = attn_softmax + d + 1 + (self.num_heads if self.use_decay else 0)
         gser = 2 * d * d_ff + 2 * d_ff + (d_ff if self.gate_normalize else 0)
         bioplastic = d_ff * d + d
-        resonance = d * d + 2 * d + 2 * d
+        # Projection + gate/bias + spike threshold/leak + LayerNorm scale/bias.
+        resonance = d * d + 6 * d
         attnres = 2 * d
         shared = gser + bioplastic + resonance + norm + attnres
         total = embed + norm
@@ -300,9 +301,28 @@ class ArcaneSmallLanguageModel(tf.keras.Model):
         }
 
 
-def _sample_logits(logits, temperature=0.8, top_k=40, allowed_ids=None) -> int:
+def _sample_logits(logits, temperature=0.8, top_k=40, allowed_ids=None,
+                   previous_ids=None, repetition_penalty=1.0,
+                   no_repeat_ngram_size=0) -> int:
     logits = logits.numpy() if hasattr(logits, "numpy") else np.asarray(logits)
     logits = np.array(logits, dtype=np.float64)
+    previous = [int(x) for x in (previous_ids or [])]
+    penalty = max(float(repetition_penalty), 1.0)
+    if penalty > 1.0 and previous:
+        seen = np.asarray(sorted({x for x in previous if 0 <= x < logits.shape[-1]}), dtype=np.int32)
+        # Hugging Face-style sign-aware penalty: make positive repeated logits
+        # smaller and negative repeated logits more negative.
+        logits[seen] = np.where(logits[seen] >= 0.0, logits[seen] / penalty, logits[seen] * penalty)
+    ngram = int(no_repeat_ngram_size or 0)
+    if ngram > 0 and len(previous) >= ngram - 1:
+        prefix = tuple(previous[-(ngram - 1):]) if ngram > 1 else ()
+        banned = set()
+        for i in range(len(previous) - ngram + 1):
+            if tuple(previous[i:i + ngram - 1]) == prefix:
+                banned.add(previous[i + ngram - 1])
+        if banned:
+            valid = [x for x in banned if 0 <= x < logits.shape[-1]]
+            logits[valid] = -1e9
     if allowed_ids is not None:
         allowed = np.asarray(allowed_ids, dtype=np.int32)
         allowed = allowed[(allowed >= 0) & (allowed < logits.shape[-1])]

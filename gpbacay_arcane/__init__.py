@@ -114,6 +114,7 @@ from .tokenization import BytePairTokenizer
 
 # Distillation support (Qwen vocab adapter needs `transformers`, imported lazily).
 from .distillation import (
+    assistant_token_mask,
     ArcaneDistiller,
     WarmupCosine,
     distillation_loss,
@@ -220,6 +221,7 @@ __all__ = [
     "load_arc1",
     "read_rcn_header",
     # Distillation
+    "assistant_token_mask",
     "ArcaneDistiller",
     "WarmupCosine",
     "distillation_loss",

@@ -67,11 +67,13 @@ class QwenVocabAdapter:
         qwen_vocab_size: int,
         model_id: str = QWEN_MODEL_ID,
         tokenizer=None,
+        byte_start: Optional[int] = None,
     ):
         self.model_id = model_id
         self.qwen_vocab_size = int(qwen_vocab_size)
         self.student_to_qwen = np.asarray(student_to_qwen, dtype=np.int64)
         self.vocab_size = int(self.student_to_qwen.size)
+        self.byte_start = None if byte_start is None else int(byte_start)
         self.qwen_to_student = np.full(self.qwen_vocab_size, -1, dtype=np.int64)
         for student_id, qwen_id in enumerate(self.student_to_qwen):
             if qwen_id >= 0:
@@ -92,6 +94,7 @@ class QwenVocabAdapter:
         vocab_size: int = 32000,
         model_id: str = QWEN_MODEL_ID,
         tokenizer=None,
+        byte_fallback: bool = False,
     ) -> "QwenVocabAdapter":
         """Keep the ``vocab_size - 4`` most frequent Qwen ids in ``texts``."""
         if vocab_size <= NUM_SPECIAL:
@@ -102,17 +105,23 @@ class QwenVocabAdapter:
         for text in texts:
             counts.update(tok.encode(text))
         counts.pop(qwen_eos, None)
-        keep = [tid for tid, _ in counts.most_common(vocab_size - NUM_SPECIAL)]
+        reserve = 256 if byte_fallback else 0
+        if vocab_size <= NUM_SPECIAL + reserve:
+            raise ValueError("vocab_size is too small for byte fallback")
+        keep_count = vocab_size - NUM_SPECIAL - reserve
+        keep = [tid for tid, _ in counts.most_common(keep_count)]
         # Deterministic tail-fill so the table is always exactly vocab_size wide.
-        if len(keep) < vocab_size - NUM_SPECIAL:
+        if len(keep) < keep_count:
             seen = set(keep) | {qwen_eos}
             for tid in range(len(tok)):
-                if len(keep) >= vocab_size - NUM_SPECIAL:
+                if len(keep) >= keep_count:
                     break
                 if tid not in seen:
                     keep.append(tid)
-        mapping = [-1] * NUM_SPECIAL + keep
-        adapter = cls(mapping, qwen_vocab_size=len(tok), model_id=model_id, tokenizer=tok)
+        byte_start = NUM_SPECIAL + len(keep) if byte_fallback else None
+        mapping = [-1] * NUM_SPECIAL + keep + ([-1] * reserve)
+        adapter = cls(mapping, qwen_vocab_size=len(tok), model_id=model_id, tokenizer=tok,
+                      byte_start=byte_start)
         # Fold Qwen's end-of-text onto ARCANE's EOS slot.
         adapter.qwen_to_student[qwen_eos] = EOS_ID
         adapter.qwen_eos_id = qwen_eos
@@ -126,7 +135,17 @@ class QwenVocabAdapter:
         return np.where(out < 0, UNK_ID, out).astype(np.int32)
 
     def encode(self, text: str, add_bos: bool = False, add_eos: bool = False) -> List[int]:
-        ids = list(self.map_qwen_ids(self.tokenizer.encode(text)))
+        ids = []
+        for qwen_id in self.tokenizer.encode(text):
+            mapped = int(self.qwen_to_student[int(qwen_id)])
+            if mapped >= 0:
+                ids.append(mapped)
+            elif self.byte_start is not None:
+                piece = self.tokenizer.decode([int(qwen_id)])
+                raw = piece.encode("utf-8")
+                ids.extend(self.byte_start + byte for byte in raw)
+            else:
+                ids.append(UNK_ID)
         if add_bos:
             ids = [BOS_ID] + ids
         if add_eos:
@@ -134,16 +153,34 @@ class QwenVocabAdapter:
         return [int(i) for i in ids]
 
     def decode(self, token_ids: Sequence[int]) -> str:
-        qwen_ids = []
+        chunks, qwen_ids, raw = [], [], bytearray()
+
+        def flush_qwen():
+            if qwen_ids:
+                chunks.append(self.tokenizer.decode(qwen_ids))
+                qwen_ids.clear()
+
+        def flush_bytes():
+            if raw:
+                chunks.append(bytes(raw).decode("utf-8", errors="replace"))
+                raw.clear()
+
         for tid in token_ids:
             tid = int(tid)
             if tid in (PAD_ID, EOS_ID, UNK_ID, BOS_ID):
                 continue
+            if self.byte_start is not None and self.byte_start <= tid < self.byte_start + 256:
+                flush_qwen()
+                raw.append(tid - self.byte_start)
+                continue
+            flush_bytes()
             if 0 <= tid < self.vocab_size:
                 qwen = int(self.student_to_qwen[tid])
                 if qwen >= 0:
                     qwen_ids.append(qwen)
-        return self.tokenizer.decode(qwen_ids)
+        flush_qwen()
+        flush_bytes()
+        return "".join(chunks)
 
     def generation_ids(self) -> List[int]:
         """Student ids that decode to real text (everything but PAD/UNK/BOS)."""
@@ -157,6 +194,7 @@ class QwenVocabAdapter:
             "vocab_size": self.vocab_size,
             "student_to_qwen": [int(i) for i in self.student_to_qwen],
             "qwen_eos_id": int(getattr(self, "qwen_eos_id", -1)),
+            "byte_start": self.byte_start,
         }
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f)
@@ -170,6 +208,7 @@ class QwenVocabAdapter:
             qwen_vocab_size=int(payload["qwen_vocab_size"]),
             model_id=payload.get("model_id", QWEN_MODEL_ID),
             tokenizer=tokenizer,
+            byte_start=payload.get("byte_start"),
         )
         eos = int(payload.get("qwen_eos_id", -1))
         if eos >= 0:

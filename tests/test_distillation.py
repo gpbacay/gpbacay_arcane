@@ -3,6 +3,7 @@ import pytest
 import tensorflow as tf
 
 from gpbacay_arcane.distillation import (
+    assistant_token_mask,
     ArcaneDistiller,
     WarmupCosine,
     distillation_loss,
@@ -222,6 +223,16 @@ def test_kd_loss_is_positive_on_disagreement():
     assert float(topk_kd_loss(logits, ids, vals, temperature=1.0)) > 0.5
 
 
+def test_kd_loss_penalises_student_mass_outside_teacher_topk():
+    ids = tf.constant([[[0, 1]]], dtype=tf.int32)
+    vals = tf.constant([[[2.0, 0.0]]])
+    focused = tf.constant([[[2.0, 0.0, -10.0, -10.0]]])
+    distracted = tf.constant([[[2.0, 0.0, 8.0, 8.0]]])
+    assert float(topk_kd_loss(focused, ids, vals, 1.0)) < float(
+        topk_kd_loss(distracted, ids, vals, 1.0)
+    )
+
+
 def test_kd_loss_respects_mask():
     logits = tf.constant([[[3.0, 0.0], [3.0, 0.0]]])
     ids = tf.constant([[[0, 1], [0, 1]]], dtype=tf.int32)
@@ -305,3 +316,29 @@ def test_shard_roundtrip_and_training_step_reduces_loss(tmp_path):
     metrics = distiller.evaluate(ds)
     assert set(metrics) == {"loss", "ce", "kd", "ppl"}
     assert np.isfinite(metrics["loss"]) and metrics["ppl"] > 0
+
+
+def test_assistant_mask_roundtrips_and_old_shards_remain_compatible(tmp_path):
+    # User marker [10, 11], assistant marker [20, 21]. Marker tokens themselves
+    # are never supervised; only the assistant's content is.
+    ids = [10, 11, 5, 6, 20, 21, 7, 8, 10, 11, 9, 20, 21, 4]
+    role_mask = assistant_token_mask(ids, [20, 21], [10, 11])
+    np.testing.assert_array_equal(
+        role_mask,
+        [0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1],
+    )
+
+    seq_len, top_k = 4, 2
+    inputs = np.asarray([[4, 5, 6, 7]], np.int32)
+    labels = np.asarray([[5, 6, 7, 8]], np.int32)
+    teacher_ids = np.zeros((1, seq_len, top_k), np.int32)
+    teacher_values = np.zeros((1, seq_len, top_k), np.float16)
+    stored = np.asarray([[0, 1, 1, 0]], np.uint8)
+    write_shard(
+        str(tmp_path / "masked.tfrecord"), inputs, labels,
+        teacher_ids, teacher_values, stored,
+    )
+    batch = next(iter(read_distill_dataset(
+        str(tmp_path / "masked.tfrecord"), seq_len, top_k, batch_size=1, shuffle=False,
+    )))
+    np.testing.assert_array_equal(batch[-1].numpy(), stored.astype(np.float32))

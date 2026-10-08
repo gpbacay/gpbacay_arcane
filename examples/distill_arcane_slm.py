@@ -70,6 +70,11 @@ def parse_args():
     p.add_argument("--vocab-adapter", default="Models/qwen_vocab_adapter.json")
     p.add_argument("--warm-start-embedding", action="store_true",
                    help="Initialise the embedding from Qwen's, PCA-projected to d_model.")
+    p.add_argument(
+        "--resume",
+        action="store_true",
+        help="Load --checkpoint before training (optimizer schedule restarts).",
+    )
     p.add_argument("--baseline-transformer", action="store_true",
                    help="Train a parameter-matched vanilla transformer control instead.")
     p.add_argument("--mixed-precision", action="store_true")
@@ -169,7 +174,15 @@ def main():
         from gpbacay_arcane.arc1 import Arc1Config, Arc1LanguageModel
 
         overrides.pop("chunk_size", None)
+        # The shard length is a memory/performance choice, not the model's
+        # maximum serving context. Preserve the preset context and merely
+        # require each training window to fit inside it.
+        overrides.pop("seq_len", None)
         cfg = Arc1Config.from_preset(args.preset, **overrides)
+        if seq_len > cfg.seq_len:
+            raise SystemExit(
+                f"shard seq_len {seq_len} exceeds {args.preset} context {cfg.seq_len}"
+            )
         student = Arc1LanguageModel(cfg)
         label = f"arc1-lm ({args.preset})"
     elif args.baseline_transformer:
@@ -183,6 +196,14 @@ def main():
     student(tf.zeros((1, seq_len), dtype=tf.int32), training=False)
     trainable = int(np.sum([tf.keras.backend.count_params(w) for w in student.trainable_weights]))
     print(f"student: {label} | {trainable:,} trainable params (~{trainable * 4 / 1e6:.0f} MB fp32)")
+
+    if args.resume and args.warm_start_embedding:
+        raise SystemExit("choose either --resume or --warm-start-embedding, not both")
+    if args.resume:
+        if not os.path.exists(args.checkpoint):
+            raise SystemExit(f"cannot resume; checkpoint not found: {args.checkpoint}")
+        student.load_weights(args.checkpoint)
+        print(f"resumed weights: {args.checkpoint}")
 
     if args.warm_start_embedding and not args.baseline_transformer:
         from gpbacay_arcane.qwen_vocab import QwenVocabAdapter, project_qwen_embeddings

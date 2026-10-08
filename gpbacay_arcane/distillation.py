@@ -11,8 +11,9 @@ Loss is the usual combination::
     L = alpha * CE(student, hard labels)
       + (1 - alpha) * T^2 * KL(teacher || student)
 
-with both distributions restricted to the teacher's top-k support, which is
-where essentially all of the teacher's probability mass lives anyway.
+The sparse teacher is renormalised on its retained top-k support.  The student
+remains normalised over its full vocabulary, so probability placed on omitted
+tokens is still penalised.
 """
 
 from __future__ import annotations
@@ -35,7 +36,7 @@ def topk_kd_loss(
     temperature: float = 2.0,
     mask: Optional[tf.Tensor] = None,
 ) -> tf.Tensor:
-    """KL(teacher || student) over the teacher's top-k support.
+    """Sparse-teacher KL with the student normalised over its full vocabulary.
 
     Args:
         student_logits: ``(B, T, V)`` full student logits.
@@ -44,15 +45,19 @@ def topk_kd_loss(
         temperature: softening temperature applied to both sides.
         mask: ``(B, T)`` 1.0 for positions to score, 0.0 to ignore.
 
-    Both sides are renormalised over the same K symbols, so the result is a
-    proper KL between two distributions on a shared support.
+    The sparse teacher is renormalised over its retained K symbols. The student
+    is normalised over its full vocabulary before those symbols are gathered,
+    so probability assigned outside the teacher support is correctly penalised.
     """
     temperature = tf.cast(temperature, student_logits.dtype)
     teacher_values = tf.cast(teacher_values, student_logits.dtype)
-    student_at_topk = tf.gather(student_logits, teacher_ids, batch_dims=2)
-
+    # The teacher distribution is sparse, but the student's must still be
+    # normalised over its complete vocabulary.  Renormalising both over top-k
+    # lets the student put arbitrary probability on every omitted token without
+    # penalty, which is particularly damaging early in compact-model training.
     teacher_logprobs = tf.nn.log_softmax(teacher_values / temperature, axis=-1)
-    student_logprobs = tf.nn.log_softmax(student_at_topk / temperature, axis=-1)
+    student_full_logprobs = tf.nn.log_softmax(student_logits / temperature, axis=-1)
+    student_logprobs = tf.gather(student_full_logprobs, teacher_ids, batch_dims=2)
     teacher_probs = tf.exp(teacher_logprobs)
 
     per_token = tf.reduce_sum(teacher_probs * (teacher_logprobs - student_logprobs), axis=-1)
@@ -110,6 +115,7 @@ def serialize_example(
     labels: np.ndarray,
     teacher_ids: np.ndarray,
     teacher_values: np.ndarray,
+    loss_mask: Optional[np.ndarray] = None,
 ) -> bytes:
     """Pack one window. Teacher values are stored fp16 to halve shard size."""
     feature = {
@@ -118,6 +124,8 @@ def serialize_example(
         "teacher_ids": _bytes_feature(np.asarray(teacher_ids, dtype=np.int32).tobytes()),
         "teacher_values": _bytes_feature(np.asarray(teacher_values, dtype=np.float16).tobytes()),
     }
+    if loss_mask is not None:
+        feature["loss_mask"] = _bytes_feature(np.asarray(loss_mask, dtype=np.uint8).tobytes())
     return tf.train.Example(features=tf.train.Features(feature=feature)).SerializeToString()
 
 
@@ -127,12 +135,16 @@ def write_shard(
     labels: np.ndarray,
     teacher_ids: np.ndarray,
     teacher_values: np.ndarray,
+    loss_masks: Optional[np.ndarray] = None,
 ) -> int:
     """Write a batch of windows to one TFRecord shard. Returns the record count."""
     with tf.io.TFRecordWriter(path) as writer:
         for i in range(len(inputs)):
             writer.write(
-                serialize_example(inputs[i], labels[i], teacher_ids[i], teacher_values[i])
+                serialize_example(
+                    inputs[i], labels[i], teacher_ids[i], teacher_values[i],
+                    None if loss_masks is None else loss_masks[i],
+                )
             )
     return len(inputs)
 
@@ -156,6 +168,8 @@ def read_distill_dataset(
         "labels": tf.io.FixedLenFeature([], tf.string),
         "teacher_ids": tf.io.FixedLenFeature([], tf.string),
         "teacher_values": tf.io.FixedLenFeature([], tf.string),
+        # Optional for backwards compatibility with all existing shards.
+        "loss_mask": tf.io.FixedLenFeature([], tf.string, default_value=""),
     }
 
     def parse(record):
@@ -164,7 +178,16 @@ def read_distill_dataset(
         labels = tf.reshape(tf.io.decode_raw(ex["labels"], tf.int32), (seq_len,))
         ids = tf.reshape(tf.io.decode_raw(ex["teacher_ids"], tf.int32), (seq_len, top_k))
         vals = tf.reshape(tf.io.decode_raw(ex["teacher_values"], tf.float16), (seq_len, top_k))
-        mask = tf.cast(tf.not_equal(labels, pad_id), tf.float32)
+        stored_mask = ex["loss_mask"]
+        mask = tf.cond(
+            tf.strings.length(stored_mask) > 0,
+            lambda: tf.cast(
+                tf.reshape(tf.io.decode_raw(stored_mask, tf.uint8), (seq_len,)),
+                tf.float32,
+            ),
+            lambda: tf.ones((seq_len,), dtype=tf.float32),
+        )
+        mask *= tf.cast(tf.not_equal(labels, pad_id), tf.float32)
         return inputs, labels, ids, tf.cast(vals, tf.float32), mask
 
     files = tf.data.Dataset.list_files(file_pattern, shuffle=shuffle)
@@ -177,6 +200,39 @@ def read_distill_dataset(
     if shuffle:
         ds = ds.shuffle(shuffle_buffer, reshuffle_each_iteration=True)
     return ds.batch(batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
+
+
+def assistant_token_mask(
+    token_ids: Sequence[int],
+    assistant_marker_ids: Sequence[int],
+    user_marker_ids: Sequence[int],
+) -> np.ndarray:
+    """Return 1 on assistant-content tokens and 0 on prompts/role markers.
+
+    The input is one already-tokenized dialogue stream.  A marker switches the
+    state *after* its own tokens, so neither ``User:`` nor ``Assistant:`` is a
+    prediction target.  Multiple turns and leading system text are supported.
+    """
+    ids = np.asarray(token_ids, dtype=np.int64)
+    assistant = tuple(int(x) for x in assistant_marker_ids)
+    user = tuple(int(x) for x in user_marker_ids)
+    if not assistant or not user:
+        raise ValueError("assistant and user markers must each contain at least one token")
+    mask = np.zeros(ids.shape, dtype=np.uint8)
+    active = False
+    i = 0
+    while i < len(ids):
+        if i + len(assistant) <= len(ids) and tuple(ids[i : i + len(assistant)]) == assistant:
+            active = True
+            i += len(assistant)
+            continue
+        if i + len(user) <= len(ids) and tuple(ids[i : i + len(user)]) == user:
+            active = False
+            i += len(user)
+            continue
+        mask[i] = int(active)
+        i += 1
+    return mask
 
 
 # --------------------------------------------------------------------------
