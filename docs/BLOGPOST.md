@@ -1,6 +1,6 @@
 # ARCANE 4.1: Testable Adaptive Inference and Homeostatic Plasticity
 
-ARCANE is an experimental TensorFlow library for recurrent state refinement, local plasticity, spiking transforms, and activity regulation. Version 4.1 makes an important distinction explicit: refining hidden state with fixed weights is not the same operation as learning at inference time.
+**Augmented Reconstruction of Consciousness through Artificial Neural Evolution** is built for adaptive System 1 AI: fast, grounded models that can align internal state, recall experience, and update within explicit limits. Version 4.1 separates hidden-state alignment with fixed weights from learning through bounded inference-time updates.
 
 ## Per-example resonance state
 

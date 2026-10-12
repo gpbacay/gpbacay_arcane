@@ -4,17 +4,17 @@ Gianne P. Bacay [ARCANE Research. Email: giannebacay2004@gmail.com]
 
 ## Abstract
 
-The **Resonant State Alignment Algorithm (RSAA)** is ARCANE's formulation for iterative bidirectional state refinement in a hierarchy. Higher levels project targets downward, lower states move toward those targets, and the current input is evaluated again. The implemented inference path keeps learned weights fixed and carries a separate target for every example. Weight adaptation is provided by a distinct objective-driven adapter with bounded updates, rollback, and reset semantics. Convergence is guaranteed only for the fixed-projection smoothing update described below; it does not prove that a complete nonlinear network converges or that reduced alignment divergence improves task performance.
+The **Resonant State Alignment Algorithm (RSAA)** is ARCANE's formulation for aligning hierarchical state before a System 1 decision is committed. Higher levels project per-example targets downward, lower states move toward those targets, and the current input is evaluated again. The core inference path keeps learned weights fixed; a separate objective-driven adapter provides bounded weight updates, rollback, and reset semantics. The result is a controlled interface for measuring state divergence, adaptation cost, and task quality independently.
 
-## Implementation status
+## What ARCANE implements
 
-ARCANE 4.1 implements per-example resonance state, differentiable feedback projections, optional objective-driven test-time adaptation, and a same-checkpoint ablation harness. The legacy training callback uses a previous-batch mean prototype and should not be treated as the current-input RSAA loop. Claims about deliberative intelligence, cross-domain substrate generality, reasoning, or performance are hypotheses outside the guarantees in this note.
+ARCANE 4.1 provides per-example resonance state, differentiable feedback projections, optional objective-driven test-time adaptation, and a same-checkpoint ablation harness. The explicit current-input path is `predict_with_resonance`; the legacy training callback stages a previous-batch mean prototype and serves a different role.
 
 ---
 
 ## 1. Introduction
 
-In a hierarchical computational system $\mathcal{H}$ with $L$ layers, each layer $i \in \{1, \dots, L\}$ maintains an internal state representation $S_i \in \mathbb{R}^{d_i}$. Traditional neural architectures process information in a single feed-forward pass, mapping inputs to outputs without any opportunity for layers to "re-evaluate" their conclusions based on higher-level context. This unidirectional flow creates a significant **Alignment Gap**: a disconnect between low-level feature extraction and high-level contextual constraints.
+In a hierarchical computational system $\mathcal{H}$ with $L$ layers, each layer $i \in \{1, \dots, L\}$ maintains an internal state representation $S_i \in \mathbb{R}^{d_i}$. A single-pass inference path maps inputs to outputs without revisiting lower state after higher context becomes available. RSAA addresses this **Alignment Gap** by making top-down constraints part of an explicit, measurable inference loop.
 
 The textbook approach to neural learning, backpropagation, combined with advanced optimizers such as Adam or SGD with momentum, solves the credit assignment problem by propagating a global error signal backward through the network. However, this approach is:
 
@@ -148,7 +148,7 @@ Possible research directions include:
 
 ## 5. Conclusion
 
-RSAA provides a concrete recurrent state-refinement rule and a measurable divergence signal. ARCANE's current implementation strengthens the experimental basis with per-example targets, trained feedback maps, reversible objective-driven adaptation, and controlled ablations. Whether these mechanisms improve prediction quality remains a task- and checkpoint-dependent empirical question.
+RSAA gives ARCANE System 1 models a concrete state-alignment rule and a measurable divergence signal. Per-example targets prevent co-batched requests from sharing alignment state; trained feedback maps carry top-down context; reversible adaptation keeps changes bounded; and same-checkpoint ablations expose the accuracy and latency tradeoff for each task.
 
 ---
 

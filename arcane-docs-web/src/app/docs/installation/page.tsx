@@ -1,4 +1,6 @@
 
+import { CodeSnippet } from "@/components/CodeSnippet";
+
 export default function InstallationPage() {
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
@@ -7,7 +9,7 @@ export default function InstallationPage() {
           Installation
         </h1>
         <p className="text-xl text-zinc-400">
-          Get started with ARCANE on your local machine.
+          Install the ARCANE System 1 toolkit and its core runtime.
         </p>
       </div>
 
@@ -23,11 +25,7 @@ export default function InstallationPage() {
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Install from PyPI (Recommended)
         </h2>
-        <div className="group relative">
-          <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
-            <code>pip install gpbacay-arcane</code>
-          </pre>
-        </div>
+        <CodeSnippet filename="Terminal" language="bash" lineNumbers={false} code="pip install gpbacay-arcane" />
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Install from Source
@@ -35,13 +33,9 @@ export default function InstallationPage() {
         <p>
           If you want to contribute or use the latest development version:
         </p>
-        <div className="group relative">
-          <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
-            <code>{`git clone https://github.com/gpbacay/gpbacay_arcane.git
+        <CodeSnippet filename="Terminal" language="bash" lineNumbers={false} code={`git clone https://github.com/gpbacay/gpbacay_arcane.git
 cd gpbacay_arcane
-pip install -e .`}</code>
-          </pre>
-        </div>
+pip install -e .`} />
       </div>
     </div>
   );

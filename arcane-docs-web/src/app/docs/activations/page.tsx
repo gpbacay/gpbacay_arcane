@@ -5,6 +5,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Markdown } from "@/components/markdown";
+import { CodeSnippet } from "@/components/CodeSnippet";
 
 export default function ActivationsPage() {
   const activations = [
@@ -169,7 +170,7 @@ $$(y, V_t) = f(x, V_{t-1}, \\text{context})$$
           Neuromimetic Activations
         </h1>
         <p className="text-xl text-zinc-400">
-          Stateful and adaptive activation functions inspired by biological neural dynamics.
+          Stateful mechanisms for fast adaptation, spiking responses, and activity regulation.
         </p>
       </div>
 
@@ -209,9 +210,7 @@ $$(y, V_t) = f(x, V_{t-1}, \\text{context})$$
                   {activation.code && (
                     <div className="space-y-2">
                       <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 mt-4">Quick Implementation</p>
-                      <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300 shadow-inner">
-                        <code>{activation.code}</code>
-                      </pre>
+                      <CodeSnippet filename={`${activation.id}.py`} language="python" code={activation.code} />
                     </div>
                   )}
                 </div>

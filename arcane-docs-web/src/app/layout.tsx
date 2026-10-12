@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import "katex/dist/katex.min.css";
-import { SiteFooter } from "@/components/footer";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -12,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ARCANE Project Docs",
-  description: "Augmented Reconstruction of Consciousness through Artificial Neural Evolution - Documentation for the ARCANE Neural Architecture Project",
+  title: "ARCANE: Adaptive System 1 AI",
+  description: "The library for building adaptive System 1 models with grounded decisions, neural memory, inference-time adaptation, and biologically inspired components.",
 };
 
 export default function RootLayout({

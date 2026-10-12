@@ -271,7 +271,7 @@ export function FlyWireConnectome() {
   const predictionRef = useRef<Prediction | null>(null);
 
   const [circuit, setCircuit] = useState<Circuit | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [regionMask, setRegionMask] = useState(ALL_REGION_MASK);
@@ -841,7 +841,7 @@ export function FlyWireConnectome() {
             <div className="min-w-0 flex-1">
               <div className="flex items-end gap-3">
                 <p className="min-w-[0.7em] font-mono text-5xl leading-none tabular-nums text-[#C785F2] sm:text-6xl">
-                  {prediction ? prediction.digit : <span className="text-zinc-700">—</span>}
+                  {prediction ? prediction.digit : <span className="text-zinc-700">N/A</span>}
                 </p>
                 <div className="pb-0.5 font-mono text-[9px] uppercase leading-tight tracking-[0.16em] text-zinc-500">
                   <p>class</p>

@@ -120,7 +120,7 @@ function DocsLayoutContent({ children, headings, tocOpen, setTocOpen }: { childr
                   </div>
                 )}
                 <div className="mx-auto w-full min-w-0 max-w-3xl break-words px-4 md:px-0">
-                  {children}
+                  <div data-docs-content>{children}</div>
                   <DocsPager />
                 </div>
               </main>
@@ -230,6 +230,82 @@ export default function DocsLayout({
       observer?.disconnect();
     };
   }, [pathname]);
+
+  useEffect(() => {
+    const content = document.querySelector<HTMLElement>("[data-docs-content]");
+    if (!content || headings.length === 0) return;
+
+    const originalPaddingBottom = content.style.paddingBottom;
+    let frame = 0;
+    const timers: number[] = [];
+
+    const restore = () => {
+      headings.forEach(({ id }) => {
+        const heading = document.getElementById(id) as HTMLElement | null;
+        if (!heading) return;
+        if (heading.dataset.docsOriginalMarginTop !== undefined) {
+          heading.style.marginTop = heading.dataset.docsOriginalMarginTop;
+          delete heading.dataset.docsOriginalMarginTop;
+        }
+        heading.style.removeProperty("scroll-margin-top");
+      });
+      content.style.paddingBottom = originalPaddingBottom;
+    };
+
+    const normalize = () => {
+      frame = 0;
+      restore();
+
+      const elements = headings
+        .map(({ id }) => document.getElementById(id) as HTMLElement | null)
+        .filter((heading): heading is HTMLElement => Boolean(heading));
+      if (elements.length === 0) return;
+
+      const sectionElements = headings
+        .filter(({ level }) => level === 2)
+        .map(({ id }) => document.getElementById(id) as HTMLElement | null)
+        .filter((heading): heading is HTMLElement => Boolean(heading));
+      const minimumSectionHeight = Math.min(480, Math.max(320, window.innerHeight * 0.44));
+      elements.forEach((heading) => {
+        heading.style.scrollMarginTop = "128px";
+      });
+
+      for (let index = 1; index < sectionElements.length; index += 1) {
+        const previousTop = sectionElements[index - 1].getBoundingClientRect().top + window.scrollY;
+        const currentTop = sectionElements[index].getBoundingClientRect().top + window.scrollY;
+        const missingHeight = minimumSectionHeight - (currentTop - previousTop);
+        if (missingHeight <= 1) continue;
+
+        const heading = sectionElements[index];
+        heading.dataset.docsOriginalMarginTop = heading.style.marginTop;
+        const baseMargin = Number.parseFloat(getComputedStyle(heading).marginTop) || 0;
+        heading.style.marginTop = `${baseMargin + missingHeight}px`;
+      }
+
+      const lastHeading = sectionElements[sectionElements.length - 1] ?? elements[elements.length - 1];
+      const lastTop = lastHeading.getBoundingClientRect().top + window.scrollY;
+      const contentBottom = content.getBoundingClientRect().bottom + window.scrollY;
+      const missingLastHeight = minimumSectionHeight - (contentBottom - lastTop);
+      if (missingLastHeight > 1) content.style.paddingBottom = `${missingLastHeight}px`;
+    };
+
+    const schedule = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(normalize);
+    };
+
+    schedule();
+    timers.push(window.setTimeout(schedule, 300), window.setTimeout(schedule, 1200));
+    window.addEventListener("resize", schedule);
+    document.fonts?.ready.then(schedule).catch(() => undefined);
+
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      timers.forEach((timer) => clearTimeout(timer));
+      window.removeEventListener("resize", schedule);
+      restore();
+    };
+  }, [headings, pathname]);
 
   return (
     <SidebarProvider>

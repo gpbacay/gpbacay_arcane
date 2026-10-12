@@ -80,21 +80,17 @@ export default function HippocampusPage() {
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
       <header className="not-prose mb-12">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#C785F2]">ARCANE · Harness</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#C785F2]">ARCANE · Neural memory</p>
         <h1 className="mt-3 max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-[-0.03em] text-zinc-50 sm:text-5xl">
           Hippocampus
         </h1>
         <p className="mt-6 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          A fast-learning memory, modeled on the brain&apos;s hippocampus, that makes a model better at your labels
-          and tools without retraining it.
-          RAG lets a language model use your knowledge by retrieving text when a request arrives. Many models,
-          such as classifiers, routers and tool-calling models, can&apos;t read retrieved text, so Hippocampus retrieves
-          past <em>decisions</em> instead. The examples most like the request vote for their labels or tools, the
-          vote is combined with the model&apos;s own probabilities, and remembered tool calls show where each
-          argument sits in a request.
+          The memory layer for adaptive System 1 models. Hippocampus retrieves past decisions, rather than just text, so a
+          classifier, router, or tool model can learn from new examples immediately without changing its weights.
         </p>
         <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          Add an example and the next request uses it; the weights never change. In our benchmarks, a single
+          Similar examples vote alongside the model&apos;s own probabilities, and every result lists the memories that
+          influenced it. In our benchmarks, a single
           example per label lifted accuracy on unseen intents by 24 points, and 5 examples per tool lifted fully
           correct tool calls by 44 points. See{" "}
           <a href="#improvement" className={link}>
@@ -276,8 +272,7 @@ new Hippocampus(agent, { memory: JSON.parse(localStorage.memory) });`}
           How it works
         </h2>
         <Mermaid
-          minWidth={560}
-          chart={`flowchart LR
+          chart={`flowchart TD
   EX["remember(text, label)"] --> G["Document graph<br/>one node per example"]
   Q["Request"] --> S["BM25 search<br/>top 8 examples"]
   G --> S

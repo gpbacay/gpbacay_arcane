@@ -1,7 +1,7 @@
 "use client";
 
 import { Renderer, Program, Mesh, Color, Triangle } from 'ogl';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type HTMLAttributes } from 'react';
 
 import './Iridescence.css';
 
@@ -48,19 +48,20 @@ void main() {
 }
 `;
 
+type IridescenceProps = Omit<HTMLAttributes<HTMLDivElement>, 'color'> & {
+  color?: [number, number, number];
+  speed?: number;
+  amplitude?: number;
+  mouseReact?: boolean;
+};
+
 export default function Iridescence({ 
   color = [1, 1, 1], 
   speed = 1.0, 
   amplitude = 0.1, 
   mouseReact = true, 
   ...rest 
-}: {
-  color?: [number, number, number];
-  speed?: number;
-  amplitude?: number;
-  mouseReact?: boolean;
-  [key: string]: any;
-}) {
+}: IridescenceProps) {
   const ctnDom = useRef<HTMLDivElement>(null);
   const mousePos = useRef({ x: 0.5, y: 0.5 });
 
@@ -71,24 +72,11 @@ export default function Iridescence({
     const gl = renderer.gl;
     gl.clearColor(1, 1, 1, 1);
 
-    let program: Program;
-
-    function resize() {
-      const scale = 1;
-      renderer.setSize(ctn.offsetWidth * scale, ctn.offsetHeight * scale);
-      if (program) {
-        program.uniforms.uResolution.value = new Color(
-          gl.canvas.width,
-          gl.canvas.height,
-          gl.canvas.width / gl.canvas.height
-        );
-      }
-    }
-    window.addEventListener('resize', resize, false);
-    resize();
+    const scale = 1;
+    renderer.setSize(ctn.offsetWidth * scale, ctn.offsetHeight * scale);
 
     const geometry = new Triangle(gl);
-    program = new Program(gl, {
+    const program = new Program(gl, {
       vertex: vertexShader,
       fragment: fragmentShader,
       uniforms: {
@@ -102,6 +90,17 @@ export default function Iridescence({
         uSpeed: { value: speed }
       }
     });
+
+    function resize() {
+      renderer.setSize(ctn.offsetWidth * scale, ctn.offsetHeight * scale);
+      program.uniforms.uResolution.value = new Color(
+        gl.canvas.width,
+        gl.canvas.height,
+        gl.canvas.width / gl.canvas.height
+      );
+    }
+    window.addEventListener('resize', resize, false);
+    resize();
 
     const mesh = new Mesh(gl, { geometry, program });
     let animateId: number;

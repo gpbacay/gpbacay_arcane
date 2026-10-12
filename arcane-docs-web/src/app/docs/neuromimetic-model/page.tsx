@@ -1,4 +1,6 @@
 
+import { CodeSnippet } from "@/components/CodeSnippet";
+
 export default function NeuromimeticModelPage() {
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
@@ -7,7 +9,7 @@ export default function NeuromimeticModelPage() {
           Neuromimetic Semantic Model
         </h1>
         <p className="text-xl text-zinc-400">
-          Compact experimental model with optional resonance and homeostatic plasticity.
+          A compact System 1 sequence model with resonance, activity regulation, and optional fast-weight plasticity.
         </p>
       </div>
 
@@ -16,14 +18,13 @@ export default function NeuromimeticModelPage() {
           Overview
         </h2>
         <p>
-          The <strong>NeuromimeticSemanticModel</strong> is the compact ARCANE wrapper for prototyping semantic sequence models. Its biological terminology identifies design inspiration; performance and efficiency must be established for each task through controlled comparisons.
+          The <strong>NeuromimeticSemanticModel</strong> packages ARCANE&apos;s core adaptive mechanisms into a smaller architecture for semantic sequence tasks. Use it when you want a shorter training path, lower default depth, and direct access to resonance and activity regulation.
         </p>
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Usage
         </h2>
-        <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
-          <code>{`from gpbacay_arcane import NeuromimeticSemanticModel
+        <CodeSnippet filename="neuromimetic-model.py" language="python" code={`from gpbacay_arcane import NeuromimeticSemanticModel
 
 model = NeuromimeticSemanticModel(
     vocab_size=1000,
@@ -38,8 +39,7 @@ model.compile_model()
 model.model.fit(X_train, y_train)
 
 # Current-input refinement with fixed learned weights
-predictions = model.predict_with_resonance(X_test, resonance_cycles=2)`}</code>
-        </pre>
+predictions = model.predict_with_resonance(X_test, resonance_cycles=2)`} />
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Comparison vs Foundation Model
@@ -66,8 +66,8 @@ predictions = model.predict_with_resonance(X_test, resonance_cycles=2)`}</code>
               </tr>
               <tr>
                 <td className="py-2 px-4">Best For</td>
-                <td className="py-2 px-4">Small experiments and prototyping</td>
-                <td className="py-2 px-4">Hierarchy and adaptation experiments</td>
+                <td className="py-2 px-4">Compact semantic workloads</td>
+                <td className="py-2 px-4">Deep hierarchy and adaptation workflows</td>
               </tr>
             </tbody>
           </table>

@@ -24,7 +24,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
       content = fs.readFileSync(blogPath, "utf8");
       // Remove main title
       content = content.replace(/^# .*\n/, "");
-    } catch (error) {
+    } catch {
       content = "Content coming soon...";
     }
   } else {

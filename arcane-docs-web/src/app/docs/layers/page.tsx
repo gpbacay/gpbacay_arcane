@@ -7,6 +7,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { CodeSnippet } from "@/components/CodeSnippet";
 
 export default function BiologicalLayersPage() {
   const [openItem, setOpenItem] = useState<string | undefined>(undefined);
@@ -196,16 +197,15 @@ spikes = activation(inputs, resonance_factor=0.3)`
           Adaptive Layers
         </h1>
         <p className="text-xl text-zinc-400">
-          Experimental Keras layers inspired by recurrent dynamics, predictive coding,
-          local plasticity, and activity regulation. The biological terminology describes
-          design influences, not evidence of biological equivalence.
+          Composable mechanisms for building the adaptive core of a System 1 model.
         </p>
       </div>
 
       <div className="space-y-8 text-zinc-300 leading-7">
         <p>
-          ARCANE provides a suite of custom Keras layers that mimic the dynamics of biological neurons. 
-          Each layer is designed to bridge the gap between traditional connectionist AI and neuroscientific realism.
+          ARCANE turns ideas from neural dynamics into focused building blocks. Each layer contributes a specific
+          behavior, such as feedback, resonance, plasticity, temporal coherence, or activity balance, so it can be studied and
+          combined without adopting the entire architecture.
         </p>
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
@@ -237,9 +237,7 @@ spikes = activation(inputs, resonance_factor=0.3)`
                   {layer.code && (
                     <div className="space-y-2">
                       <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 mt-4">Quick Implementation</p>
-                      <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300 shadow-inner">
-                        <code>{layer.code}</code>
-                      </pre>
+                      <CodeSnippet filename={`${layer.id}.py`} language="python" code={layer.code} />
                     </div>
                   )}
 

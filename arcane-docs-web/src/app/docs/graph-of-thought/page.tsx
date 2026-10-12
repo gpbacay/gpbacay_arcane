@@ -63,19 +63,17 @@ export default function GraphOfThoughtPage() {
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
       <header className="not-prose mb-12">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#C785F2]">ARCANE · Harness</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#C785F2]">ARCANE · Grounding layer</p>
         <h1 className="mt-3 max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-[-0.03em] text-zinc-50 sm:text-5xl">
           Grounded Graph of Thought
         </h1>
         <p className="mt-6 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          A document knowledge graph, retrieval that explains itself and Graph-of-Thoughts reasoning that checks
-          every sentence against your documents. Give it your documents and it finds the sections that answer a
-          question, including the ones a keyword search would miss because they are only linked to the match.
+          An evidence layer that turns documents into a connected knowledge graph. Retrieval explains how every result
+          was reached and follows document relationships that keyword search alone can miss.
         </p>
         <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          Retrieval runs offline with no API keys, embeddings or vector database. Add an LLM and the same graph
-          verifies its reasoning: unsupported sentences are searched for, rewritten or reported, and only sections
-          that back a sentence are cited.
+          Retrieval runs locally without API keys or a vector database. When paired with a generative model, the same
+          graph checks each claim, searches for missing support, and cites only the evidence that backs the answer.
         </p>
       </header>
 
@@ -147,8 +145,7 @@ context = graph.retrieve("deploy")       # "### Deployment [user-guide#3]\\nPush
           How retrieval works
         </h2>
         <Mermaid
-          minWidth={520}
-          chart={`flowchart LR
+          chart={`flowchart TD
   DOC["Markdown documents"] --> PARSE["Headings become nodes<br/>long sections become chunks"]
   PARSE --> G["Document graph<br/>parent-child, reference, next, semantic"]
   Q["Query"] --> BM["BM25 keyword scoring<br/>(+ embedding similarity)"]
@@ -212,8 +209,7 @@ context = graph.retrieve("deploy")       # "### Deployment [user-guide#3]\\nPush
           kept, turns each unsupported sentence into a graph search, and picks the citations.
         </p>
         <Mermaid
-          minWidth={560}
-          chart={`flowchart LR
+          chart={`flowchart TD
   R["retrieve"] --> GEN["generate 3"]
   GEN --> KB["keep best 2<br/>by grounding"]
   KB --> AGG["aggregate<br/>kept only if not less grounded"]

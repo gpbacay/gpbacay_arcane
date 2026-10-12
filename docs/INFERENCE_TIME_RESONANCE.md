@@ -2,33 +2,33 @@
 
 ## Overview
 
-Inference-Time Resonance performs iterative latent-state refinement on the current input. It is a research mechanism for testing whether top-down alignment improves a trained model; by itself it is not evidence of "System 2" reasoning or improved accuracy.
+Inference-Time Resonance is ARCANE's state-alignment path for adaptive System 1 inference. It uses top-down feedback to revisit a trained model's state before choosing an output, with explicit controls for cycle count, objectives, and reset behavior.
 
-## What Was Implemented
+## Core API
 
-### 1. Fixed `run_resonance_cycle()` Method
+### 1. `run_resonance_cycle()`
 
-The `run_resonance_cycle()` method in `HierarchicalResonanceFoundationModel` was calling a non-existent `propagate_feedback_to_lower()` method. This has been fixed to use the existing `project_feedback()` and `harmonize_states()` methods, matching the pattern used in the training callback.
+Runs one explicit feedback cycle in `HierarchicalResonanceFoundationModel`: higher-level state is projected downward, then each lower state is harmonized toward its per-example target.
 
 **Location:** `gpbacay_arcane/foundational_models.py`
 
-### 2. Added `propagate_feedback_to_lower()` Convenience Method
+### 2. `propagate_feedback_to_lower()`
 
-Added a convenience method to `ResonantGSER` layer that automatically propagates feedback to the lower layer using the hierarchical connections established via `set_lower_layer()`.
+Propagates a `ResonantGSER` layer's feedback to the lower layer connected through `set_lower_layer()`.
 
 **Location:** `gpbacay_arcane/layers.py`
 
-### 3. Added `predict_with_resonance()` Method
+### 3. `predict_with_resonance()`
 
-Added a convenient method to both `HierarchicalResonanceFoundationModel` and `NeuromimeticSemanticModel` that automatically runs resonance cycles before prediction, making inference-time resonance easy to use.
+Runs bounded resonance cycles before returning a prediction from `HierarchicalResonanceFoundationModel` or `NeuromimeticSemanticModel`.
 
 **Locations:**
 - `gpbacay_arcane/foundational_models.py`
 - `gpbacay_arcane/models.py`
 
-### 4. Enhanced Layer References
+### 4. Hierarchical references
 
-Improved the layer reference system to support both name-based and direct references, ensuring robust hierarchical connections even when model references aren't available.
+Layers support name-based and direct references, so hierarchical connections remain explicit when model references are unavailable.
 
 ### 5. Current-input Refinement Cycles
 

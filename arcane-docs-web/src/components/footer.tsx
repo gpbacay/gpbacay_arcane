@@ -75,9 +75,8 @@ export function SiteFooter() {
         {/* Bottom Section */}
         <div className="mt-20 flex flex-col md:flex-row justify-between items-end gap-12 md:gap-0">
           <div className="max-w-sm">
-            <p className="text-zinc-600 text-sm leading-relaxed font-medium">
-              A Python library for building neuromimetic AI models inspired by 
-              biological neural principles, bridging neuroscience and artificial intelligence.
+            <p className="text-zinc-500 text-sm leading-relaxed font-medium">
+              ARCANE builds adaptive System 1 models that perceive, remember, adapt, and act.
             </p>
           </div>
           <div className="flex gap-16 text-[10px] font-medium tracking-[0.2em] text-zinc-600 uppercase">

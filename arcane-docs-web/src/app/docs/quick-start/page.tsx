@@ -1,4 +1,6 @@
 
+import { CodeSnippet } from "@/components/CodeSnippet";
+
 export default function QuickStartPage() {
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
@@ -7,7 +9,7 @@ export default function QuickStartPage() {
           Quick Start
         </h1>
         <p className="text-xl text-zinc-400">
-          Build your first neuromimetic model in minutes.
+          Build an adaptive System 1 model, then choose how it decides, remembers, and adapts.
         </p>
       </div>
 
@@ -19,8 +21,7 @@ export default function QuickStartPage() {
         <p>
           Create a simple neuromimetic model for semantic tasks.
         </p>
-        <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
-          <code>{`from gpbacay_arcane import NeuromimeticSemanticModel
+        <CodeSnippet filename="quick-start.py" language="python" code={`from gpbacay_arcane import NeuromimeticSemanticModel
 
 # Create a simple neuromimetic model
 model = NeuromimeticSemanticModel(vocab_size=1000)
@@ -33,8 +34,7 @@ generated = model.generate_text(
     tokenizer=your_tokenizer,
     max_length=50,
     temperature=0.8
-)`}</code>
-        </pre>
+)`} />
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Advanced Usage with Resonance
@@ -42,8 +42,7 @@ generated = model.generate_text(
         <p>
           Refine a current batch with isolated per-example targets, then optionally evaluate bounded adaptation.
         </p>
-        <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
-          <code>{`from gpbacay_arcane import HierarchicalResonanceFoundationModel
+        <CodeSnippet filename="adaptive-inference.py" language="python" code={`from gpbacay_arcane import HierarchicalResonanceFoundationModel
 
 # Create an advanced model with biological neural principles
 model = HierarchicalResonanceFoundationModel(
@@ -70,8 +69,7 @@ adapted = model.adapt_at_inference(
     objective="entropy",
     steps=2,
     episodic=True,
-)`}</code>
-        </pre>
+)`} />
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Sequence Models with PredictiveResonantLayer
@@ -79,8 +77,7 @@ adapted = model.adapt_at_inference(
         <p>
           For sequence or image-as-sequence tasks (e.g. MNIST), use <code className="bg-zinc-900 px-1.5 py-0.5 rounded">PredictiveResonantLayer</code> for local predictive resonance without hierarchical wiring.
         </p>
-        <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
-          <code>{`from gpbacay_arcane import PredictiveResonantLayer, SpatioTemporalSummarization, BioplasticDenseLayer
+        <CodeSnippet filename="predictive-resonance.py" language="python" code={`from gpbacay_arcane import PredictiveResonantLayer, SpatioTemporalSummarization, BioplasticDenseLayer
 
 # Sequence of 28 steps (e.g. MNIST rows), 128 units
 x = PredictiveResonantLayer(
@@ -92,13 +89,11 @@ x = PredictiveResonantLayer(
 )(x)
 x = SpatioTemporalSummarization(d_model=128)(x)
 x = BioplasticDenseLayer(units=128, enable_inference_plasticity=True)(x)
-# then pool and classify
-`}</code>
-        </pre>
+# then pool and classify`} />
 
         <div className="mt-8 rounded-none border border-yellow-900/50 bg-yellow-900/10 p-4">
           <p className="text-sm text-yellow-200">
-            <strong>Note:</strong> More resonance cycles add latency and are not guaranteed to improve predictions. Compare the same checkpoint at 0/1/2/4/8 cycles and report accuracy, calibration, latency, forgetting, order sensitivity, batch-size sensitivity, and distribution shift. See <a href="/docs/inference-time-learning" className="underline hover:text-purple-300">Inference-Time Learning</a> for the full protocol.
+            <strong>Tune resonance for the task:</strong> each cycle adds compute. Compare the same checkpoint at 0/1/2/4/8 cycles, then select the best balance of accuracy, calibration, latency, forgetting, order sensitivity, batch-size sensitivity, and distribution shift. See <a href="/docs/inference-time-learning" className="underline hover:text-purple-300">Inference-Time Adaptation</a> for the full protocol.
           </p>
         </div>
       </div>

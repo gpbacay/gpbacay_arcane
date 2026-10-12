@@ -194,7 +194,7 @@ const hexToRgb01 = (hex: string): [number, number, number] => {
     return [r, g, b];
 };
 
-const toPx = (v: any): number => {
+const toPx = (v: unknown): number => {
     if (v == null) return 0;
     if (typeof v === 'number') return v;
     const s = String(v).trim();
@@ -332,7 +332,7 @@ const PrismaticBurst: React.FC<PrismaticBurstProps> = ({
             const y = (e.clientY - rect.top) / Math.max(rect.height, 1);
             mouseTargetRef.current = [Math.min(Math.max(x, 0), 1), Math.min(Math.max(y, 0), 1)];
         };
-        container.addEventListener('pointermove', onPointer as any, { passive: true });
+        container.addEventListener('pointermove', onPointer, { passive: true });
 
         let io: IntersectionObserver | undefined;
         if ('IntersectionObserver' in window) {
@@ -382,7 +382,7 @@ const PrismaticBurst: React.FC<PrismaticBurstProps> = ({
 
         return () => {
             cancelAnimationFrame(raf);
-            container.removeEventListener('pointermove', onPointer as any);
+            container.removeEventListener('pointermove', onPointer);
             ro?.disconnect();
             if (!hasResizeObserver) window.removeEventListener('resize', resize);
             io?.disconnect();
@@ -397,7 +397,7 @@ const PrismaticBurst: React.FC<PrismaticBurstProps> = ({
                 if (glCtx && gradTexRef.current?.texture) {
                     glCtx.deleteTexture(gradTexRef.current.texture);
                 }
-            } catch (e) {
+            } catch {
                 /* ignore texture delete errors */
             }
             programRef.current = null;

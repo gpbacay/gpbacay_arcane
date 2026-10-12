@@ -2,7 +2,7 @@
 
 ## Overview
 
-ARCANE implements homeostatic-plasticity-inspired mechanisms for measuring activity and applying bounded corrections toward configured targets. These controls can reduce a measured activity mismatch, but they do not guarantee training stability, prevent dead units, or improve task performance.
+Homeostatic plasticity gives adaptive System 1 models bounded ways to change while keeping activity near configured targets. ARCANE measures activity and applies controlled corrections to fast weights, gain, or state without silently overwriting learned task weights. These controls reduce measured activity mismatch; task quality must still be evaluated separately.
 
 ## Biological Inspiration
 

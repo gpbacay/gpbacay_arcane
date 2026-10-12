@@ -19,7 +19,7 @@ export default function HomeostaticPlasticityPage() {
           Homeostatic Plasticity
         </h1>
         <p className="text-xl text-zinc-400">
-          Stateful BCM fast weights, multi-timescale activity regulation, and hierarchical control.
+          Bounded activity regulation that lets adaptive System 1 models change without losing control.
         </p>
       </div>
       <Markdown content={content} />

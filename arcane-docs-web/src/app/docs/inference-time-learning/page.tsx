@@ -19,7 +19,7 @@ export default function InferenceTimeLearningPage() {
           Inference-Time Learning
         </h1>
         <p className="text-xl text-zinc-400">
-          Fixed-weight state refinement, optional fast-weight learning, reversible objective-driven adaptation, and controlled evaluation.
+          The adaptation layer of ARCANE System 1: fixed-weight alignment, bounded fast-weight learning, rollback, and controlled evaluation.
         </p>
       </div>
       <Markdown content={content} />

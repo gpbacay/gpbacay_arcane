@@ -329,7 +329,6 @@ function countHoles(grid: Float32Array) {
 
 function geometry(grid: Float32Array) {
   let mass = 0;
-  let cx = 0;
   let cy = 0;
   let top = 0;
   let bot = 0;
@@ -341,7 +340,6 @@ function geometry(grid: Float32Array) {
       const v = grid[y * SIZE + x];
       if (v < 0.12) continue;
       mass += v;
-      cx += x * v;
       cy += y * v;
       if (y < SIZE * 0.33) top += v;
       else if (y > SIZE * 0.66) bot += v;
@@ -455,7 +453,7 @@ function classDistribution(scores: number[]) {
 /** ARCANE RSAA: digit templates resonate with the drawing; softmax is the readout. */
 export function predictMnistRsaa(pixels: number[] | Float32Array): MnistPrediction {
   const fitted = centerAndFit(inkFromGray(pixels));
-  let state = bestScores(fitted);
+  const state = bestScores(fitted);
   for (let cycle = 0; cycle < 2; cycle++) {
     const out = softmax(state, 3.2);
     const mean = state.reduce((a, b) => a + b, 0) / 10;

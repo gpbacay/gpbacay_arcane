@@ -8,7 +8,7 @@ export default function ResearchPaperPage() {
   
   try {
     content = fs.readFileSync(docsPath, "utf8");
-  } catch (error) {
+  } catch {
     content = "Could not load research paper content.";
   }
 
@@ -19,7 +19,7 @@ export default function ResearchPaperPage() {
           Research Paper
         </h1>
         <p className="text-xl text-zinc-400">
-          The formal mathematical foundation of the Resonant State Alignment Algorithm.
+          The mathematical foundation for recurrent state alignment in ARCANE System 1 models.
         </p>
       </div>
 

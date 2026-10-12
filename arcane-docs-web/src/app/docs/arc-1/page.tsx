@@ -87,22 +87,18 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
       <header className="not-prose mb-12">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#C785F2]">ARCANE · Technical report</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#C785F2]">ARCANE · System 1 model</p>
         <h1 className="mt-3 max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-[-0.03em] text-zinc-50 sm:text-5xl">
-          Stop Using LLMs for If-Else Decisions: Meet ARC 1
+          ARC 1: Grounded Decisions Without Generation
         </h1>
         <p className="mt-6 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          A {(m.parameters / 1e6).toFixed(1)}M-parameter, open-source, neuromimetic model that makes grounded, typed
-          decisions in {full.latencyP50Ms.toFixed(1)} milliseconds on a standard CPU.
+          ARCANE&apos;s {(m.parameters / 1e6).toFixed(1)}M-parameter System 1 model turns a request and schema into typed
+          tool calls, extracted fields, and classifications in {full.latencyP50Ms.toFixed(1)} milliseconds on a standard CPU.
         </p>
         <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          We keep asking multi-billion-parameter language models to pick a tool, route a ticket, or pull a date and an
-          amount out of an invoice, then run a fragile parser over the prose they generate. It is slow, expensive, and
-          it can invent values that were never in the input. Most automation does not need eloquence. It needs a
-          correct, typed decision, delivered instantly, with an honest confidence score. ARC 1 makes that decision
-          without generating text: learned probes for each tool, argument, and label resonate with the input through
-          spiking dynamics until they settle, in a single forward pass. It ships as one {mb(m.rcn.bytes)} .rcn file
-          under the MIT license.
+          Learned probes resonate with the input, then return a bounded decision with calibrated confidence and
+          abstention. Extracted values are copied from evidence instead of invented through generation. ARC 1 ships as
+          one {mb(m.rcn.bytes)} .rcn file under the MIT license.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -180,7 +176,6 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           and four readouts are taken from the settled probes. Nothing is decoded token by token.
         </p>
         <Mermaid
-          minWidth={560}
           chart={`flowchart TD
   REQ["Request text"] --> PER
   SCH["Schema<br/>tools, parameters, options, labels"] --> PER

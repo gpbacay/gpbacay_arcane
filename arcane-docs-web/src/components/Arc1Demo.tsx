@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListboxSelect } from "@/components/ui/listbox-select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { CodeSnippet } from "@/components/CodeSnippet";
 import {
   ArrowLeftRight,
   Check,
@@ -1170,20 +1171,23 @@ export function Arc1Demo() {
                 {callJson && (
                   <div className="grid gap-4">
                     <div className="min-w-0">
-                      <div className="mb-1 flex items-center justify-between">
-                        <h3 className="text-sm font-medium text-zinc-400">Function calls</h3>
-                        <CopyButton text={callJson} label="Copy function calls" />
-                      </div>
-                      <pre className="max-h-64 overflow-auto border border-zinc-800 bg-black p-3 text-xs leading-relaxed text-zinc-300">
-                        {callJson}
-                      </pre>
+                      <CodeSnippet
+                        filename="function-calls.json"
+                        language="json"
+                        code={callJson}
+                        lineNumbers={false}
+                        maxHeight="16rem"
+                      />
                     </div>
                     {result.results && result.results.length > 0 && (
                       <div className="min-w-0">
-                        <h3 className="mb-1 py-1 text-sm font-medium text-zinc-400">Executed results</h3>
-                        <pre className="max-h-64 overflow-auto border border-emerald-900/50 bg-emerald-950/20 p-3 text-xs leading-relaxed text-emerald-100/90">
-                          {JSON.stringify(result.results, null, 2)}
-                        </pre>
+                        <CodeSnippet
+                          filename="executed-results.json"
+                          language="json"
+                          code={JSON.stringify(result.results, null, 2)}
+                          lineNumbers={false}
+                          maxHeight="16rem"
+                        />
                       </div>
                     )}
                   </div>
@@ -1396,9 +1400,13 @@ export function Arc1Demo() {
               <summary className="cursor-pointer text-zinc-400 hover:text-zinc-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]">
                 Tool schemas sent
               </summary>
-              <pre className="mt-2 max-h-72 overflow-auto border border-zinc-800 bg-black p-2 text-[11px] leading-relaxed text-zinc-400">
-                {JSON.stringify(scene.tools, null, 2)}
-              </pre>
+              <CodeSnippet
+                filename="tool-schemas.json"
+                language="json"
+                code={JSON.stringify(scene.tools, null, 2)}
+                lineNumbers={false}
+                maxHeight="18rem"
+              />
             </details>
           )}
 

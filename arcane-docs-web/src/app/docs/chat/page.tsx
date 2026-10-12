@@ -9,9 +9,8 @@ export default function ChatPage() {
           Chat with ARCANE
         </h1>
         <p className="text-xl text-zinc-400">
-          Try ARC 1&apos;s language models directly. ARC 1 LM v2 is a 12.6M-parameter hybrid decoder with
-          gated short convolutions, grouped-query attention, selective causal resonance, and cached generation.
-          Use the model selector to compare it with the original ARC 1 LM.
+          Use ARCANE&apos;s compact language models when a task needs open-ended generation rather than a bounded
+          System 1 decision. Compare ARC 1 LM v2 with the original ARC 1 LM in the model selector.
         </p>
       </div>
 
@@ -34,10 +33,9 @@ export default function ChatPage() {
           is loaded, trained, and ready before the page enables generation.
         </p>
         <p className="leading-relaxed">
-          These are small next-token continuation models, not instruction-tuned assistants. Selecting a model proves
-          which architecture produced a response, but a loaded checkpoint does not guarantee a factually correct
-          answer. The current v2 checkpoint received only bounded smoke training and is exposed here as an experimental
-          architecture preview.
+          These are compact next-token continuation models designed to demonstrate ARCANE&apos;s local generation path;
+          they are not instruction-tuned assistants. The bundled v2 checkpoint is trained for architecture validation,
+          so use a task-trained checkpoint when factual reliability is required.
         </p>
 
         <div className="rounded-none border border-amber-900/50 bg-amber-900/10 p-4 not-prose">

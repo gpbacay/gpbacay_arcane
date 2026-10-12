@@ -13,137 +13,137 @@ export type SidebarNavItem = {
 export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
   sidebarNav: [
     {
-      title: "Getting Started",
+      title: "Start Here",
       items: [
-        { 
-          title: "Introduction", 
+        {
+          title: "Overview",
           href: "/docs",
-          keywords: ["about", "mission", "vision", "goals", "faq", "sentient ai", "consciousness", "developer", "philosophy", "semantic engineering", "team", "funding", "intellectual property", "breakthrough", "timeline", "layman", "societal", "environmental", "limitations", "research questions"]
+          keywords: ["about", "purpose", "benefits", "architecture", "getting started", "overview"],
         },
-        { 
-          title: "Installation", 
+        {
+          title: "System 1 Architecture",
+          href: "/docs/system-1",
+          keywords: ["system 1", "fast decisions", "adaptive inference", "grounded", "memory", "architecture"],
+        },
+        {
+          title: "Installation",
           href: "/docs/installation",
-          keywords: ["install", "setup", "pip", "dependencies", "requirements", "tensorflow", "keras", "prerequisites"]
+          keywords: ["install", "setup", "pip", "dependencies", "requirements", "tensorflow", "keras"],
         },
-        { 
-          title: "Quick Start", 
+        {
+          title: "Quick Start",
           href: "/docs/quick-start",
-          keywords: ["example", "tutorial", "usage", "basic", "code", "implementation", "first model"]
+          keywords: ["example", "tutorial", "usage", "code", "implementation", "first model"],
         },
       ],
     },
     {
-      title: "Core Concepts",
+      title: "Build System 1",
       items: [
-        { 
-          title: "Neural Resonance", 
-          href: "/docs/neural-resonance",
-          keywords: ["prospective configuration", "thinking phase", "feedback", "bidirectional", "alignment", "synchronization"]
+        {
+          title: "ARC 1",
+          href: "/docs/arc-1",
+          keywords: ["automation", "tools", "tool calling", "extract", "classify", "resonant binding"],
         },
         {
-          title: "Inference-Time Learning",
+          title: "Chat with ARCANE",
+          href: "/docs/chat",
+          keywords: ["chat", "slm", "language model", "generate", "local inference"],
+        },
+        {
+          title: "Foundation Model",
+          href: "/docs/foundation-model",
+          keywords: ["hierarchical", "resonance", "feedback", "adaptation", "advanced"],
+        },
+        {
+          title: "Neuromimetic Model",
+          href: "/docs/neuromimetic-model",
+          keywords: ["semantic", "sequence", "nlp", "text generation", "compact"],
+        },
+      ],
+    },
+    {
+      title: "Adaptive Systems",
+      items: [
+        {
+          title: "Neural Resonance",
+          href: "/docs/neural-resonance",
+          keywords: ["prospective configuration", "feedback", "bidirectional", "alignment", "synchronization"],
+        },
+        {
+          title: "Inference-Time Adaptation",
           href: "/docs/inference-time-learning",
-          keywords: ["inference-time learning", "inference time", "test time adaptation", "resonance", "fast weights", "entropy", "consistency", "rollback", "ablation", "per example", "feedback alignment"]
+          keywords: ["test time adaptation", "resonance", "fast weights", "entropy", "consistency", "rollback"],
         },
         {
           title: "Homeostatic Plasticity",
           href: "/docs/homeostatic-plasticity",
-          keywords: ["homeostasis", "BCM", "sliding window", "adaptive target", "attention guided", "hierarchical controller", "fast weights"]
+          keywords: ["homeostasis", "bcm", "adaptive target", "attention guided", "hierarchical controller"],
         },
-        { 
-          title: "Biological Layers", 
-          href: "/docs/layers",
-          keywords: ["bioplastic", "hebbian", "homeostatic", "plasticity", "dense", "synapse", "neuroplasticity", "PredictiveResonantLayer", "predictive resonance", "local resonance"]
-        },
-        { 
-          title: "ResonantGSER", 
-          href: "/docs/resonant-gser",
-          keywords: ["spiking", "reservoir", "dynamics", "spectral radius", "leak rate", "threshold", "reservoir computing"]
-        },
-        { 
-          title: "PredictiveResonantLayer",
-          href: "/docs/predictive-resonant-layer",
-          keywords: ["predictive resonance", "local resonance", "recurrent", "alignment", "autonomy"]
-        },
-        { 
-          title: "Activations", 
-          href: "/docs/activations",
-          keywords: ["spike", "gelu", "softplus", "neuromimetic", "stateful", "lif"]
-        },
-      ],
-    },
-    {
-      title: "Models",
-      items: [
-        { 
-          title: "ARC 1", 
-          href: "/docs/arc-1",
-          keywords: ["arc1", "arc 1", "automation", "tools", "tool calling", "extract", "engram", "resonant binding", "function calling"]
-        },
-        { 
-          title: "Chat with ARCANE", 
-          href: "/docs/chat",
-          keywords: ["chat", "slm", "arc 1", "arc1", "language model", "generate", "talk", "tiny", "inference"]
-        },
-        { 
-          title: "Foundation Model", 
-          href: "/docs/foundation-model",
-          keywords: ["hierarchical", "ollama", "llama", "large language model", "reasoning", "advanced"]
-        },
-        { 
-          title: "Neuromimetic Model", 
-          href: "/docs/neuromimetic-model",
-          keywords: ["semantic", "standard", "nlp", "text generation", "prototype"]
-        },
-      ],
-    },
-    {
-      title: "Harness",
-      items: [
         {
-          title: "Grounded Graph of Thought",
-          href: "/docs/graph-of-thought",
-          keywords: ["got", "graph of thoughts", "grounded", "verification", "hallucination", "rag", "retrieval", "knowledge graph", "bm25", "document search", "reasoning", "agent", "tools", "harness", "citations"]
+          title: "Layer Reference",
+          href: "/docs/layers",
+          keywords: ["bioplastic", "hebbian", "homeostatic", "plasticity", "dense", "synapse", "keras"],
         },
+        {
+          title: "ResonantGSER",
+          href: "/docs/resonant-gser",
+          keywords: ["spiking", "reservoir", "dynamics", "spectral radius", "leak rate", "threshold"],
+        },
+        {
+          title: "Predictive Resonance",
+          href: "/docs/predictive-resonant-layer",
+          keywords: ["predictive resonant layer", "local resonance", "recurrent", "alignment", "sequence"],
+        },
+        {
+          title: "Activations",
+          href: "/docs/activations",
+          keywords: ["spike", "gelu", "softplus", "neuromimetic", "stateful", "lif"],
+        },
+      ],
+    },
+    {
+      title: "Memory & Grounding",
+      items: [
         {
           title: "Hippocampus",
           href: "/docs/hippocampus",
-          keywords: ["hippocampus", "neocortex", "episodic memory", "brain", "complementary learning systems", "rag", "retrieval", "memory", "knn", "few-shot", "system 1", "decisions", "classification", "routing", "intent", "tool calling", "model-agnostic", "no fine-tuning", "examples", "harness"]
+          keywords: ["episodic memory", "retrieval", "few-shot", "examples", "routing", "tool calling"],
+        },
+        {
+          title: "Graph of Thought",
+          href: "/docs/graph-of-thought",
+          keywords: ["verification", "hallucination", "rag", "retrieval", "knowledge graph", "citations"],
         },
       ],
     },
     {
       title: "Reference",
       items: [
-        { 
-          title: "CLI Commands", 
+        {
+          title: "CLI Commands",
           href: "/docs/cli",
-          keywords: ["terminal", "about", "list", "version", "commands", "tools"]
+          keywords: ["terminal", "version", "commands", "tools"],
         },
-        { 
-          title: "ARCANE Fruitfly Brain", 
+        {
+          title: "Connectome Demo",
           href: "/docs/fruitfly",
-          keywords: ["fruit fly", "drosophila", "brain", "mnist", "digit", "predict", "flywire", "fafbseg", "connectome", "rsaa", "arcane", "optic"]
+          keywords: ["fruit fly", "drosophila", "brain", "mnist", "flywire", "connectome"],
         },
-        { 
-          title: "Benchmarks", 
+        {
+          title: "Benchmarks",
           href: "/docs/benchmarks",
-          keywords: ["performance", "accuracy", "loss", "comparison", "metrics", "test", "shakespeare"]
+          keywords: ["performance", "accuracy", "loss", "comparison", "metrics", "latency"],
         },
-        { 
-          title: "Research Paper", 
+        {
+          title: "Research Paper",
           href: "/docs/research",
-          keywords: ["paper", "rsaa", "academic", "theory", "math", "equations", "alignment gap"]
+          keywords: ["paper", "rsaa", "academic", "theory", "math", "alignment"],
         },
-      ],
-    },
-    {
-      title: "Insights",
-      items: [
-        { 
-          title: "Blog", 
+        {
+          title: "Blog",
           href: "/docs/blog",
-          keywords: ["updates", "news", "articles", "future", "announcements"]
+          keywords: ["updates", "news", "articles", "announcements"],
         },
       ],
     },

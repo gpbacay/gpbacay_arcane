@@ -1,4 +1,6 @@
 
+import { CodeSnippet } from "@/components/CodeSnippet";
+
 export default function BenchmarksPage() {
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
@@ -7,7 +9,7 @@ export default function BenchmarksPage() {
           Performance & Benchmarks
         </h1>
         <p className="text-xl text-zinc-400">
-          Comparative analysis of ARCANE models vs traditional architectures.
+          Measured accuracy, calibration, latency, and adaptation behavior across ARCANE models.
         </p>
       </div>
 
@@ -65,9 +67,12 @@ export default function BenchmarksPage() {
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Run the Benchmark
         </h2>
-        <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
-          <code>python examples/test_hierarchical_resonance_comparison.py</code>
-        </pre>
+        <CodeSnippet
+          filename="Terminal"
+          language="bash"
+          lineNumbers={false}
+          code="python examples/test_hierarchical_resonance_comparison.py"
+        />
       </div>
     </div>
   );

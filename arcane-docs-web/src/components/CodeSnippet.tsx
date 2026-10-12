@@ -1,6 +1,7 @@
 "use client";
 
-import type { BundledLanguage } from "@/components/kibo-ui/code-block";
+import { cn } from "@/lib/utils";
+import type { BundledLanguage } from "@/components/ui/code-block";
 import {
   CodeBlock,
   CodeBlockBody,
@@ -10,21 +11,30 @@ import {
   CodeBlockFiles,
   CodeBlockHeader,
   CodeBlockItem,
-} from "@/components/kibo-ui/code-block";
+} from "@/components/ui/code-block";
 
 type CodeSnippetProps = {
-  filename: string;
+  filename?: string;
   language: BundledLanguage;
   code: string;
   lineNumbers?: boolean;
+  className?: string;
+  maxHeight?: string;
 };
 
 // The kibo-ui code block themes itself with the shadcn `dark` variant. This site is dark by
 // design but doesn't set `.dark` on <html>, so the wrapper scopes it to the block.
-export function CodeSnippet({ filename, language, code, lineNumbers = true }: CodeSnippetProps) {
+export function CodeSnippet({
+  filename = "Code",
+  language,
+  code,
+  lineNumbers = true,
+  className,
+  maxHeight,
+}: CodeSnippetProps) {
   const data = [{ language, filename, code }];
   return (
-    <div className="dark not-prose mt-4">
+    <div className={cn("dark not-prose my-5", className)}>
       <CodeBlock data={data} defaultValue={language} className="rounded-none border-zinc-800">
         <CodeBlockHeader className="justify-between border-zinc-800 bg-zinc-900/60">
           <CodeBlockFiles>
@@ -36,7 +46,7 @@ export function CodeSnippet({ filename, language, code, lineNumbers = true }: Co
           </CodeBlockFiles>
           <CodeBlockCopyButton aria-label="Copy code" />
         </CodeBlockHeader>
-        <CodeBlockBody>
+        <CodeBlockBody className={cn(maxHeight && "overflow-auto")} style={maxHeight ? { maxHeight } : undefined}>
           {(item) => (
             <CodeBlockItem key={item.language} value={item.language} lineNumbers={lineNumbers} className="bg-zinc-950">
               <CodeBlockContent language={item.language as BundledLanguage}>{item.code}</CodeBlockContent>

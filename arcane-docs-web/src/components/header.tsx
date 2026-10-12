@@ -15,8 +15,7 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { docsConfig } from "@/config/docs";
-import { Search, FileText, Zap, Brain, Layers, Cpu, BarChart3, Terminal, Menu, Bug, MessageSquare } from "lucide-react";
-import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { Search, FileText, Zap, Brain, Layers, Cpu, BarChart3, Terminal, Bug, MessageSquare } from "lucide-react";
 
 export function SiteHeader() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -25,7 +24,6 @@ export function SiteHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const isDocsPage = pathname?.startsWith("/docs");
-  const { state, isMobile } = useSidebar();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

@@ -2,17 +2,17 @@
 
 ## Overview
 
-Hierarchical Neural Resonance is ARCANE's experimental mechanism for repeatedly refining recurrent hidden states using top-down projections. The explicit `predict_with_resonance` path carries one target per example with shape `(batch, units)`, so an example's target does not depend on the other examples in its batch. This is **inference-time state refinement**: the learned weights remain fixed unless the separate test-time adapter or BCM fast weights are enabled.
+Hierarchical Neural Resonance aligns recurrent hidden states with per-example top-down projections before a System 1 decision is committed. The explicit `predict_with_resonance` path carries one target per example with shape `(batch, units)`, so an example's target remains independent of the other examples in its batch. Learned weights stay fixed unless the separate test-time adapter or BCM fast weights are enabled.
 
 ARCANE also provides objective-driven test-time adaptation. That path can update selected variables using entropy, consistency, reconstruction, masked-token, or custom objectives, with snapshot/reset semantics, bounded update norms, and rollback. State refinement and weight adaptation are distinct mechanisms and should be evaluated separately.
 
-### The Problem: Feed-Forward Limitations and the Alignment Gap
+### Why state alignment matters
 
 Many models produce an output after one pass through a fixed computation graph. Recurrent refinement is useful to study because it permits a model to spend additional computation on the current input and expose an explicit disagreement signal between adjacent levels. This does not imply that ordinary feed-forward or Transformer models cannot reason, nor that recurrence automatically improves reasoning.
 
-### The Solution: Hierarchical Neural Resonance and Prospective Configuration
+### How hierarchical resonance works
 
-ARCANE introduces bidirectional information flow inspired by predictive coding. Higher layers project targets downward (**Feedback Projection**), lower layers move toward those targets (**Harmonization**), and the same current input is evaluated again. The implementation retains the prediction from the cycle with the lowest measured divergence; it does not claim that a semantic consensus or task-optimal state has been reached.
+ARCANE introduces bidirectional information flow inspired by predictive coding. Higher layers project targets downward (**Feedback Projection**), lower layers move toward those targets (**Harmonization**), and the same current input is evaluated again. The implementation retains the prediction from the cycle with the lowest measured divergence, giving the application a concrete selection rule for the refinement trace.
 
 Feedback maps can be trained end to end with an explicit lower-state reconstruction/alignment loss. Identity initialization is a safe baseline when adjacent levels have equal width, but learned feedback should be used only after it receives a real gradient path.
 
@@ -148,7 +148,7 @@ These numbers are from a small exploratory run with **unequal parameter counts**
 
 *   Adding resonance levels changed Tiny Shakespeare accuracy by about one point at roughly 2× parameters.
 *   MNIST 98.89% vs 98.76% is within noise for that setup.
-*   Unit tests verify closed-form harmonization, STE spikes, and Keras 3 layer linking — not task superiority.
+*   Unit tests verify closed-form harmonization, STE spikes, and Keras 3 layer linking, not task superiority.
 
 ---
 
@@ -188,13 +188,13 @@ result = model.adapt_at_inference(
 
 ## Scientific Context
 
-The mechanism is inspired by predictive-coding and recurrent-processing ideas. ARCANE implements engineering analogies—top-down projections, local divergence, spiking transforms, and homeostatic traces—but does not establish neuroscientific fidelity.
+The mechanism is inspired by predictive-coding and recurrent-processing ideas. ARCANE implements engineering analogies such as top-down projections, local divergence, spiking transforms, and homeostatic traces, but does not establish neuroscientific fidelity.
 
 ---
 
 ## Conclusion
 
-Hierarchical Neural Resonance is an implemented experimental recurrent-refinement mechanism. Its per-example state, differentiable feedback training, bounded test-time objectives, and same-checkpoint ablation harness make its behavior testable without assuming that more cycles are better.
+Hierarchical Neural Resonance combines per-example state, differentiable feedback training, bounded test-time objectives, and a same-checkpoint ablation harness. Together, these features make recurrent refinement measurable and let each application select the cycle depth that best serves its accuracy and latency requirements.
 
 ### Empirical Validation
 

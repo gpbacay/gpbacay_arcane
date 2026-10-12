@@ -10,7 +10,7 @@ export default function ResonantGSERPage() {
   try {
     content = fs.readFileSync(docsPath, "utf8");
     content = content.replace(/^# .*\n/, "");
-  } catch (error) {
+  } catch {
     content = "Could not load documentation content.";
   }
 
@@ -21,7 +21,7 @@ export default function ResonantGSERPage() {
           ResonantGSER Layer
         </h1>
         <p className="text-xl text-zinc-400">
-          The core mechanism implementing Hierarchical Neural Resonance.
+          The recurrent feedback layer at the core of ARCANE&apos;s adaptive System 1 architecture.
         </p>
       </div>
 

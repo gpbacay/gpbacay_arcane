@@ -3,19 +3,23 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { docsConfig } from "@/config/docs";
-import { useEffect, useState, useRef, useMemo } from "react";
+import { docsConfig, type SidebarNavItem } from "@/config/docs";
+import { useEffect, useState, useRef } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { ChevronDown } from "lucide-react";
 
-function SidebarGroup({ item, pathname }: { item: any, pathname: string }) {
+function SidebarGroup({ item, pathname }: { item: SidebarNavItem, pathname: string }) {
   const [itemMetrics, setItemMetrics] = useState<{ y: number; height: number; active: boolean }[]>([]);
   const groupRef = useRef<HTMLDivElement>(null);
-  const [activeIdx, setActiveIdx] = useState(-1);
+  const activeIdx = item.items.findIndex((subItem) => subItem.href === pathname);
+  const hasActiveItem = activeIdx !== -1;
+  const [open, setOpen] = useState<boolean>(() => Boolean(hasActiveItem || item.title === "Start Here"));
 
   useEffect(() => {
-    const idx = item.items.findIndex((subItem: any) => subItem.href === pathname);
-    setActiveIdx(idx);
-  }, [pathname, item.items]);
+    if (!hasActiveItem) return;
+    const frame = requestAnimationFrame(() => setOpen(true));
+    return () => cancelAnimationFrame(frame);
+  }, [hasActiveItem]);
 
   useEffect(() => {
     const measure = () => {
@@ -36,7 +40,7 @@ function SidebarGroup({ item, pathname }: { item: any, pathname: string }) {
       window.removeEventListener('resize', measure);
       clearTimeout(timer);
     };
-  }, [item.items, activeIdx]);
+  }, [item.items, activeIdx, open]);
 
   const xBase = 2;
   const xActive = 8;
@@ -48,14 +52,20 @@ function SidebarGroup({ item, pathname }: { item: any, pathname: string }) {
   return (
     <div className="space-y-3 relative">
       <div className="flex items-center justify-between pr-2">
-        <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 px-4 transition-colors">
-          {item.title}
-        </h4>
-        {item.title === "Getting Started" && (
+        <button
+          type="button"
+          onClick={() => setOpen((value: boolean) => !value)}
+          aria-expanded={open}
+          className="flex flex-1 items-center justify-between px-4 py-1 text-left text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 transition-colors hover:text-zinc-300"
+        >
+          <span>{item.title}</span>
+          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} aria-hidden="true" />
+        </button>
+        {item.title === "Start Here" && (
           <SidebarTrigger className="h-6 w-6 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900 transition-colors" />
         )}
       </div>
-      <div className="relative flex px-2" ref={groupRef}>
+      <div className={cn("relative px-2", open ? "flex" : "hidden")} ref={groupRef}>
         {/* SVG Indicator Guide */}
         <div className="absolute left-2 top-0 w-4 h-full pointer-events-none">
           <svg 
@@ -97,7 +107,7 @@ function SidebarGroup({ item, pathname }: { item: any, pathname: string }) {
         </div>
 
         <div className="grid grid-flow-row auto-rows-max text-sm space-y-1 flex-1 pl-6">
-          {item.items.map((subItem: any, subIndex: number) => (
+          {item.items.map((subItem, subIndex) => (
             <Link
               key={subIndex}
               href={subItem.href}
@@ -123,7 +133,7 @@ export function DocsSidebar() {
   return (
     <aside className="w-full">
       <div className="py-8 px-4 md:px-6">
-        <div className="space-y-12">
+        <div className="space-y-7">
           {/* Mobile-only Global Navigation */}
           <div className="md:hidden space-y-3 mb-8 pb-8 border-b border-zinc-800">
             <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 px-4">

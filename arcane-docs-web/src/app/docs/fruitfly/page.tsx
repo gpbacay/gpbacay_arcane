@@ -14,8 +14,7 @@ export default function FruitFlyPage() {
           ARCANE Fruitfly Brain
         </h1>
         <p className="text-xl text-zinc-400">
-          Traced neurons from the adult <em>Drosophila</em> whole-brain connectome (FAFB v783), driven by ARCANE
-          resonance while you draw a digit.
+          A connectome-driven demonstration of resonance, sparse neural dynamics, and fast classification.
         </p>
       </div>
 
@@ -40,7 +39,7 @@ export default function FruitFlyPage() {
           <ul className="m-0 list-disc space-y-1.5 pl-4">
             <li>
               <strong className="text-zinc-300">Real:</strong> the 36 neurons are FlyWire v783 cells with their
-              published root IDs, and what you see are their traced skeletons swept into tubes — not stand-in shapes.
+              published root IDs, and what you see are their traced skeletons swept into tubes, not stand-in shapes.
               The shell is the FLYWIRE neuropil mesh. Synapse counts, signs and neurotransmitter calls come from the
               public release.
             </li>
@@ -52,7 +51,7 @@ export default function FruitFlyPage() {
               <strong className="text-zinc-300">Ventral nerve cord:</strong> the glass shell is the Male CNS
               JRCFIB2022M VNC neuropil mesh. The neurites inside it are traced Male CNS v1.0 skeletons (motor,
               sensory, intrinsic, ascending and descending cells from the Janelia / Google map), clipped to the VNC
-              volume — FAFB itself is brain-only, so this cord is a different EM specimen aligned at the neck.
+              volume. FAFB itself is brain-only, so this cord is a different EM specimen aligned at the neck.
             </li>
             <li>
               <strong className="text-zinc-300">Not the connectome:</strong> the digit readout. The classifier is a

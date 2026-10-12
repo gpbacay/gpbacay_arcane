@@ -1,4 +1,6 @@
 
+import { CodeSnippet } from "@/components/CodeSnippet";
+
 export default function FoundationModelPage() {
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
@@ -7,7 +9,7 @@ export default function FoundationModelPage() {
           Hierarchical Resonance Foundation Model
         </h1>
         <p className="text-xl text-zinc-400">
-          Experimental hierarchy with per-example resonance, trained feedback, and bounded test-time adaptation.
+          A hierarchical System 1 model with per-example resonance, trained feedback, and bounded adaptation.
         </p>
       </div>
 
@@ -16,14 +18,13 @@ export default function FoundationModelPage() {
           Overview
         </h2>
         <p>
-          The <strong>HierarchicalResonanceFoundationModel</strong> is a research wrapper around a stack of <strong>ResonantGSER</strong> layers. During explicit resonance prediction, each example carries its own top-down target through the hierarchy. Optional feedback training and test-time adaptation are separate operations with measurable objectives and reset semantics.
+          The <strong>HierarchicalResonanceFoundationModel</strong> organizes <strong>ResonantGSER</strong> layers into a feedback-driven sequence model. During resonance prediction, every example carries its own top-down target through the hierarchy. Feedback training and test-time adaptation remain separate, measurable operations with clear reset semantics.
         </p>
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Usage
         </h2>
-        <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
-          <code>{`from gpbacay_arcane import HierarchicalResonanceFoundationModel
+        <CodeSnippet filename="foundation-model.py" language="python" code={`from gpbacay_arcane import HierarchicalResonanceFoundationModel
 
 model = HierarchicalResonanceFoundationModel(
     vocab_size=5000,
@@ -63,8 +64,7 @@ result = model.adapt_at_inference(
     steps=2,
     max_update_norm=1e-3,
     episodic=True,
-)`}</code>
-        </pre>
+)`} />
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Key Features
@@ -77,7 +77,7 @@ result = model.adapt_at_inference(
           <li><strong>Attention Fusion</strong>: Aggregates multi-pathway information with self-attention.</li>
         </ul>
         <p>
-          These mechanisms are implemented, but improved accuracy or reasoning is not assumed. Use the controlled resonance ablation to compare the same checkpoint at 0, 1, 2, 4, and 8 cycles.
+          Choose the resonance depth with a controlled ablation of the same checkpoint at 0, 1, 2, 4, and 8 cycles. This reveals the best accuracy, calibration, and latency trade-off for your task.
         </p>
       </div>
     </div>

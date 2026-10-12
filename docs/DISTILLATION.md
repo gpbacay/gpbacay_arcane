@@ -44,7 +44,7 @@ kv_cs = tf.cumsum(kv, axis=2)
 ```
 
 At the `100m` preset (b=2, h=12, s=256, dh=64) that is **100.7 MB per tensor,
-2.42 GB across 12 layers**, retained for backprop — for a batch of *two*. At
+2.42 GB across 12 layers**, retained for backprop for a batch of *two*. At
 seq_len 1024 it is 9.66 GB.
 
 It is now computed chunkwise: the `(d_head, d_head)` state is carried across
@@ -57,7 +57,7 @@ chunks by `tf.scan` and materialised once per chunk rather than once per token.
 |    4096 |     38.65 GB |       0.307 GB |
 
 **102x less activation memory at seq_len 256.** This is an optimisation, not a
-change of semantics — `test_chunked_matches_cumsum_reference` checks the chunked
+change of semantics. `test_chunked_matches_cumsum_reference` checks the chunked
 output against the original cumsum formulation across five chunk/length
 combinations (max error ~2.4e-7, i.e. float32 round-off).
 
@@ -75,7 +75,7 @@ into a dense student range, preserving ARCANE's special-token layout:
 ```
 
 Qwen's own end-of-text folds onto `EOS`. The dump script reports what fraction of
-token *occurrences* survive the trim, which is the number to watch — at 32k it is
+token *occurrences* survive the trim, which is the number to watch. At 32k it is
 normally well above 99% on ordinary text.
 
 This also sidesteps a scaling problem: the built-in `BytePairTokenizer.train` is
@@ -87,7 +87,7 @@ corpus.
 The teacher is PyTorch, the student is TensorFlow. They never share a graph.
 `dump_qwen_logits.py` writes **sparse top-k logits in student id space** to
 TFRecord; training replays them with no torch dependency. Dense logits are not an
-option — 151,936 floats per position is terabytes for any real corpus, while
+option because 151,936 floats per position is terabytes for any real corpus, while
 top-64 over a trimmed 32k vocabulary is a few GB.
 
 ---
@@ -100,7 +100,7 @@ unchanged and every existing test still passes; the `distill` preset turns them 
 ### Hybrid attention (`softmax_every`)
 
 Linear attention compresses the entire prefix into a fixed `d_head x d_head`
-state, so it cannot do exact key lookup — which is exactly what a softmax teacher
+state, so it cannot do exact key lookup. This is exactly what a softmax teacher
 is good at. `softmax_every=4` makes every 4th layer full softmax attention:
 
 ```
@@ -112,7 +112,7 @@ Three of twelve layers pay quadratic cost; the rest stay linear.
 
 ### KV decay (`use_decay`)
 
-`tf.cumsum` weights all history equally forever — the denominator grows linearly
+`tf.cumsum` weights all history equally forever, and the denominator grows linearly
 in `t`, so later tokens get progressively more averaged. A learned per-head
 forget factor `gamma = sigmoid(logit)` (init ~0.982) gives
 `KV_t = gamma * KV_{t-1} + phi(k_t) v_t`.
@@ -129,7 +129,7 @@ The old `PositionalEncodingLayer` baked a non-trainable sinusoidal buffer at
 matches the teacher's positional geometry and is applied **before** the
 `elu(x)+1` feature map so the linear-attention denominator stays positive.
 
-When `use_rope` is on the model skips the additive table entirely — applying both
+When `use_rope` is on, the model skips the additive table entirely. Applying both
 would double-count position. `test_rope_model_skips_additive_positional_encoding`
 guards this.
 
@@ -149,7 +149,7 @@ Two measured defects, at `d_model=768` with LayerNorm'd unit-scale input:
    projection linear.
 
 2. **`gate_normalize=True`.** `DenseGSER`'s spike gate applied an *absolute*
-   threshold (0.4) to unnormalised post-GELU activations — it has no idea what
+   threshold (0.4) to unnormalised post-GELU activations, so it has no idea what
    scale the activations are on, and attenuated the branch ~6x at init. The gate
    is now scale-relative with a learnable per-channel threshold, so the layer
    sets its own sparsity. The spiking character is preserved.
@@ -159,8 +159,8 @@ Two measured defects, at `d_model=768` with LayerNorm'd unit-scale input:
 
 ### Other
 
-- **`norm_type="rms"`** — matches the teacher, one less distribution mismatch.
-- **`reweight_centered=True`** — the semantic reweighting gate was `sigmoid(...)`
+- **`norm_type="rms"`**: matches the teacher with one less distribution mismatch.
+- **`reweight_centered=True`**: the semantic reweighting gate was `sigmoid(...)`
   in (0, 1), which can only attenuate and halves the branch at init. The centred
   form spans (0, 2) with unit gain at init.
 
@@ -173,11 +173,11 @@ Two measured defects, at `d_model=768` with LayerNorm'd unit-scale input:
 | `100m`    | 102,618,636 | `LLLLLLLLLLLL` | unchanged |
 | `distill` | 145,147,509 | `LLLSLLLSLLLS` | `ffn_mult=4`, seq_len 512 |
 
-`distill` is ~145M, not 100M — the wider FFN costs ~42M. To hold ~100M instead,
+`distill` is ~145M, not 100M, because the wider FFN costs ~42M. To hold ~100M instead,
 prefer width over depth: `num_layers=8` with `ffn_mult=4` lands near 105M. For
 absorbing knowledge from a teacher, the wider FFN is the better trade.
 
-`estimate_trainable_parameters()` is exact — `test_parameter_estimate_matches_built_model`
+`estimate_trainable_parameters()` is exact. `test_parameter_estimate_matches_built_model`
 asserts it against a real build.
 
 ---
@@ -208,9 +208,9 @@ you will be measuring the corpus rather than the distillation.
 The comparison that is actually informative is the KL-to-teacher curve of ARCANE
 against the parameter-matched vanilla transformer:
 
-- **ARCANE tracks the baseline** — its mechanisms are free, and you have a
+- **ARCANE tracks the baseline**: its mechanisms are free, and you have a
   neuromimetic model at transformer parity.
-- **ARCANE plateaus higher** — you have measured what resonance, bioplasticity
+- **ARCANE plateaus higher**: you have measured what resonance, bioplasticity
   and depth-wise AttnRes cost in capacity, which is a far more useful result than
   the checkpoint.
 
@@ -222,5 +222,5 @@ attention will not match Qwen2.5-0.5B.
 ## Hardware note
 
 This repo's environment has `torch 2.0.1+cpu`. The teacher dump runs on CPU but
-slowly — use `--max-windows` to bound it. Training the student needs a GPU
+slowly, so use `--max-windows` to bound it. Training the student needs a GPU
 regardless; that, not the dump, is the real bottleneck.

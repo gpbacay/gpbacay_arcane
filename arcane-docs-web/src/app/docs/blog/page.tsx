@@ -13,7 +13,7 @@ export default function BlogPage() {
           Latest News and Insights
         </h1>
         <p className="text-xl text-zinc-400">
-          Stay updated with the latest trends and insights in the world of neuromimetic AI.
+          Research and implementation notes for adaptive System 1 AI.
         </p>
       </div>
 

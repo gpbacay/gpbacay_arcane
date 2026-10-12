@@ -6,6 +6,8 @@ import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import mermaid from "mermaid";
 import { useEffect, useState, useId } from "react";
+import type { BundledLanguage } from "@/components/ui/code-block";
+import { CodeSnippet } from "@/components/CodeSnippet";
 
 if (typeof window !== "undefined") {
   mermaid.initialize({
@@ -26,39 +28,30 @@ if (typeof window !== "undefined") {
   });
 }
 
-/** ``minWidth``: dense diagrams keep a readable size on phones and scroll inside their box. */
-export const Mermaid = ({ chart, minWidth }: { chart: string; minWidth?: number }) => {
+export const Mermaid = ({ chart }: { chart: string; minWidth?: number }) => {
   const id = "mermaid-" + useId().replace(/:/g, "");
   const [svg, setSvg] = useState("");
+  const verticalChart = chart
+    .replace(/^(\s*)(flowchart|graph)\s+(LR|RL)\b/m, "$1$2 TD")
+    .replace(/^(\s*)direction\s+(LR|RL)\b/gm, "$1direction TB");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
-        mermaid.render(id, chart).then(({ svg }) => {
+        mermaid.render(id, verticalChart).then(({ svg }) => {
           setSvg(svg);
         });
       } catch (error) {
         console.error("Mermaid error:", error);
       }
     }
-  }, [chart, id]);
+  }, [verticalChart, id]);
 
   if (!svg) return <div className="text-zinc-500 text-xs animate-pulse">Loading diagram...</div>;
 
-  if (minWidth) {
-    return (
-      <div className="not-prose my-8">
-        <div className="mermaid overflow-x-auto border border-zinc-900/50 bg-zinc-950/30 p-4 sm:p-6">
-          <div className="mx-auto [&_svg]:mx-auto" style={{ minWidth }} dangerouslySetInnerHTML={{ __html: svg }} />
-        </div>
-        <p className="mt-2 text-xs text-zinc-500 sm:hidden">Swipe sideways to see the whole diagram.</p>
-      </div>
-    );
-  }
-
   return (
     <div
-      className="mermaid my-8 p-6 bg-zinc-950/30 border border-zinc-900/50 flex justify-center overflow-x-auto min-h-[200px] items-center rounded-sm"
+      className="mermaid not-prose my-8 flex min-h-[240px] justify-center overflow-hidden border border-zinc-900/50 bg-zinc-950/30 p-4 sm:p-6 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
@@ -115,10 +108,31 @@ export function Markdown({ content, className }: MarkdownProps) {
               return <div className="relative">{children}</div>;
             }
 
+            let language = "text";
+            let code = "";
+            if (childNode && typeof childNode === "object" && "tagName" in childNode && childNode.tagName === "code") {
+              const properties = "properties" in childNode ? childNode.properties : {};
+              const classes = properties && typeof properties === "object" && "className" in properties
+                ? properties.className
+                : [];
+              const languageClass = Array.isArray(classes)
+                ? classes.find((value) => typeof value === "string" && value.startsWith("language-"))
+                : undefined;
+              if (typeof languageClass === "string") language = languageClass.replace("language-", "");
+              if ("children" in childNode && Array.isArray(childNode.children)) {
+                code = childNode.children
+                  .map((child) => typeof child === "object" && child && "value" in child ? String(child.value) : "")
+                  .join("")
+                  .replace(/\n$/, "");
+              }
+            }
+
             return (
-              <pre className="bg-zinc-950 p-4 rounded-none border border-zinc-800 overflow-x-auto text-sm text-zinc-300 my-6">
-                {children}
-              </pre>
+              <CodeSnippet
+                filename={language === "text" ? "Code" : language}
+                language={language as BundledLanguage}
+                code={code}
+              />
             );
           },
           table: ({ children }) => (

@@ -2,7 +2,7 @@
 
 ## Overview
 
-ResonantGSER (Resonant Gated Spiking Elastic Reservoir) is ARCANE's recurrent layer for hierarchical state refinement. The current-input inference path uses explicit per-example top-down targets and keeps learned weights fixed. Separate APIs train feedback projections or perform bounded objective-driven test-time weight adaptation.
+ResonantGSER (Resonant Gated Spiking Elastic Reservoir) is the recurrent feedback layer at the core of ARCANE's adaptive System 1 architecture. Its current-input path uses explicit per-example top-down targets while keeping learned weights fixed. Separate APIs train feedback projections or perform bounded objective-driven test-time weight adaptation.
 
 ## Biological Inspiration
 
@@ -15,7 +15,7 @@ The brain constantly generates predictions about sensory inputs and compares the
 Cortical processing occurs across multiple hierarchical levels, with higher areas providing contextual expectations that modulate lower-level processing.
 
 ### Adaptive Resonance Theory (ART)
-Adaptive Resonance Theory motivates the stability/plasticity framing. ARCANE does not claim that ResonantGSER prevents catastrophic forgetting; forgetting must be measured experimentally.
+Adaptive Resonance Theory motivates the stability/plasticity framing. Evaluate retention alongside task quality when using ResonantGSER in continual-learning workflows.
 
 ### Bi-directional Cortical Communication
 The neocortex features extensive feedback connections that are as numerous as feedforward connections, enabling top-down contextual influence.
@@ -264,7 +264,7 @@ The closed-form step is a smoother, not an inner optimizer. Do not treat Tiny Sh
 
 ### Architecture Design
 
-1. **Layer Hierarchy**: Treat hierarchy depth as an experimental variable
+1. **Layer Hierarchy**: Tune hierarchy depth as a task-specific configuration
 2. **Parameter Tuning**: Start with `resonance_factor=0.2`, then evaluate downstream metrics
 3. **Cycle Count**: Compare 0, 1, 2, 4, and 8 cycles from the same checkpoint
 4. **Integration Points**: Use in intermediate layers for semantic processing

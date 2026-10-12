@@ -10,7 +10,7 @@ export default function PredictiveResonantLayerPage() {
     content = fs.readFileSync(docsPath, "utf8");
     // Remove the title from markdown to avoid duplication with the H1 below
     content = content.replace(/^# .*\n/, "");
-  } catch (error) {
+  } catch {
     content = "Could not load documentation content.";
   }
 
@@ -21,7 +21,7 @@ export default function PredictiveResonantLayerPage() {
           PredictiveResonantLayer
         </h1>
         <p className="text-xl text-zinc-400">
-          Autonomous local resonance for temporal coherence and self-contained alignment.
+          Local predictive alignment for fast, stateful sequence processing.
         </p>
       </div>
 
@@ -34,7 +34,7 @@ export default function PredictiveResonantLayerPage() {
               <h3 id="design-philosophy" className="text-[#C785F2] font-bold tracking-[0.2em] uppercase text-xs scroll-mt-24">Design Philosophy</h3>
             </div>
             <p className="text-zinc-300 text-lg leading-relaxed font-light italic">
-              "Self-Contained Intelligence"
+              &ldquo;Self-Contained Intelligence&rdquo;
             </p>
             <p className="text-zinc-400 leading-relaxed text-sm max-w-2xl">
               The PredictiveResonantLayer functions as an autonomous unit, generating its own internal expectations without requiring external guidance. This creates a resilient, high-fidelity neural component capable of stable integration into any architecture.

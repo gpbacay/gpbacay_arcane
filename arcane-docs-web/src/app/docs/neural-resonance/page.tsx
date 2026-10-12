@@ -11,7 +11,7 @@ export default function NeuralResonancePage() {
     content = fs.readFileSync(docsPath, "utf8");
     // Remove the title from the markdown
     content = content.replace(/^# .*\n/, "");
-  } catch (error) {
+  } catch {
     content = "Could not load documentation content.";
   }
 
@@ -25,7 +25,7 @@ export default function NeuralResonancePage() {
           Hierarchical Neural Resonance
         </h1>
         <p className="text-xl text-zinc-400">
-          A bi-directional and self-modeling computational mechanism for deep state alignment.
+          Top-down feedback that aligns per-example state before a System 1 model commits to an output.
         </p>
       </div>
 

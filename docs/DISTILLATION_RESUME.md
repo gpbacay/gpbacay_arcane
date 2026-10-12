@@ -20,7 +20,7 @@ step    575/4000  loss 1.1771  ce 1.6641 (ppl     5.28)  kd 0.2131  0.12 steps/s
 ```
 
 Held-out ppl improved 38 → **29** from step 250 to 500. Train ppl kept
-falling (5.3 at abort) so the train/eval gap was widening — expected on
+falling (5.3 at abort) so the train/eval gap was widening, as expected on
 92k tokens. History JSON was **not** written (unclean abort).
 
 Last logged steps before the abort:
@@ -35,7 +35,7 @@ step    150/4000  loss 2.6033  ce 4.0697 (ppl    58.54)  kd 0.4064  0.12 steps/s
 ```
 
 Steady state is **~8.3 s/step** (0.12 steps/s), not the 16.7 s/step from the
-previous run — that figure was an average that still included graph tracing.
+previous run. That figure was an average that still included graph tracing.
 A 120-minute `--time-budget-min` buys ~800–900 steps after compile, ~25–28
 epochs over the 256 training windows. First checkpoint is written at
 **step 250** (`--eval-every 250`).
@@ -53,7 +53,7 @@ epochs over the 256 training windows. First checkpoint is written at
 | Student checkpoint | `Models/arcane_slm_distilled.weights.h5` | **step 500** (~42 MB); no resume-from-weights yet |
 | Student config | `Models/arcane_slm_distilled.config.json` | on disk (`distill-small`, vocab 8000, seq 256) |
 | Training log | `logs/distill.log` | UTF-16 (PowerShell `Tee-Object`); last train line is step 575 |
-| History | `Models/arcane_slm_distill_history.json` | **missing** — abort skipped the exit save |
+| History | `Models/arcane_slm_distill_history.json` | **missing** because abort skipped the exit save |
 
 **The teacher dump is the expensive part and it is already paid for** (~42 min
 of CPU). Do not redo it unless you want more tokens.
@@ -67,7 +67,7 @@ before restarting training:
 
 1. **`--chunk-size` CLI** on `examples/distill_arcane_slm.py`.
 2. **`distill-small` default `chunk_size=256`** (one linear-attention chunk,
-   identical output — `test_chunk_size_does_not_change_output`).
+   identical output, as verified by `test_chunk_size_does_not_change_output`).
 3. **CPU fast path** in `CausalLinearSelfAttention`: when the static sequence
    length fits in one chunk, skip `tf.scan` entirely
    (`test_single_chunk_fast_path_matches_scan`).
@@ -117,7 +117,7 @@ python -W ignore -u examples/distill_arcane_slm.py \
     --generate "Once upon a time"
 ```
 
-On PowerShell do **not** pipe through `Tee-Object` for a new run — it
+On PowerShell do **not** pipe through `Tee-Object` for a new run because it
 UTF-16-encodes the log and can delay flushes. Prefer:
 
 ```bat
@@ -157,7 +157,7 @@ curl http://127.0.0.1:8001/health
 
 ## To get a genuinely good model (different hardware)
 
-On a GPU box, nothing about the commands changes — only the scale. More
+On a GPU box, nothing about the commands changes; only the scale does. More
 teacher tokens is the biggest quality lever.
 
 ```bash
@@ -193,7 +193,7 @@ the neuromimetic mechanisms actually cost or buy.
 `Tensor.numpy()` raises `RuntimeError: Numpy is not available`. Worked around
 via `.tolist()` in the dump and warm-start paths. The `_ARRAY_API not found`
 traceback from `numexpr` / pandas on every TensorFlow import is noisy and
-harmless — TF still loads.
+harmless because TF still loads.
 
 ### PowerShell `Tee-Object` writes UTF-16 logs
 
@@ -211,7 +211,7 @@ preset does not, on this box.
 
 **92,160 tokens for an 8.8M-parameter model is roughly 1,000x less data than
 conventional scaling guidance.** Even with training finishing the 120-minute
-budget, expect short, repetitive, TinyStories-flavoured English — not
+budget, expect short, repetitive, TinyStories-flavoured English, not
 conversation. The bar is “looks like a language model, not noise.”
 
 The durable deliverable is the pipeline. More teacher tokens is the biggest
@@ -221,11 +221,11 @@ quality lever.
 
 ## Related files
 
-- [docs/DISTILLATION.md](DISTILLATION.md) — architecture changes, measurements, loss
-- [gpbacay_arcane/distillation.py](../gpbacay_arcane/distillation.py) — KD loss, shards, trainer
-- [gpbacay_arcane/qwen_vocab.py](../gpbacay_arcane/qwen_vocab.py) — vocabulary adapter
-- [gpbacay_arcane/mechanisms.py](../gpbacay_arcane/mechanisms.py) — chunked / single-chunk linear attention
-- [examples/dump_qwen_logits.py](../examples/dump_qwen_logits.py) — teacher side
-- [examples/distill_arcane_slm.py](../examples/distill_arcane_slm.py) — student side
-- [examples/serve_slm_api.py](../examples/serve_slm_api.py) — chat backend
+- [docs/DISTILLATION.md](DISTILLATION.md): architecture changes, measurements, loss
+- [gpbacay_arcane/distillation.py](../gpbacay_arcane/distillation.py): KD loss, shards, trainer
+- [gpbacay_arcane/qwen_vocab.py](../gpbacay_arcane/qwen_vocab.py): vocabulary adapter
+- [gpbacay_arcane/mechanisms.py](../gpbacay_arcane/mechanisms.py): chunked / single-chunk linear attention
+- [examples/dump_qwen_logits.py](../examples/dump_qwen_logits.py): teacher side
+- [examples/distill_arcane_slm.py](../examples/distill_arcane_slm.py): student side
+- [examples/serve_slm_api.py](../examples/serve_slm_api.py): chat backend
 - [tests/test_distillation.py](../tests/test_distillation.py), [tests/test_qwen_vocab.py](../tests/test_qwen_vocab.py)

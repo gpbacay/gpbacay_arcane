@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Starts the Arcane docs site with the FlyWire connectome API (Python FastAPI).
  *
