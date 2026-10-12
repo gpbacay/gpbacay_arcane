@@ -20,12 +20,19 @@ from gpbacay_arcane.layers import (
     DenseGSER,
     LatentTemporalCoherence,
     HebbianHomeostaticNeuroplasticity,
+    HierarchicalHomeostaticController,
     PositionalEncodingLayer,
 )
 from gpbacay_arcane.mechanisms import (
     GSER,
     MultiheadLinearSelfAttentionKernalization,
 )
+from gpbacay_arcane.resonance import (
+    attach_resonance_probe,
+    run_per_example_resonance,
+    train_feedback_step,
+)
+from gpbacay_arcane.test_time_adaptation import adapt_at_inference
 
 
 class NeuromimeticSemanticModel:
@@ -43,7 +50,16 @@ class NeuromimeticSemanticModel:
     bridging neuroscience and artificial intelligence for comprehensive semantic engineering.
     """
     
-    def __init__(self, vocab_size, seq_len=16, embed_dim=32, hidden_dim=64):
+    def __init__(
+        self,
+        vocab_size,
+        seq_len=16,
+        embed_dim=32,
+        hidden_dim=64,
+        enable_inference_plasticity=False,
+        use_hierarchical_homeostasis=False,
+        homeostasis_config=None,
+    ):
         """
         Initialize the neuromimetic semantic model.
         
@@ -57,6 +73,9 @@ class NeuromimeticSemanticModel:
         self.seq_len = seq_len
         self.embed_dim = embed_dim
         self.hidden_dim = hidden_dim
+        self.enable_inference_plasticity = bool(enable_inference_plasticity)
+        self.use_hierarchical_homeostasis = bool(use_hierarchical_homeostasis)
+        self.homeostasis_config = dict(homeostasis_config or {})
         self.model = None
 
     def build_model(self):
@@ -105,6 +124,20 @@ class NeuromimeticSemanticModel:
             
             # Store resonant layer objects for inference-time resonance
             self.resonant_layer_objects = [resonant_layer_1, resonant_layer_2]
+            self.resonant_layers = [gser1, gser2]
+
+            resonance_signal = None
+            target_signal = None
+            gser2_effective = gser2
+            if self.use_hierarchical_homeostasis:
+                controlled = HierarchicalHomeostaticController(
+                    target_activity=self.homeostasis_config.get("target_avg", 0.11),
+                    regulation_rate=self.homeostasis_config.get("hierarchical_rate", 0.1),
+                    level_target_slope=self.homeostasis_config.get("hierarchy_target_slope", 0.0),
+                    adaptive_target_rate=self.homeostasis_config.get("hierarchy_adaptive_rate", 0.1),
+                    name="hierarchical_homeostasis",
+                )([gser1, gser2])
+                _, gser2_effective, resonance_signal, target_signal = controlled
             
             # LSTM for sequential temporal processing
             lstm_out = LSTM(
@@ -113,25 +146,47 @@ class NeuromimeticSemanticModel:
                 dropout=0.2,
                 recurrent_dropout=0.1,
                 name='lstm_temporal'
-            )(gser2)
+            )(gser2_effective)
             
             # Multiple pooling strategies for feature extraction
             avg_pool = GlobalAveragePooling1D(name='avg_pool')(lstm_out)
-            gser2_pool = GlobalAveragePooling1D(name='gser2_pool')(gser2)
+            gser2_pool = GlobalAveragePooling1D(name='gser2_pool')(gser2_effective)
             
             # Feature fusion from multiple neural pathways
             combined = Concatenate(name='feature_fusion')([avg_pool, gser2_pool])
             
             # BioplasticDenseLayer - Hebbian learning and homeostatic plasticity
-            bioplastic = BioplasticDenseLayer(
+            bioplastic_kwargs = {
+                "learning_rate": 1.5e-3,
+                "target_avg": 0.11,
+                "homeostatic_rate": 8e-5,
+                "activation": "gelu",
+                "dropout_rate": 0.12,
+            }
+            if self.enable_inference_plasticity:
+                bioplastic_kwargs.update({
+                    "homeostasis_mode": "hybrid",
+                    "homeostatic_window_size": 16,
+                    "slow_bcm_tau": 4000.0,
+                    "adaptive_target_rate": 0.05,
+                    "resonance_coupling": 0.5,
+                })
+            bioplastic_kwargs.update(self.homeostasis_config)
+            for key in (
+                "hierarchical_rate", "hierarchy_adaptive_rate"
+            ):
+                bioplastic_kwargs.pop(key, None)
+            bioplastic_layer = BioplasticDenseLayer(
                 units=self.hidden_dim * 2,  # Match combined features dimension
-                learning_rate=1.5e-3,
-                target_avg=0.11,
-                homeostatic_rate=8e-5,
-                activation='gelu',
-                dropout_rate=0.12,
-                name='bioplastic_main'
-            )(combined)
+                enable_inference_plasticity=self.enable_inference_plasticity,
+                name='bioplastic_main',
+                **bioplastic_kwargs,
+            )
+            bioplastic = bioplastic_layer(
+                combined,
+                resonance_signal=resonance_signal,
+                target_signal=target_signal,
+            )
             
             # Additional dense processing layer
             dense_hidden = Dense(
@@ -154,6 +209,7 @@ class NeuromimeticSemanticModel:
                 outputs=outputs,
                 name='neuromimetic_semantic_foundation_model'
             )
+            attach_resonance_probe(self, inputs, outputs, self.resonant_layers)
         
         return self.model
     
@@ -258,85 +314,89 @@ class NeuromimeticSemanticModel:
         
         return " ".join(generated_words)
     
-    def run_resonance_cycle(self, num_cycles=1, use_parallel=True):
+    def reset_resonance_state(self, clear_prototypes=True):
+        """Clear transient resonance state so separate requests are independent."""
+        if not hasattr(self, 'resonant_layer_objects'):
+            raise ValueError("Model must be built before resetting resonance state")
+        for layer in self.resonant_layer_objects:
+            layer.cell.resonance_alignment.assign(
+                tf.zeros_like(layer.cell.resonance_alignment)
+            )
+            layer.cell.alignment_set.assign(0.0)
+            layer.cell.global_divergence.assign(0.0)
+            if clear_prototypes:
+                layer.cell.last_h.assign(tf.zeros_like(layer.cell.last_h))
+
+    def _project_and_harmonize(self):
+        projections = {
+            i - 1: self.resonant_layer_objects[i].project_feedback()
+            for i in range(len(self.resonant_layer_objects) - 1, 0, -1)
+        }
+        for i, layer in enumerate(self.resonant_layer_objects):
+            if i in projections:
+                layer.harmonize_states(projections[i])
+
+    def _hierarchy_divergence(self):
+        """Fresh mismatch between this pass's lower states and top-down projections."""
+        total = 0.0
+        for i in range(1, len(self.resonant_layer_objects)):
+            projection = self.resonant_layer_objects[i].project_feedback()
+            projection = tf.reduce_mean(projection, axis=0)
+            lower_state = self.resonant_layer_objects[i - 1].cell.last_h
+            total += float(tf.reduce_mean(tf.square(lower_state - projection)).numpy())
+        return total
+
+    def run_resonance_cycle(
+        self, num_cycles=1, use_parallel=True, inputs=None, reset_state=True
+    ):
         """
         Execute resonance cycles across the resonant layers for inference-time alignment.
         
-        The implementation uses parallelization within each phase:
-        - All projections are computed simultaneously (parallel)
-        - All harmonizations are applied simultaneously (parallel)
-        - All divergence computations run in parallel
+        When ``inputs`` is provided, a forward initialization on the current
+        batch is followed by project -> harmonize -> forward refinement cycles.
         
         Args:
             num_cycles: Number of resonance cycles to run
-            use_parallel: Whether to use parallelized operations (default: True)
+            use_parallel: Retained for backwards compatibility.
+            inputs: Current batch to refine. Without it, only one target is
+                staged from the most recently cached states.
+            reset_state: Clear state inherited from earlier requests.
         
         Returns:
             List of divergence values for each cycle
         """
-        if not hasattr(self, 'resonant_layer_objects'):
-            raise ValueError("Model must be built before running resonance cycles")
-        
-        # Store model reference in layers
-        for layer in self.resonant_layer_objects:
-            layer._model = self.model
-        
-        divergences = []
-        
-        for cycle in range(num_cycles):
-            # Step A: Project (Top-Down) - PARALLELIZED
-            # All layers can compute projections simultaneously since they're independent.
-            # We collect all projection operations first, then TensorFlow executes them in parallel
-            # when they're part of the same computation graph.
-            projections = {}
-            
-            # Collect all projection operations (independent operations that can run in parallel)
-            projection_pairs = [
-                (i - 1, self.resonant_layer_objects[i].project_feedback())
-                for i in range(len(self.resonant_layer_objects) - 1, 0, -1)
-            ]
-            
-            # Execute projections - TensorFlow will parallelize independent operations
-            # when they're in eager mode or part of a tf.function graph
-            for idx, proj_tensor in projection_pairs:
-                projections[idx] = proj_tensor
-            
-            # Step B: Harmonize (Bottom-Up) - PARALLELIZED
-            # All harmonizations can be applied simultaneously since they're independent.
-            # Each layer only modifies its own resonance_alignment variable.
-            harmonization_pairs = [
-                (layer, projections[i])
-                for i, layer in enumerate(self.resonant_layer_objects)
-                if i in projections
-            ]
-            
-            # Execute all harmonizations - operations are independent and can run in parallel
-            for layer, proj in harmonization_pairs:
-                layer.harmonize_states(proj)
-            
-            # Step C: Check Convergence - PARALLELIZED divergence computation
-            # All divergence computations are independent and can run in parallel
-            divergence_values = [layer.get_divergence() for layer in self.resonant_layer_objects]
-            cycle_divergence = sum(divergence_values)
-            divergences.append(float(cycle_divergence))
-            
-            # Early stopping if converged
-            if cycle_divergence < self.resonant_layer_objects[0].cell.convergence_epsilon:
-                break
-        
-        return divergences
+        del use_parallel
+        if inputs is None:
+            if num_cycles < 1:
+                raise ValueError("num_cycles must be at least 1 without current inputs")
+            self._project_and_harmonize()
+            return [float(sum(layer.get_divergence() for layer in self.resonant_layer_objects))]
+        return run_per_example_resonance(
+            self, inputs, num_cycles=num_cycles, reset_state=reset_state
+        )
+
+    def train_feedback_step(self, inputs, labels=None, **kwargs):
+        """Train task weights and feedback projections through reconstruction."""
+        return train_feedback_step(self, inputs, labels=labels, **kwargs)
+
+    def adapt_at_inference(self, inputs, **kwargs):
+        """Run bounded objective-driven adaptation with episodic reset by default."""
+        return adapt_at_inference(self, inputs, **kwargs)
     
-    def predict_with_resonance(self, inputs, resonance_cycles=5, verbose=0):
+    def predict_with_resonance(
+        self, inputs, resonance_cycles=5, verbose=0, reset_state=True
+    ):
         """
         Perform prediction with inference-time resonance cycles.
         
-        This method runs resonance cycles before prediction to align the hierarchical
-        states, enabling deliberative reasoning at inference time.
+        Initialize from the current input, then alternate top-down projection
+        and a fresh forward refinement of that same input.
         
         Args:
             inputs: Input data (numpy array or tensor)
             resonance_cycles: Number of resonance cycles to run before prediction
             verbose: Verbosity level (0 or 1)
+            reset_state: Keep requests independent unless explicitly disabled.
         
         Returns:
             Model predictions after resonance alignment
@@ -347,15 +407,24 @@ class NeuromimeticSemanticModel:
         if verbose > 0:
             print(f"Running {resonance_cycles} resonance cycles for inference-time alignment...")
         
-        # Run resonance cycles to align hierarchical states
-        divergences = self.run_resonance_cycle(num_cycles=resonance_cycles)
+        divergences = self.run_resonance_cycle(
+            num_cycles=resonance_cycles,
+            inputs=inputs,
+            reset_state=reset_state,
+        )
         
         if verbose > 0:
-            print(f"Resonance converged. Final divergence: {divergences[-1]:.6f}")
+            best = self.last_resonance_best_cycle
+            if best:
+                print(
+                    f"Resonance finished. Best divergence: "
+                    f"{divergences[best - 1]:.6f} (cycle {best})"
+                )
+            else:
+                print("Resonance disabled (0 cycles).")
         
-        # Perform prediction with aligned states
-        predictions = self.model.predict(inputs, verbose=verbose)
-        return predictions
+        predictions = self._last_resonance_predictions
+        return predictions.numpy() if hasattr(predictions, "numpy") else predictions
     
     def get_model_info(self):
         """Get information about the neuromimetic model architecture."""
@@ -374,7 +443,12 @@ class NeuromimeticSemanticModel:
                 "sequence_length": self.seq_len,
                 "embedding_dim": self.embed_dim,
                 "hidden_dim": self.hidden_dim
-            }
+            },
+            "homeostasis": {
+                "inference_plasticity": self.enable_inference_plasticity,
+                "hierarchical": self.use_hierarchical_homeostasis,
+                "config": self.homeostasis_config,
+            },
         }
 
 

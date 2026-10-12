@@ -1,10 +1,14 @@
-# Closing the Alignment Gap: The Resonant State Alignment Algorithm (RSAA) for Deliberative Intelligence
+# Closing the Alignment Gap: The Resonant State Alignment Algorithm (RSAA)
 
 Gianne P. Bacay [ARCANE Research. Email: giannebacay2004@gmail.com]
 
 ## Abstract
 
-Traditional feed-forward architectures suffer from a fundamental limitation: information flows in one direction, preventing lower layers from revising their representations based on higher-level context. This creates an **Alignment Gap** between local feature extraction and global semantic coherence. Backpropagation addresses this only retrospectively, adjusting weights *after* errors propagate to the output, but it cannot refine internal states in real-time before a response is committed. To solve this problem, I developed the **Resonant State Alignment Algorithm (RSAA)**, which closes this gap by enabling hierarchical systems to achieve internal coherence *prospectively* through iterative bi-directional state refinement. RSAA decouples state alignment from weight modification: layers first "resonate" to reach mutual consistency through **Inference-Time State Adaptation**, then optionally update weights based on the aligned states. This is the first formalization of a deliberative alignment mechanism, providing a rigorous mathematical basis for **Inference-Time Learning**. The algorithm is substrate-agnostic, applying beyond neural networks to quantum variational circuits, cybernetic control systems, and multi-agent coordination.
+The **Resonant State Alignment Algorithm (RSAA)** is ARCANE's formulation for iterative bidirectional state refinement in a hierarchy. Higher levels project targets downward, lower states move toward those targets, and the current input is evaluated again. The implemented inference path keeps learned weights fixed and carries a separate target for every example. Weight adaptation is provided by a distinct objective-driven adapter with bounded updates, rollback, and reset semantics. Convergence is guaranteed only for the fixed-projection smoothing update described below; it does not prove that a complete nonlinear network converges or that reduced alignment divergence improves task performance.
+
+## Implementation status
+
+ARCANE 4.1 implements per-example resonance state, differentiable feedback projections, optional objective-driven test-time adaptation, and a same-checkpoint ablation harness. The legacy training callback uses a previous-batch mean prototype and should not be treated as the current-input RSAA loop. Claims about deliberative intelligence, cross-domain substrate generality, reasoning, or performance are hypotheses outside the guarantees in this note.
 
 ---
 
@@ -22,28 +26,24 @@ For biological neural systems, the neocortex is organized into a hierarchy where
 
 ### 1.1 Main Results
 
-In this paper, I present the Resonant State Alignment Algorithm (RSAA), a formal algorithm for closing the Alignment Gap through iterative state refinement, enabling deliberative intelligence in hierarchical systems.
+This note presents RSAA as a formal state-smoothing algorithm and documents how the restricted update relates to ARCANE's implementation.
 
 **Theorem 1.1.** *There exists a deterministic algorithm that takes $O(N \cdot L)$ time to achieve Prospective Configuration in a hierarchy $\mathcal{H}$ of $L$ layers, where $N$ is the number of resonance cycles. The algorithm operates solely on internal state activations $\{S_1, \dots, S_L\}$ without modifying synaptic weights $W$.*
 
-Note that the algorithm is substrate-agnostic; it applies equally to artificial neural networks, quantum variational circuits, cybernetic control systems, and multi-agent coordination mechanisms.
+The theorem counts projection and harmonization steps abstractly. It does not establish applicability or usefulness in domains beyond the implemented neural-network hierarchy.
 
 ### 1.2 Technical Overview
 
 Broadly speaking, there are two traditional paradigms for neural computation:
 
-- **Feed-Forward Inference**: Information flows from input to output in a single pass. This is computationally efficient but lacks deliberative capacity.
-- **Backpropagation Learning**: A global error signal propagates backward to adjust weights. This is effective for learning but does not refine activations in real-time.
+- **Feed-Forward Inference**: Information flows from input to output in a single pass.
+- **Backpropagation Learning**: A global error signal propagates backward to adjust weights.
 
 My approach merges these two paradigms through a **Resonance Loop** technique. At any point during the execution of RSAA, each layer maintains a "state" $S_i$ that represents its current interpretation of the input. A higher layer $i$ can "project" its expectation $P_{i \to i-1}$ to the layer below, and the lower layer $i-1$ can "harmonize" its state to reduce the divergence $\Delta_{i-1} = S_{i-1} - P_{i \to i-1}$.
 
-The key insight is that by iterating this projection-harmonization cycle $N$ times *before* any weight update or output commitment, the hierarchy reaches an equilibrium state where all layers are mutually consistent. I call this equilibrium **Resonance**.
+Iterating this projection-harmonization cycle reduces divergence when projections are fixed. In the full model, projections and recurrent states can change after each forward evaluation, so reaching an equilibrium is an empirical property rather than a theorem.
 
-My most essential idea is the separation of **state alignment** from **weight modification**. Traditional learning conflates these two processes: the only way to reduce error is to change weights. RSAA decouples them: states are first aligned (Prospective Configuration), and only then are weights optionally updated based on the aligned states. This yields several benefits:
-
-- **Stability**: Local corrections prevent gradient explosion/vanishing.
-- **Deliberation**: The system can "think" before committing to an output.
-- **Biological Plausibility**: The mechanism mirrors neocortical feedback loops.
+The central engineering distinction is between **state alignment** and **weight modification**. RSAA refines states with fixed learned weights. ARCANE's separate test-time adapter can optionally modify selected variables against an explicit objective. Keeping the paths separate makes state divergence, objective change, weight drift, and forgetting measurable independently; it does not by itself prevent gradient pathologies or establish cognitive or biological equivalence.
 
 ---
 
@@ -58,9 +58,9 @@ My most essential idea is the separation of **state alignment** from **weight mo
 
 $$ P_{i \to i-1} = f_{proj}^{(i)}(S_i; W_{i, proj}) $$
 
-In the ARCANE implementation, this is typically the matrix transpose of the input weights:
+In the ARCANE implementation, hidden-space feedback uses a trainable projection kernel; an additional feedback matrix can reconstruct the cell input space:
 
-$$ P_{i \to i-1} = S_i \cdot W_i^T $$
+$$ P_{i \to i-1} = S_i \cdot W_{proj} $$
 
 **Definition 2.3 (Prediction Divergence).** The Prediction Divergence at layer $i-1$ is the signed difference between its current state and the expectation projected from above:
 
@@ -131,14 +131,14 @@ Output: Aligned states {S_1, ..., S_L}
 
 ## 4. Substrate Agnosticism
 
-A key property of RSAA is that it operates on abstract principles (state-space negotiation, local correction dynamics, stability-driven refinement) rather than assumptions unique to artificial neural networks.
+The update can be written for any compatible vector state and projection. Transfer to another computational substrate would require a separate implementation and evaluation.
 
 **Corollary 4.1.** *RSAA can be instantiated in any system $\mathcal{S}$ that satisfies:*
 1. *$\mathcal{S}$ maintains adjustable internal states $\{S_i\}$.*
 2. *$\mathcal{S}$ supports a projection operation between state levels.*
 3. *$\mathcal{S}$ supports an additive update operation on states.*
 
-This includes:
+Possible research directions include:
 - **Quantum Computing**: Variational state stabilization in VQE/QAOA circuits.
 - **Cybernetics**: Maintaining equilibrium in feedback-rich physical systems.
 - **Multi-Agent Systems**: Achieving collective agreement through decentralized resonance.
@@ -148,7 +148,7 @@ This includes:
 
 ## 5. Conclusion
 
-The Resonant State Alignment Algorithm (RSAA) closes the Alignment Gap by providing a rigorous mathematical basis for deliberative intelligence. By treating alignment as a dynamic convergence process rather than a static mapping, RSAA allows computational systems to achieve internal coherence before committing to an output. The decoupling of state alignment from weight modification represents a paradigm shift from purely retrospective learning toward prospective, self-modeling computation. This work demonstrates that deliberative intelligence, the capacity to "think" before responding, can be formally achieved through iterative resonant state refinement.
+RSAA provides a concrete recurrent state-refinement rule and a measurable divergence signal. ARCANE's current implementation strengthens the experimental basis with per-example targets, trained feedback maps, reversible objective-driven adaptation, and controlled ablations. Whether these mechanisms improve prediction quality remains a task- and checkpoint-dependent empirical question.
 
 ---
 
@@ -160,4 +160,3 @@ The Resonant State Alignment Algorithm (RSAA) closes the Alignment Gap by provid
 - [PC21] Millidge, B., Tschantz, A., & Buckley, C. L. (2021). Predictive Coding Approximates Backprop along Arbitrary Computation Graphs. *Neural Computation*, 34(6), 1329-1368.
 - [HEB49] Hebb, D. O. (1949). *The Organization of Behavior*. Wiley.
 - [BP86] Rumelhart, D. E., Hinton, G. E., & Williams, R. J. (1986). Learning representations by back-propagating errors. *Nature*, 323(6088), 533-536.
-

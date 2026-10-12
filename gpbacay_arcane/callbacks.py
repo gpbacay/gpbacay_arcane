@@ -3,10 +3,10 @@ from tensorflow.keras.callbacks import Callback
 
 class NeuralResonanceCallback(Callback):
     """
-    Orchestrates Neural Resonance cycles within the ARCANE architecture, enabling
-    Latent Space Reasoning and Direct Semantic Optimization. It performs multiple 'Resonance Cycles'
-    to align internal states across the semantic hierarchy, fostering a Unified Multi-Modal Semantic Space
-    and enhancing the Abstraction of Surface-Level Conceptual Variability before synaptic weights are modified.
+    Stages a top-down prototype from the previous completed batch before the
+    next optimizer step. Keras callbacks do not receive the current batch input,
+    so this is state carry-over, not the full current-input RSAA inner loop used
+    by ``predict_with_resonance``.
     """
     def __init__(self, resonance_cycles=5, learning_rate=0.01, resonant_layers=None):
         super(NeuralResonanceCallback, self).__init__()
@@ -35,37 +35,15 @@ class NeuralResonanceCallback(Callback):
         if not resonant_layers:
             return
 
-        # Resonance Cycle: Prospective State Alignment (PARALLELIZED)
-        for _ in range(self.resonance_cycles):
-            # 1. Emit feedback projections from higher layers - PARALLELIZED
-            # All layers can compute projections simultaneously since they're independent.
-            # We collect all projection operations first, then TensorFlow executes them in parallel
-            # when they're part of the same computation graph.
-            projections = {}
-            
-            # Collect all projection operations (independent operations that can run in parallel)
-            projection_pairs = [
-                (i - 1, resonant_layers[i].project_feedback())
-                for i in range(len(resonant_layers) - 1, 0, -1)
-            ]
-            
-            # Execute projections - TensorFlow will parallelize independent operations
-            # when they're in eager mode or part of a tf.function graph
-            for idx, proj_tensor in projection_pairs:
-                projections[idx] = proj_tensor
-
-            # 2. Harmonize internal states based on projections - PARALLELIZED
-            # All harmonizations can be applied simultaneously since they're independent.
-            # Each layer only modifies its own resonance_alignment variable.
-            harmonization_pairs = [
-                (layer, projections[i])
-                for i, layer in enumerate(resonant_layers)
-                if i in projections
-            ]
-            
-            # Execute all harmonizations - operations are independent and can run in parallel
-            for layer, proj in harmonization_pairs:
-                layer.harmonize_states(proj)
+        # Repeating assignments without a current-batch forward pass is
+        # redundant, so stage the carry-over target once.
+        projections = {
+            i - 1: resonant_layers[i].project_feedback()
+            for i in range(len(resonant_layers) - 1, 0, -1)
+        }
+        for i, layer in enumerate(resonant_layers):
+            if i in projections:
+                layer.harmonize_states(projections[i])
 
 
 class DynamicSelfModelingReservoirCallback(Callback):

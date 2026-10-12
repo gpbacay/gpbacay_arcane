@@ -2,7 +2,7 @@
 
 ## Overview
 
-In the ARCANE framework, activation functions are not merely static mathematical non-linearities. They are designed to mirror the dynamic and adaptive nature of biological neurons. While standard AI models use functions like ReLU or GELU to provide differentiability, ARCANE introduces **Neuromimetic Activations** that incorporate **Inference-Time State Adaptation**, **Spiking Dynamics**, and **Homeostatic Regulation**.
+ARCANE provides stateful activation functions inspired by leaky integration, spiking dynamics, and homeostatic regulation. The names describe computational inspiration rather than biological equivalence or verified cognitive behavior.
 
 ---
 
@@ -33,7 +33,7 @@ $$V(t) = V_{res}(t) - S(t) \cdot \theta$$
 Where $\theta$ is the firing threshold. The **forward** pass is this hard threshold. The **backward** pass uses a straight-through estimator (STE): a sigmoid with slope `sharpness` so spike outputs can train. Without STE, $\partial S / \partial V$ is zero almost everywhere.
 
 ### 2. Homeostatic Activity Scaling
-The `homeostatic_gelu` implements **Synaptic Scaling**, a mechanism observed in the neocortex to maintain firing rates within an optimal information-theoretic range. The gain $G$ of the activation is regulated by:
+The `homeostatic_gelu` implements a synaptic-scaling-inspired gain that moves activity toward a configured target. The gain $G$ is regulated by:
 
 $$G(t) = \mathrm{clip}\bigl(1 + \eta \cdot (A_{target} - \bar{A}),\; 0.1,\; 10\bigr)$$
 
@@ -48,24 +48,24 @@ $$y = \text{GELU}(x \cdot G(t))$$
 
 ---
 
-## The Argument for Neuromimetic Activations
+## Scope and Trade-offs
 
-### Why Standard Activations are Insufficient
-Standard activations like ReLU or GELU are **memoryless mappings**. They treat every input in isolation and have no capacity for "deliberation." In deep hierarchies, this leads to a "System 1" reactive loop where the model is forced to commit to a feature representation before it has resolved potential ambiguities with higher-level context.
+### Stateful versus memoryless mappings
+Standard activations such as ReLU and GELU are memoryless. ARCANE's stateful wrappers can integrate activity across calls or accept an external resonance factor. This adds state-management cost and does not imply deliberation or superior task performance.
 
-### The Deliberative Advantage
-Neuromimetic activations transform the unit from a passive gate into an **active agent**. By integrating **Inference-Time State Adaptation**, these functions provide three critical advantages:
+### Implemented behavior
+The activation functions provide three directly testable behaviors:
 
-1.  **Temporal Coherence**: By maintaining a membrane potential ($V$), the neuron can integrate evidence over multiple time steps, naturally filtering out high-frequency noise that standard "static" models often succumb to.
-2.  **Deliberative Thresholding**: The spiking mechanism ensures that "weak" or "ambiguous" signals are suppressed until hierarchical resonance provides enough gain to push the potential past the threshold. This creates a natural "Thinking Phase" at the per-neuron level.
-3.  **Structural Stability through Homeostasis**: Traditional deep networks suffer from "dead neurons" (dying ReLU) or "exploding activations." ARCANE’s homeostatic gain ensures that every neuron stays in its responsive "sweet spot," maximizing the entropy and information capacity of the semantic space.
+1.  **Leaky integration**: a membrane variable carries a decayed contribution from its previous value.
+2.  **Thresholded output with gradients**: the forward pass is discrete while the backward pass uses a straight-through estimator.
+3.  **Bounded homeostatic gain**: activity history adjusts gain within configured limits. It does not guarantee maximum entropy or eliminate dead or exploding units.
 
 ---
 
 ## Available Activations
 
 ### 1. Resonant Spiking Activation (RSA)
-Mimics a biological neuron's membrane potential with top-down modulation.
+Implements a leaky integrate-and-fire-style state with top-down modulation.
 **Usage:**
 ```python
 spikes, new_state = resonant_spike(inputs, current_state, threshold=0.5, leak_rate=0.1, resonance_factor=0.2)
@@ -105,13 +105,13 @@ spikes = layer(inputs, resonance_factor=0.2)
 
 ## Validation and Performance
 
-The neuromimetic activations in ARCANE have been rigorously validated through unit tests and behavioral analysis.
+The activation implementations are covered by unit tests for their stated numerical behavior.
 
 ### 1. Resonance Convergence
-In testing, the `resonant_spike` function demonstrated perfect convergence with hierarchical signals:
+The `resonant_spike` tests verify threshold crossing and reset behavior:
 - **Baseline Potential**: 0.8 (Threshold: 1.0) -> No spike.
 - **Resonant Potential**: 1.2 (via $\rho = 0.5$) -> Successful spike.
-- **State Reset**: Potential consistently resets by exactly $\theta$ after firing, maintaining biological energy constraints.
+- **State Reset**: Potential resets by exactly $\theta$ after firing.
 
 ### 2. Homeostatic Stability
 The `homeostatic_gelu` function successfully demonstrates self-tuning gain:
@@ -142,4 +142,4 @@ python -m pytest tests/test_activations.py tests/test_mechanism_correctness.py -
 
 ---
 
-*This module is part of the ARCANE v3.0.0 semantic engineering library.*
+*This page documents the activation behavior shipped with ARCANE v4.1.0.*

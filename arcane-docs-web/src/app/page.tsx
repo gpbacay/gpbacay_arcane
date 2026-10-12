@@ -61,7 +61,7 @@ export default function Home() {
 
           <main className="z-10 flex flex-col items-center text-center px-4 animate-in fade-in zoom-in duration-1000 max-w-4xl">
             <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-white/40 mb-10 drop-shadow-2xl max-w-3xl leading-[1.1]">
-              The world&apos;s first neuromimetic semantic foundation model library
+              Experimental adaptive inference and neuromimetic model components
             </h1>
             
             <div className="flex flex-col items-center gap-6 mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">

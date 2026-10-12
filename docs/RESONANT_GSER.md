@@ -2,7 +2,7 @@
 
 ## Overview
 
-ResonantGSER (Resonant Gated Spiking Elastic Reservoir) is the core mechanism implementing **Hierarchical Neural Resonance** in the ARCANE (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) framework. This biologically-inspired mechanism enables **Inference-Time Learning** and **Inference-Time State Adaptation**, allowing multi-layered neural systems to iteratively synchronize their internal semantic representations through continuous feedback loops and state alignment, addressing fundamental limitations in traditional neural architectures.
+ResonantGSER (Resonant Gated Spiking Elastic Reservoir) is ARCANE's recurrent layer for hierarchical state refinement. The current-input inference path uses explicit per-example top-down targets and keeps learned weights fixed. Separate APIs train feedback projections or perform bounded objective-driven test-time weight adaptation.
 
 ## Biological Inspiration
 
@@ -15,19 +15,19 @@ The brain constantly generates predictions about sensory inputs and compares the
 Cortical processing occurs across multiple hierarchical levels, with higher areas providing contextual expectations that modulate lower-level processing.
 
 ### Adaptive Resonance Theory (ART)
-Neural systems maintain plasticity while preserving stability through resonance-based learning, allowing adaptation to new information without catastrophic forgetting.
+Adaptive Resonance Theory motivates the stability/plasticity framing. ARCANE does not claim that ResonantGSER prevents catastrophic forgetting; forgetting must be measured experimentally.
 
 ### Bi-directional Cortical Communication
 The neocortex features extensive feedback connections that are as numerous as feedforward connections, enabling top-down contextual influence.
 
 ## Core Concept
 
-ResonantGSER implements a **"Thinking Phase"** where neural representations are iteratively refined before final outputs are produced. Instead of single-pass feedforward processing, the system engages in multiple cycles of internal communication:
+ResonantGSER supports an explicit refinement phase before final predictions are returned. Instead of a single evaluation, the wrapper can run multiple cycles on the same current input:
 
 1. **Feedforward Pass**: Initial processing through hierarchical layers
 2. **Resonance Cycles**: Iterative feedback and harmonization
 3. **State Alignment**: Layers synchronize representations
-4. **Semantic Optimization**: Direct optimization of latent space meanings
+4. **Cycle Selection**: Return predictions from the lowest-divergence observed cycle
 
 ## Mathematical Formulation
 
@@ -47,7 +47,7 @@ The cell evaluates this closed form rather than an unrolled Python loop. If no a
 
 `project_feedback(state)` maps within hidden space (`projection_kernel`). `project_feedback(state, to_input_space=True)` uses `feedback_weights` to reconstruct the cell's input dim.
 
-**Scope:** `resonance_alignment` is a single vector of shape `(units,)`, typically the mean of the previous batch's hidden state. This is a prototype / attractor, not a per-example top-down code. Per-example alignment lives in `PredictiveResonantLayer`.
+**Scope:** `predict_with_resonance` extracts one state per example and carries ephemeral targets of shape `(batch, units)` through each refinement call. `resonance_alignment` and `last_h` remain batch-mean compatibility summaries for legacy manual/callback APIs; the explicit inference loop does not read those summaries.
 
 ### Resonance Cycle (callback / `run_resonance_cycle`)
 
@@ -61,7 +61,7 @@ $$
 \end{aligned}
 $$
 
-`NeuralResonanceCallback` runs this on `on_train_batch_begin`, so it uses the **previous** batch prototype. A true inner-loop RSAA step would re-run the stack on the current batch (custom `train_step`).
+`predict_with_resonance` performs a forward initialization and re-runs the current input after every harmonization step. `NeuralResonanceCallback`, by contrast, runs on `on_train_batch_begin`, so it can only stage the **previous** batch prototype; it is not a full current-batch RSAA inner loop.
 
 Where:
 - $S_i$: Semantic representation at layer $i$
@@ -108,7 +108,7 @@ cell = ResonantGSERCell(
 - **Resonance Gate**: Learned modulation of resonance strength
 - **Projection kernel**: Hidden-space top-down map used by `project_feedback()`
 - **Feedback weights**: Input-space reconstruction via `project_feedback(..., to_input_space=True)`
-- **State Tracking**: `last_h` is a slow EMA of the batch mean, used as a prototype for the next callback cycle
+- **State Tracking**: the probe exposes per-example sequence means; `last_h` is only their compatibility summary
 
 ### ResonantGSER Layer
 
@@ -253,35 +253,28 @@ The test suite generates detailed visualizations showing:
 
 The closed-form step is a smoother, not an inner optimizer. Do not treat Tiny Shakespeare or MNIST deltas as evidence of System-2 reasoning.
 
-### Enhanced Capabilities
+### Implemented capabilities
 
-1. **Latent Space Reasoning**: Directly optimizes semantic representations
-2. **Direct Semantic Optimization**: Minimizes prediction errors locally and immediately
-3. **Unified Multi-Modal Space**: Creates coherent representations across modalities
-4. **Surface Variability Abstraction**: Focuses on essential semantic content
-
-### Biological Advantages
-
-1. **Efficient Learning**: Avoids catastrophic forgetting through resonance
-2. **Energy Efficiency**: Local error correction reduces global backpropagation costs
-3. **Robust Adaptation**: Maintains stability during concept shifts
-4. **Hierarchical Intelligence**: Supports complex reasoning through layered resonance
+1. **Per-example refinement**: top-down targets retain the batch dimension
+2. **Differentiable feedback training**: explicit reconstruction/alignment loss updates projection kernels
+3. **Bounded test-time adaptation**: objective-driven updates support rollback and episodic reset
+4. **Controlled evaluation**: the ablation harness measures quality, calibration, latency, forgetting, order, batching, and shift
 
 ## Usage Guidelines
 
 ### Architecture Design
 
-1. **Layer Hierarchy**: Design 3-5 layer hierarchies for optimal resonance
-2. **Parameter Tuning**: Start with `resonance_factor=0.2`, adjust based on convergence
-3. **Cycle Count**: Balance 3-5 cycles for most applications
+1. **Layer Hierarchy**: Treat hierarchy depth as an experimental variable
+2. **Parameter Tuning**: Start with `resonance_factor=0.2`, then evaluate downstream metrics
+3. **Cycle Count**: Compare 0, 1, 2, 4, and 8 cycles from the same checkpoint
 4. **Integration Points**: Use in intermediate layers for semantic processing
 
 ### Training Considerations
 
-1. **Callback Integration**: Always use `NeuralResonanceCallback` during training
+1. **Feedback Training**: Use `train_feedback_step` when learned feedback projections should receive an explicit alignment gradient; retain the callback only for legacy previous-batch experiments
 2. **Learning Rate**: Coordinate with overall model learning rate
-3. **Batch Size**: Smaller batches (4-16) work better for resonance
-4. **Sequence Length**: Moderate lengths (16-64) for optimal temporal processing
+3. **Batch Size**: Per-example targets should be invariant to co-batching; measure this with the ablation harness because floating-point kernels can still introduce tiny numerical differences
+4. **Sequence Length**: Profile latency and memory at the lengths required by the task
 
 ### Performance Optimization
 
@@ -291,13 +284,13 @@ The closed-form step is a smoother, not an inner optimizer. Do not treat Tiny Sh
 
 ## What this mechanism is not
 
-ResonantGSER does **not** re-run the network on the current batch inside `NeuralResonanceCallback`. Alignment is a `(units,)` prototype. Claims of System-2 reasoning, multi-modal unification, or large gains in continual learning are hypotheses, not results of the unit tests.
+ResonantGSER does **not** re-run the network on the current batch inside `NeuralResonanceCallback`; that legacy callback still stages a batch-mean prototype. `predict_with_resonance` is the per-example current-input path. Claims of System-2 reasoning, multi-modal unification, or task gains are hypotheses, not results of the unit tests.
 
 ## Future work
 
-1. Custom `train_step` that re-forwards the current batch after each projection.
-2. Per-example top-down targets (already closer in `PredictiveResonantLayer`).
-3. Graph-safe `GSER.prune_neurons` (still a Python swap-remove).
+1. Evaluate whether lower reconstruction error predicts better downstream metrics.
+2. Compare learned, tied, and identity feedback projections.
+3. Make `GSER.prune_neurons` graph-safe; it still uses a Python swap-remove.
 
 ## References
 

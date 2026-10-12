@@ -172,7 +172,8 @@ class ResonantGSER(tf.keras.layers.RNN):
         Top-Down Projection: P_{i→i-1} = f_proj(S_i; W_i)
         
         Projects the current layer's representation down to the lower layer.
-        If no representation is provided, uses the cell's last hidden state.
+        If no representation is provided, uses the current forward pass's
+        batch prototype.
         """
         if representation is None:
             # Use the cell's tracked state
@@ -181,19 +182,39 @@ class ResonantGSER(tf.keras.layers.RNN):
         # Use the cell's projection function
         projection = self.cell.project_feedback(representation)
         return projection
+
+    def set_runtime_alignment(self, alignment):
+        """Install an ephemeral ``(batch, units)`` feedback target."""
+        self.cell.set_runtime_alignment(alignment)
+
+    def clear_runtime_alignment(self):
+        """Clear a previously installed per-example feedback target."""
+        self.cell.clear_runtime_alignment()
     
     def harmonize_states(self, projection):
         """
-        Bottom-Up Harmonization: Receive top-down projection and set alignment target.
+        Bottom-Up harmonization of the current state toward a top-down projection.
         
-        This sets the resonance_alignment which will be used in the next forward pass
-        to guide the iterative harmonization loop.
+        This is the RSAA state update ``S <- S - alpha * (S - P)``. The
+        harmonized state is stored as the target used by the next forward pass;
+        assigning ``P`` directly would skip the defined state-update equation.
         """
-        # Squeeze to match the alignment shape if needed
         if len(projection.shape) > 1:
             projection = tf.reduce_mean(projection, axis=0)
-        self.cell.resonance_alignment.assign(projection)
+        projection = tf.cast(projection, self.cell.last_h.dtype)
+        current = self.cell.last_h
+        alpha = tf.clip_by_value(
+            tf.cast(self.resonance_factor, current.dtype)
+            + tf.cast(self.cell.semantic_divergence_weight, current.dtype),
+            0.0,
+            0.99,
+        )
+        harmonized = current - alpha * (current - projection)
+        self.cell.resonance_alignment.assign(harmonized)
         self.cell.alignment_set.assign(1.0)
+        self.cell.global_divergence.assign(
+            tf.reduce_mean(tf.square(harmonized - projection))
+        )
     
     def get_divergence(self):
         """Get the current global divergence metric from the cell."""
@@ -471,6 +492,87 @@ class RelationalConceptGraphReasoning(tf.keras.layers.Layer):
         })
         return config
 
+class HierarchicalHomeostaticController(tf.keras.layers.Layer):
+    """Coordinate activity targets across a list of hierarchical tensors.
+
+    The controller computes one activity value per example and level, derives
+    an optional task-adaptive target from the hierarchy's current operating
+    point, and applies bounded per-level gains.  It also returns hierarchy
+    imbalance and target signals for downstream plastic layers.
+    """
+
+    def __init__(
+        self,
+        target_activity=0.12,
+        regulation_rate=0.1,
+        level_target_slope=0.0,
+        adaptive_target_rate=0.0,
+        target_bounds=(0.01, 1.0),
+        gain_bounds=(0.5, 2.0),
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        if not 0.0 <= adaptive_target_rate <= 1.0:
+            raise ValueError("adaptive_target_rate must be between 0 and 1")
+        if target_bounds[0] <= 0 or target_bounds[0] >= target_bounds[1]:
+            raise ValueError("target_bounds must be positive and increasing")
+        if gain_bounds[0] <= 0 or gain_bounds[0] >= gain_bounds[1]:
+            raise ValueError("gain_bounds must be positive and increasing")
+        self.target_activity = float(target_activity)
+        self.regulation_rate = float(regulation_rate)
+        self.level_target_slope = float(level_target_slope)
+        self.adaptive_target_rate = float(adaptive_target_rate)
+        self.target_bounds = tuple(float(value) for value in target_bounds)
+        self.gain_bounds = tuple(float(value) for value in gain_bounds)
+
+    def call(self, inputs):
+        if not isinstance(inputs, (list, tuple)) or len(inputs) < 2:
+            raise ValueError("HierarchicalHomeostaticController requires at least two levels")
+        activities = []
+        for tensor in inputs:
+            axes = tf.range(1, tf.rank(tensor))
+            activities.append(tf.reduce_mean(tf.abs(tensor), axis=axes))
+        activities = tf.stack(activities, axis=1)
+        hierarchy_activity = tf.reduce_mean(activities, axis=1, keepdims=True)
+        base_target = tf.cast(self.target_activity, activities.dtype)
+        adaptive_target = (
+            (1.0 - self.adaptive_target_rate) * base_target
+            + self.adaptive_target_rate * hierarchy_activity
+        )
+        adaptive_target = tf.clip_by_value(
+            adaptive_target, self.target_bounds[0], self.target_bounds[1]
+        )
+
+        level_count = len(inputs)
+        positions = tf.linspace(-1.0, 1.0, level_count)
+        target_profile = 1.0 + self.level_target_slope * positions
+        targets = adaptive_target * tf.reshape(target_profile, [1, level_count])
+        imbalance = tf.reduce_mean(tf.abs(activities - targets), axis=1, keepdims=True)
+
+        outputs = []
+        for index, tensor in enumerate(inputs):
+            gain = 1.0 + self.regulation_rate * (targets[:, index] - activities[:, index])
+            gain = tf.clip_by_value(gain, self.gain_bounds[0], self.gain_bounds[1])
+            gain_shape = tf.concat(
+                [[tf.shape(tensor)[0]], tf.ones(tf.rank(tensor) - 1, tf.int32)],
+                axis=0,
+            )
+            outputs.append(tensor * tf.reshape(tf.cast(gain, tensor.dtype), gain_shape))
+        return [*outputs, imbalance, adaptive_target]
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "target_activity": self.target_activity,
+            "regulation_rate": self.regulation_rate,
+            "level_target_slope": self.level_target_slope,
+            "adaptive_target_rate": self.adaptive_target_rate,
+            "target_bounds": self.target_bounds,
+            "gain_bounds": self.gain_bounds,
+        })
+        return config
+
+
 class BioplasticDenseLayer(tf.keras.layers.Layer):
     """
     A bioplastic dense layer incorporating Hebbian learning and homeostatic plasticity for
@@ -478,10 +580,48 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
     This layer adapts its synaptic weights based on neural activity, forming robust and
     adaptive semantic representations in the latent space.
     """
-    def __init__(self, units, learning_rate=1e-3, anti_hebbian_rate=0.1, target_avg=0.12, 
-                 homeostatic_rate=5e-5, bcm_tau=800.0, activation='gelu', normalization='l2', 
-                 dropout_rate=0.1, enable_inference_plasticity=False, **kwargs):
+    def __init__(
+        self,
+        units,
+        learning_rate=1e-3,
+        anti_hebbian_rate=0.1,
+        target_avg=0.12,
+        homeostatic_rate=5e-5,
+        bcm_tau=800.0,
+        activation='gelu',
+        normalization='l2',
+        dropout_rate=0.1,
+        enable_inference_plasticity=False,
+        homeostasis_mode="global",
+        local_homeostasis_weight=0.5,
+        homeostatic_window_size=0,
+        slow_bcm_tau=None,
+        slow_trace_weight=0.5,
+        adaptive_target_rate=0.0,
+        target_bounds=(0.01, 1.0),
+        resonance_coupling=0.0,
+        hierarchy_level=0,
+        num_hierarchy_levels=1,
+        hierarchy_target_slope=0.0,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
+        if homeostasis_mode not in {"global", "local", "hybrid"}:
+            raise ValueError("homeostasis_mode must be 'global', 'local', or 'hybrid'")
+        if not 0.0 <= local_homeostasis_weight <= 1.0:
+            raise ValueError("local_homeostasis_weight must be between 0 and 1")
+        if homeostatic_window_size < 0:
+            raise ValueError("homeostatic_window_size must be non-negative")
+        if slow_bcm_tau is not None and slow_bcm_tau < 1.0:
+            raise ValueError("slow_bcm_tau must be at least 1")
+        if not 0.0 <= slow_trace_weight <= 1.0:
+            raise ValueError("slow_trace_weight must be between 0 and 1")
+        if not 0.0 <= adaptive_target_rate <= 1.0:
+            raise ValueError("adaptive_target_rate must be between 0 and 1")
+        if target_bounds[0] <= 0 or target_bounds[0] >= target_bounds[1]:
+            raise ValueError("target_bounds must be positive and increasing")
+        if num_hierarchy_levels < 1 or not 0 <= hierarchy_level < num_hierarchy_levels:
+            raise ValueError("hierarchy_level must index num_hierarchy_levels")
         self.units = units
         self.learning_rate = learning_rate
         self.anti_hebbian_rate = anti_hebbian_rate
@@ -497,6 +637,17 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
         # This gives you inference-time learning without interfering with
         # gradient-based training.
         self.enable_inference_plasticity = enable_inference_plasticity
+        self.homeostasis_mode = homeostasis_mode
+        self.local_homeostasis_weight = float(local_homeostasis_weight)
+        self.homeostatic_window_size = int(homeostatic_window_size)
+        self.slow_bcm_tau = None if slow_bcm_tau is None else float(slow_bcm_tau)
+        self.slow_trace_weight = float(slow_trace_weight)
+        self.adaptive_target_rate = float(adaptive_target_rate)
+        self.target_bounds = tuple(float(value) for value in target_bounds)
+        self.resonance_coupling = float(resonance_coupling)
+        self.hierarchy_level = int(hierarchy_level)
+        self.num_hierarchy_levels = int(num_hierarchy_levels)
+        self.hierarchy_target_slope = float(hierarchy_target_slope)
 
     def get_config(self):
         config = super().get_config()
@@ -511,6 +662,17 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
             "normalization": self.normalization_type,
             "dropout_rate": self.dropout_rate,
             "enable_inference_plasticity": self.enable_inference_plasticity,
+            "homeostasis_mode": self.homeostasis_mode,
+            "local_homeostasis_weight": self.local_homeostasis_weight,
+            "homeostatic_window_size": self.homeostatic_window_size,
+            "slow_bcm_tau": self.slow_bcm_tau,
+            "slow_trace_weight": self.slow_trace_weight,
+            "adaptive_target_rate": self.adaptive_target_rate,
+            "target_bounds": self.target_bounds,
+            "resonance_coupling": self.resonance_coupling,
+            "hierarchy_level": self.hierarchy_level,
+            "num_hierarchy_levels": self.num_hierarchy_levels,
+            "hierarchy_target_slope": self.hierarchy_target_slope,
         })
         return config
 
@@ -541,9 +703,86 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
             trainable=False,
             name='plasticity_trace'
         )
+        self.slow_trace = None
+        if self.slow_bcm_tau is not None:
+            self.slow_trace = self.add_weight(
+                shape=(self.units,), initializer='zeros', trainable=False,
+                name='slow_plasticity_trace'
+            )
+        self.activity_window = None
+        self.window_index = None
+        self.window_count = None
+        if self.homeostatic_window_size:
+            self.activity_window = self.add_weight(
+                shape=(self.homeostatic_window_size, self.units),
+                initializer='zeros', trainable=False, name='activity_window'
+            )
+            self.window_index = self.add_weight(
+                shape=(), initializer='zeros', trainable=False, dtype='int32',
+                name='activity_window_index'
+            )
+            self.window_count = self.add_weight(
+                shape=(), initializer='zeros', trainable=False, dtype='int32',
+                name='activity_window_count'
+            )
+        self.adaptive_target = None
+        if self.adaptive_target_rate > 0.0:
+            self.adaptive_target = self.add_weight(
+                shape=(self.units,),
+                initializer=tf.keras.initializers.Constant(self.target_avg),
+                trainable=False,
+                name='adaptive_activity_target'
+            )
         super().build(input_shape)
 
-    def call(self, inputs, training=False):
+    def _attention_row_weights(self, attention_weights, inputs, dtype):
+        if attention_weights is None:
+            row_count = tf.reduce_prod(tf.shape(inputs)[:-1])
+            return tf.ones(tf.stack([row_count, 1]), dtype=dtype)
+        weights = tf.cast(attention_weights, dtype)
+        if weights.shape.rank == inputs.shape.rank:
+            weights = tf.reduce_mean(weights, axis=-1)
+        if weights.shape.rank == 1 and inputs.shape.rank and inputs.shape.rank > 2:
+            weights = tf.reshape(
+                weights,
+                tf.concat([[tf.shape(weights)[0]], tf.ones(inputs.shape.rank - 2, tf.int32)], 0),
+            )
+        weights = tf.broadcast_to(weights, tf.shape(inputs)[:-1])
+        return tf.reshape(tf.maximum(weights, 0.0), [-1, 1])
+
+    def _requested_target(self, target_signal, dtype):
+        base = tf.fill([self.units], tf.cast(self.target_avg, dtype))
+        if self.adaptive_target is None or target_signal is None:
+            target = base if self.adaptive_target is None else tf.cast(self.adaptive_target, dtype)
+        else:
+            signal = tf.cast(target_signal, dtype)
+            if signal.shape.rank and signal.shape[-1] == self.units:
+                axes = tf.range(tf.rank(signal) - 1)
+                requested = tf.reduce_mean(signal, axis=axes)
+            else:
+                requested = tf.fill([self.units], tf.reduce_mean(signal))
+            requested = tf.clip_by_value(
+                requested, self.target_bounds[0], self.target_bounds[1]
+            )
+            updated = (
+                (1.0 - self.adaptive_target_rate) * self.adaptive_target
+                + self.adaptive_target_rate * requested
+            )
+            self.adaptive_target.assign(updated)
+            target = tf.cast(updated, dtype)
+        if self.num_hierarchy_levels > 1:
+            position = 2.0 * self.hierarchy_level / (self.num_hierarchy_levels - 1) - 1.0
+            target = target * (1.0 + self.hierarchy_target_slope * position)
+        return tf.clip_by_value(target, self.target_bounds[0], self.target_bounds[1])
+
+    def call(
+        self,
+        inputs,
+        training=False,
+        attention_weights=None,
+        resonance_signal=None,
+        target_signal=None,
+    ):
         # Effective weights are the sum of the trained kernel and the
         # non-trainable plastic component.
         effective_kernel = self.kernel + self.plastic_kernel
@@ -566,25 +805,111 @@ class BioplasticDenseLayer(tf.keras.layers.Layer):
                 pre = tf.nn.l2_normalize(pre, axis=-1)
                 post = tf.nn.l2_normalize(post, axis=-1)
 
-            batch_size = tf.cast(tf.shape(pre)[0], tf.float32)
-            batch_size_safe = tf.maximum(batch_size, 1.0)
+            row_weights = self._attention_row_weights(attention_weights, inputs, post.dtype)
+            weight_sum = tf.maximum(tf.reduce_sum(row_weights), tf.cast(1e-7, post.dtype))
 
-            mean_post = tf.reduce_mean(post, axis=0)
+            # Canonical BCM uses a non-negative sliding threshold based on
+            # recent squared postsynaptic activity.
+            mean_post_squared = tf.reduce_sum(
+                row_weights * tf.square(post), axis=0
+            ) / weight_sum
             tau = tf.maximum(tf.cast(self.bcm_tau, tf.float32), 1.0)
-            new_trace = (1.0 - 1.0 / tau) * self.trace + (1.0 / tau) * mean_post
+            new_trace = (
+                (1.0 - 1.0 / tau) * self.trace
+                + (1.0 / tau) * mean_post_squared
+            )
             self.trace.assign(new_trace)
 
-            bcm = tf.einsum("bi,bj->ij", pre, post * (post - self.trace)) / batch_size_safe
-            dw = self.learning_rate * (bcm - self.anti_hebbian_rate * tf.abs(bcm))
+            threshold = new_trace
+            if self.activity_window is not None:
+                index = tf.math.floormod(
+                    self.window_index, self.homeostatic_window_size
+                )
+                updated_window = tf.tensor_scatter_nd_update(
+                    self.activity_window,
+                    tf.reshape(index, [1, 1]),
+                    tf.expand_dims(mean_post_squared, axis=0),
+                )
+                self.activity_window.assign(updated_window)
+                self.window_index.assign_add(1)
+                self.window_count.assign(
+                    tf.minimum(self.window_count + 1, self.homeostatic_window_size)
+                )
+                count = tf.maximum(tf.cast(self.window_count, post.dtype), 1.0)
+                threshold = tf.reduce_sum(self.activity_window, axis=0) / count
+            if self.slow_trace is not None:
+                slow_tau = tf.cast(self.slow_bcm_tau, post.dtype)
+                updated_slow = (
+                    (1.0 - 1.0 / slow_tau) * self.slow_trace
+                    + (1.0 / slow_tau) * mean_post_squared
+                )
+                self.slow_trace.assign(updated_slow)
+                threshold = (
+                    (1.0 - self.slow_trace_weight) * threshold
+                    + self.slow_trace_weight * updated_slow
+                )
 
-            activity = tf.reduce_mean(tf.abs(post))
-            homeostatic_scale = self.homeostatic_rate * (self.target_avg - activity)
+            bcm = tf.einsum(
+                "bi,bj->ij", pre, row_weights * post * (post - threshold)
+            ) / weight_sum
+            # Decay the fast component instead of subtracting abs(bcm), which
+            # incorrectly made every negative correlation more negative.
+            dw = self.learning_rate * (
+                bcm - self.anti_hebbian_rate * self.plastic_kernel
+            )
+
+            local_activity = tf.reduce_sum(
+                row_weights * tf.abs(post), axis=0
+            ) / weight_sum
+            global_activity = tf.reduce_mean(local_activity)
+            target = self._requested_target(target_signal, post.dtype)
+            local_error = target - local_activity
+            global_error = tf.reduce_mean(target) - global_activity
+            if self.homeostasis_mode == "local":
+                regulation_error = local_error
+            elif self.homeostasis_mode == "hybrid":
+                regulation_error = (
+                    self.local_homeostasis_weight * local_error
+                    + (1.0 - self.local_homeostasis_weight) * global_error
+                )
+            else:
+                regulation_error = tf.fill([self.units], global_error)
+            coupling = tf.cast(1.0, post.dtype)
+            if resonance_signal is not None:
+                divergence = tf.reduce_mean(tf.abs(tf.cast(resonance_signal, post.dtype)))
+                coupling = tf.clip_by_value(
+                    1.0 + self.resonance_coupling * divergence, 0.1, 10.0
+                )
+            homeostatic_scale = self.homeostatic_rate * coupling * regulation_error
 
             self.plastic_kernel.assign_add(dw)
-            self.plastic_kernel.assign_add(homeostatic_scale * self.plastic_kernel)
+            self.plastic_kernel.assign_add(
+                self.plastic_kernel * tf.expand_dims(homeostatic_scale, axis=0)
+            )
             self.plastic_kernel.assign(tf.clip_by_norm(self.plastic_kernel, 5.0))
 
+            # The adaptation is part of this inference, not only the next one.
+            x = tf.matmul(inputs, self.kernel + self.plastic_kernel) + self.bias
+            x = self.activation(x)
+
         return x
+
+    def reset_plasticity(self):
+        """Forget inference-time fast weights and their BCM activity trace."""
+        if not self.built:
+            return
+        self.plastic_kernel.assign(tf.zeros_like(self.plastic_kernel))
+        self.trace.assign(tf.zeros_like(self.trace))
+        if self.slow_trace is not None:
+            self.slow_trace.assign(tf.zeros_like(self.slow_trace))
+        if self.activity_window is not None:
+            self.activity_window.assign(tf.zeros_like(self.activity_window))
+            self.window_index.assign(0)
+            self.window_count.assign(0)
+        if self.adaptive_target is not None:
+            self.adaptive_target.assign(
+                tf.fill([self.units], tf.cast(self.target_avg, self.adaptive_target.dtype))
+            )
 
 class HebbianHomeostaticNeuroplasticity(tf.keras.layers.Layer):
     """

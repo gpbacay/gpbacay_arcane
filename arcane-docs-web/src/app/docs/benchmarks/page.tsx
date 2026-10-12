@@ -53,12 +53,13 @@ export default function BenchmarksPage() {
         </div>
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
-          Key Advantages
+          Observed Results and Limitations
         </h2>
         <ul className="list-disc pl-6 space-y-2 marker:text-zinc-500">
           <li>Hierarchical Resonance used ~385K params vs ~195K for the LSTM baseline.</li>
-          <li>Accuracy moved 9.50% → 11.25% on this small character LM; MNIST gaps in the markdown docs are within noise.</li>
+          <li>Accuracy moved from 9.50% to 11.25% on this small character LM; MNIST gaps in the markdown docs are within noise.</li>
           <li>Mechanism unit tests (STE spikes, closed-form resonance, BCM plastic kernel, GSER elastic gate) live in <code className="bg-zinc-900 px-1.5 py-0.5 rounded">tests/test_mechanism_correctness.py</code>.</li>
+          <li>This run does not isolate inference-time resonance. Use the same-checkpoint ablation harness for cycle-count comparisons.</li>
         </ul>
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">

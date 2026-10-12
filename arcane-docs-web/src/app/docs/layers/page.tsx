@@ -14,17 +14,21 @@ export default function BiologicalLayersPage() {
   useEffect(() => {
     const hash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
     if (hash) {
-      setOpenItem(hash);
-      document.getElementById(hash)?.scrollIntoView();
+      const frame = window.requestAnimationFrame(() => {
+        setOpenItem(hash);
+        document.getElementById(hash)?.scrollIntoView();
+      });
+      return () => window.cancelAnimationFrame(frame);
     }
+    return undefined;
   }, []);
 
   const layers = [
     {
       id: "resonant-gser",
       name: "ResonantGSER",
-      description: "Hierarchical resonant layer with bi-directional feedback, spiking dynamics, and reservoir computing.",
-      details: "ResonantGSER is an LSTM-based RNN cell that EMA-harmonizes its hidden state toward a top-down prototype (closed-form N-step map, skipped until alignment is set). Spikes use a straight-through estimator. Alignment is a batch-mean vector of shape (units,), not a per-example code. Spectral radius and elastic sizing belong to GSER, not this layer.",
+      description: "Hierarchical recurrent layer with explicit per-example top-down alignment and spiking dynamics.",
+      details: "ResonantGSER is an LSTM-based RNN cell that harmonizes its hidden state toward an optional top-down target using a closed-form N-step map. predict_with_resonance carries ephemeral targets with shape (batch, units), preventing examples in the same batch from sharing a prototype. Legacy vector targets remain supported for compatibility. Spikes use a straight-through estimator.",
       link: "/docs/resonant-gser",
       code: `from gpbacay_arcane import ResonantGSER
 
@@ -56,7 +60,7 @@ layer = PredictiveResonantLayer(
       id: "bioplastic-dense",
       name: "BioplasticDenseLayer",
       description: "Dual-weight dense map: gradient kernel plus optional inference-time BCM plasticity.",
-      details: "Effective weights are kernel + plastic_kernel. With enable_inference_plasticity=True and training=False, BCM uses the running activity trace θ: ΔW ∝ xᵀ[y ⊙ (y − θ)], then scales the plastic kernel toward target_avg. Gradient descent still updates kernel only.",
+      details: "Effective weights are kernel + plastic_kernel. Optional inference-time BCM uses bounded updates plus exact activity windows and fast/slow traces. Homeostasis can be global, neuron-local, or hybrid, with adaptive targets, attention weighting, resonance coupling, hierarchy profiles, and explicit state reset. Gradient descent still updates the base kernel.",
       code: `from gpbacay_arcane import BioplasticDenseLayer
 
 layer = BioplasticDenseLayer(
@@ -64,9 +68,28 @@ layer = BioplasticDenseLayer(
     target_avg=0.12,
     homeostatic_rate=5e-5,
     bcm_tau=800.0,
+    homeostatic_window_size=32,
+    slow_bcm_tau=4000.0,
+    homeostasis_mode="hybrid",
+    adaptive_target_rate=0.05,
     learning_rate=1e-3,
     enable_inference_plasticity=True
 )`
+    },
+    {
+      id: "hierarchical-homeostasis",
+      name: "HierarchicalHomeostaticController",
+      description: "Applies bounded per-example activity regulation across two or more representation levels.",
+      details: "The controller measures activity at every supplied level, constructs a configurable level target profile, returns regulated tensors, and exposes hierarchy imbalance plus an adaptive-target signal for plastic layers. These mechanisms regulate activity; they do not by themselves demonstrate improved task accuracy.",
+      link: "/docs/homeostatic-plasticity",
+      code: `from gpbacay_arcane import HierarchicalHomeostaticController
+
+regulated_low, regulated_high, imbalance, target = HierarchicalHomeostaticController(
+    target_activity=0.12,
+    regulation_rate=0.05,
+    level_target_slope=0.1,
+    adaptive_target_rate=0.1,
+)([low_level, high_level])`
     },
     {
       id: "gser",
@@ -170,10 +193,12 @@ spikes = activation(inputs, resonance_factor=0.3)`
     <div className="prose prose-zinc dark:prose-invert max-w-none">
       <div className="mb-10">
         <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl mb-4 text-zinc-100 leading-tight">
-          Biological Layers
+          Adaptive Layers
         </h1>
         <p className="text-xl text-zinc-400">
-          Neural network layers inspired by biological principles.
+          Experimental Keras layers inspired by recurrent dynamics, predictive coding,
+          local plasticity, and activity regulation. The biological terminology describes
+          design influences, not evidence of biological equivalence.
         </p>
       </div>
 

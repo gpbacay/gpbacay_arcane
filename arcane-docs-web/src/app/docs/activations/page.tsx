@@ -11,10 +11,10 @@ export default function ActivationsPage() {
     {
       id: "resonant-spike",
       name: "Resonant Spiking Activation (RSA)",
-      description: "Mimics a biological neuron's membrane potential with top-down modulation and leaky integration.",
+      description: "Leaky state integration with thresholded output and top-down modulation.",
       details: (
         <ul className="list-disc pl-5 space-y-2 m-0">
-          <li><strong>LIF Modeling</strong>: Implements the Leaky Integrate-and-Fire mechanism for biological realism.</li>
+          <li><strong>LIF-inspired update</strong>: Implements a leaky integrate-and-fire-style state transition.</li>
           <li><strong>Straight-through estimator</strong>: Hard spike in the forward pass; sigmoid gradient in the backward pass so S can train.</li>
           <li><strong>Temporal Integration</strong>: Accumulates stimulus over time, maintaining a membrane potential state.</li>
           <li><strong>Resonant Modulation</strong>: Amplifies signals by (1 + resonance_factor).</li>
@@ -55,13 +55,13 @@ activated = homeostatic_gelu(
     {
       id: "adaptive-softplus",
       name: "Adaptive Softplus",
-      description: "A smooth activation with a tunable saturation threshold for biological firing rate mimicry.",
+      description: "A smooth activation with a tunable threshold and sharpness.",
       details: (
         <ul className="list-disc pl-5 space-y-2 m-0">
           <li><strong>Differentiable Spiking</strong>: Provides a smooth approximation of discrete spiking behavior.</li>
-          <li><strong>Tunable Sharpness</strong>: Control the 'hardness' of the activation threshold.</li>
-          <li><strong>Stable Gradients</strong>: Maintains strong gradient flow for deep network optimization.</li>
-          <li><strong>Biological Mimicry</strong>: Closely follows the non-linear response curves of real neurons.</li>
+          <li><strong>Tunable Sharpness</strong>: Control the threshold&apos;s smoothness.</li>
+          <li><strong>Non-zero off-state gradients</strong>: Retains a smooth derivative below the threshold.</li>
+          <li><strong>Scope</strong>: Provides an engineering approximation, not a validated model of a biological neuron.</li>
         </ul>
       ),
       code: `from gpbacay_arcane.activations import adaptive_softplus
@@ -158,7 +158,7 @@ $$(y, V_t) = f(x, V_{t-1}, \\text{context})$$
 
 **Key Differences:**
 *   **Memory**: Standard activations are stateless ($y = f(x)$).
-*   **Adaptation**: ARCANE activations refine their response during the 'Thinking Phase'.
+*   **Adaptation**: ARCANE activations can update their feature-wise state across calls.
 *   **Resonance**: Responses are modulated by global semantic alignment.
   `;
 
@@ -243,7 +243,7 @@ $$(y, V_t) = f(x, V_{t-1}, \\text{context})$$
         </div>
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
-          The Deliberative Advantage
+          Implemented State Behavior
         </h2>
         <div className="grid gap-6 md:grid-cols-3 pb-10">
           <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-none">
@@ -252,7 +252,7 @@ $$(y, V_t) = f(x, V_{t-1}, \\text{context})$$
               Temporal Coherence
             </h4>
             <p className="text-sm text-zinc-400 leading-relaxed">
-              Maintains internal state over time, allowing the model to naturally filter stimulus noise and integrate evidence across temporal windows.
+              Maintains feature-wise state across calls and integrates a decayed contribution from the previous value.
             </p>
           </div>
           <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-none">
@@ -261,7 +261,7 @@ $$(y, V_t) = f(x, V_{t-1}, \\text{context})$$
               Active Thresholding
             </h4>
             <p className="text-sm text-zinc-400 leading-relaxed">
-              Suppresses ambiguous or low-confidence signals until hierarchical resonance provides enough gain to exceed the deliberative threshold.
+              Emits a hard forward spike above the configured threshold while using a surrogate gradient during training.
             </p>
           </div>
           <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-none">
@@ -270,7 +270,7 @@ $$(y, V_t) = f(x, V_{t-1}, \\text{context})$$
               Structural Stability
             </h4>
             <p className="text-sm text-zinc-400 leading-relaxed">
-              Homeostatic scaling ensures neurons operate in their most informative 'sweet spot', maximizing entropy and preventing activation collapse.
+              Adjusts gain toward a target activity within fixed bounds. Entropy and task stability remain empirical measurements.
             </p>
           </div>
         </div>

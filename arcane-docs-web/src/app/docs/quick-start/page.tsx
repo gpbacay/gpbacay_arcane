@@ -40,10 +40,10 @@ generated = model.generate_text(
           Advanced Usage with Resonance
         </h2>
         <p>
-          Implement the biological "Thinking Phase" using hierarchical resonance.
+          Refine a current batch with isolated per-example targets, then optionally evaluate bounded adaptation.
         </p>
         <pre className="overflow-x-auto rounded-none border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
-          <code>{`from gpbacay_arcane import HierarchicalResonanceFoundationModel, NeuralResonanceCallback
+          <code>{`from gpbacay_arcane import HierarchicalResonanceFoundationModel
 
 # Create an advanced model with biological neural principles
 model = HierarchicalResonanceFoundationModel(
@@ -56,9 +56,21 @@ model = HierarchicalResonanceFoundationModel(
 model.build_model()
 model.compile_model(learning_rate=3e-4)
 
-# Train with neural resonance (biological "thinking phase")
-resonance_callback = NeuralResonanceCallback(resonance_cycles=10)
-model.model.fit(X_train, y_train, callbacks=[resonance_callback])`}</code>
+# Train normally, including an explicit feedback-alignment step when desired
+model.model.fit(X_train, y_train)
+model.train_feedback_step(X_train[:32], labels=y_train[:32])
+
+# Resonance changes latent state for this batch without changing learned weights
+predictions = model.predict_with_resonance(X_test, resonance_cycles=4)
+
+# Optional test-time learning uses an objective, bounded updates, and rollback
+adapted = model.adapt_at_inference(
+    X_test,
+    variables="all",
+    objective="entropy",
+    steps=2,
+    episodic=True,
+)`}</code>
         </pre>
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
@@ -76,7 +88,7 @@ x = PredictiveResonantLayer(
     resonance_cycles=3,
     resonance_step_size=0.2,
     return_sequences=True,
-    persist_alignment=True
+    persist_alignment=False
 )(x)
 x = SpatioTemporalSummarization(d_model=128)(x)
 x = BioplasticDenseLayer(units=128, enable_inference_plasticity=True)(x)
@@ -86,7 +98,7 @@ x = BioplasticDenseLayer(units=128, enable_inference_plasticity=True)(x)
 
         <div className="mt-8 rounded-none border border-yellow-900/50 bg-yellow-900/10 p-4">
           <p className="text-sm text-yellow-200">
-            <strong>Note:</strong> Resonance cycles increase training time (~2x) but significantly improve stability and semantic alignment. See the <a href="/docs/arc-1" className="underline hover:text-purple-300">ARC 1 demo</a> for a live model.
+            <strong>Note:</strong> More resonance cycles add latency and are not guaranteed to improve predictions. Compare the same checkpoint at 0/1/2/4/8 cycles and report accuracy, calibration, latency, forgetting, order sensitivity, batch-size sensitivity, and distribution shift. See <a href="/docs/inference-time-learning" className="underline hover:text-purple-300">Inference-Time Learning</a> for the full protocol.
           </p>
         </div>
       </div>

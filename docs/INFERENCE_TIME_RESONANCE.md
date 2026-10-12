@@ -2,7 +2,7 @@
 
 ## Overview
 
-Inference-Time Resonance enables ARCANE models to perform deliberative "System 2" reasoning **during inference**, not just during training. This allows models to align their hierarchical internal states before making predictions, leading to more coherent and contextually-aware outputs.
+Inference-Time Resonance performs iterative latent-state refinement on the current input. It is a research mechanism for testing whether top-down alignment improves a trained model; by itself it is not evidence of "System 2" reasoning or improved accuracy.
 
 ## What Was Implemented
 
@@ -30,14 +30,9 @@ Added a convenient method to both `HierarchicalResonanceFoundationModel` and `Ne
 
 Improved the layer reference system to support both name-based and direct references, ensuring robust hierarchical connections even when model references aren't available.
 
-### 5. Parallelized Resonance Cycles
+### 5. Current-input Refinement Cycles
 
-Added parallelization within each phase of the resonance cycle:
-- **Projection Phase**: All layers compute projections simultaneously (parallel)
-- **Harmonization Phase**: All layers apply harmonizations simultaneously (parallel)
-- **Divergence Computation**: All divergence values computed in parallel
-
-This provides significant performance improvements, especially for models with many resonance levels. TensorFlow's graph executor automatically parallelizes independent operations when they're collected together.
+Every outer cycle now includes a complete forward refinement of the current input. Projection operations are independent, but no O(1) cross-layer parallelism is claimed.
 
 ## Usage
 
@@ -68,11 +63,15 @@ predictions = model.predict_with_resonance(
 
 ```python
 # Run resonance cycles manually
-divergences = model.run_resonance_cycle(num_cycles=10)
+divergences = model.run_resonance_cycle(
+    num_cycles=10,
+    inputs=input_data,
+    reset_state=True,
+)
 print(f"Convergence history: {divergences}")
 
-# Then predict (resonance_alignment is already set)
-predictions = model.model.predict(input_data, verbose=0)
+# The best-cycle prediction is retained by the wrapper
+predictions = model._last_resonance_predictions.numpy()
 ```
 
 ### Comparison: Standard vs Resonant Inference
@@ -99,29 +98,32 @@ print(f"Standard: {top_token_standard}, Resonant: {top_token_resonant}")
 
 When `run_resonance_cycle()` or `predict_with_resonance()` is called:
 
-1. **Top-Down Projection**: Higher layers project `last_h` (an EMA of the **batch mean**) with `project_feedback()`.
-2. **Harmonization**: Lower layers write that vector into `resonance_alignment` via `harmonize_states()`.
-3. **Convergence Check**: Mean-squared divergence from each cell (a scalar, not per-example).
-4. **Iteration**: Steps 1–3 repeat. The next **forward pass** then uses the closed-form EMA toward that prototype.
+1. **Episodic reset**: By default, transient prototypes and alignments from earlier requests are cleared.
+2. **Forward initialization**: The current input is encoded once and a `(batch, units)` state is extracted for every layer.
+3. **Top-down projection**: Higher layers project each example's state to the layer below.
+4. **State harmonization**: Each lower state takes an RSAA step toward its own projection. The resulting batch-shaped tensor is installed only for the next forward call.
+5. **Forward refinement**: The same current input is re-encoded with those targets active.
+6. **Fresh convergence check**: Divergence is measured between the refined lower states and newly projected higher states.
+7. **Iteration**: Steps 3–6 repeat. The lowest-divergence cycle is retained because nonlinear/spiking dynamics need not improve monotonically.
 
-This does not re-encode the current input between cycles. For per-example alignment, use `PredictiveResonantLayer`.
+Targets are per-example. They are never saved as layer weights, and a request lock prevents concurrent calls from exchanging ephemeral targets. The old `(units,)` variables remain as monitoring/backward-compatibility summaries and are not read by the explicit per-example loop.
 
 ### 2. Forward Pass Integration
 
-After resonance cycles complete, the `resonance_alignment` values are set in each layer's cell. When the forward pass runs:
+During every resonance cycle:
 
-- Each `ResonantGSERCell` uses its `resonance_alignment` in its internal `resonance_loop()`.
-- The cell harmonizes its state with the top-down expectation during the forward pass.
-- This creates a coherent hierarchical representation aligned with higher-level context.
+- Each `ResonantGSERCell` uses an explicit batch-shaped runtime target in its internal `resonance_loop()`.
+- The complete model is re-run on the current input, allowing lower-layer changes to affect higher layers in the next cycle.
+- `last_resonance_divergences` records every attempted cycle and `last_resonance_best_cycle` identifies the committed result.
 
 ### 3. Key Differences from Training-Time Resonance
 
 | Aspect | Training-Time (Callback) | Inference-Time (Manual) |
 |--------|-------------------------|--------------------------|
-| **When** | Automatically before each batch | Manually before prediction |
-| **Purpose** | Align states before weight updates | Align states before output |
-| **Weight Updates** | Yes (after resonance) | No (inference only) |
-| **Automatic** | Yes (via callback) | No (must call explicitly) |
+| **When** | Callback before each batch | Explicit current-input prediction |
+| **Input represented** | Previous batch prototype | Current input |
+| **Weight Updates** | Normal optimizer step follows | None |
+| **Full inner loop?** | No; callback cannot re-run the current batch | Yes |
 
 ### 4. PredictiveResonantLayer and BioplasticDenseLayer Inference-Time Features
 
@@ -129,26 +131,26 @@ After resonance cycles complete, the `resonance_alignment` values are set in eac
 
 - **PredictiveResonantLayer with `persist_alignment=True`**: The layer keeps a slow-moving alignment state across separate forward passes. Each call updates an internal alignment memory used as the initial resonance target for the next call, so repeated inference (e.g. on the same or new inputs) exhibits stateful resonance across calls. Weights are unchanged; only the non-trainable alignment state evolves.
 
-- **BioplasticDenseLayer with `enable_inference_plasticity=True`**: During inference, BCM uses the running activity trace $\theta$ to update `plastic_kernel` only: $\Delta W \propto x^{\top}[y \odot (y-\theta)]$, then activity scaling toward `target_avg`. Gradient `kernel` is unchanged.
+- **BioplasticDenseLayer with `enable_inference_plasticity=True`**: During inference, BCM uses a running squared-activity threshold $\theta$ to update `plastic_kernel` only: $\Delta W \propto x^{\top}[y \odot (y-\theta)]$, with fast-weight decay and activity scaling. The output is recomputed with the adapted weights; `reset_plasticity()` starts a new episode. The gradient `kernel` is unchanged.
 
 Use these options in sequence models (e.g. MNIST classifier with PredictiveResonantLayer and BioplasticDenseLayer) when you want the model to adapt its internal state or readout during repeated inference.
 
 ## Benefits
 
-### 1. Deliberative Reasoning
+### 1. Additional latent computation
 
-Models can "think" before responding, resolving ambiguities through hierarchical state alignment.
+The same weights receive more compute, while higher-level state can influence the next lower-level pass.
 
-### 2. Improved Coherence
+### 2. Measurable coherence
 
-Top-down context influences lower-level feature extraction, leading to more contextually-aware predictions.
+The API reports an explicit hierarchy-divergence trace. Whether lower divergence improves task quality must be established by an ablation on the target task.
 
 ### 3. Flexible Control
 
 You can choose:
 - **No resonance**: Fast inference, single forward pass
-- **Few cycles (3-5)**: Balanced speed and deliberation
-- **Many cycles (10+)**: Maximum deliberation for complex tasks
+- **Few cycles (2-5)**: Candidate refinements with bounded overhead
+- **Many cycles**: Research use only; more cycles are not assumed to be better
 
 ### 4. Research Applications
 
@@ -157,35 +159,79 @@ Enables studying:
 - The relationship between divergence and prediction quality
 - The trade-off between inference speed and reasoning quality
 
+## Training the feedback maps
+
+Assignment-based feedback has no gradient path. Use the explicit reconstruction step to train it:
+
+```python
+metrics = model.train_feedback_step(
+    input_data,
+    labels,
+    alignment_weight=0.1,
+)
+print(metrics["feedback_alignment_loss"])
+print(metrics["projection_gradient_norms"])
+```
+
+This minimizes the task loss plus `||stop_gradient(S_lower) - P(S_higher)||^2` inside one gradient tape. Consequently the feedback projection and the features producing the higher state receive gradients. Set `stop_target_gradient=False` to train both sides of the reconstruction target.
+
+## Objective-driven test-time adaptation
+
+Resonance changes activations but does not by itself show that predictions improve. For an actual unlabeled test-time objective, use:
+
+```python
+result = model.adapt_at_inference(
+    input_data,
+    objective="entropy",       # or "consistency"
+    steps=4,
+    learning_rate=1e-4,
+    max_update_norm=1e-3,
+    max_total_delta_norm=5e-3,
+    episodic=True,
+)
+predictions = result.predictions
+```
+
+`TestTimeAdapter` snapshots selected normalization variables, bounds every update and the total displacement, retains only objective improvements, rolls back a worsening/non-finite step, and restores the checkpoint after emitting predictions when `episodic=True`. Reconstruction and masked-token objectives can be supplied as callables.
+
+## Controlled ablation
+
+```python
+from gpbacay_arcane import run_resonance_ablation
+
+report = run_resonance_ablation(
+    model,
+    test_x,
+    test_y,
+    cycles=(0, 1, 2, 4, 8),
+    seeds=(0, 1, 2, 3, 4),
+    batch_size=32,
+    shift_fn=my_distribution_shift,
+)
+print(report.to_json())
+```
+
+Every condition starts from the same saved weights. The report includes accuracy, negative log-likelihood, expected calibration error, latency, prediction/weight forgetting, order sensitivity, batch-size sensitivity, and shifted accuracy. Use a real trained checkpoint and held-out data; unit tests only validate the harness, not a task-performance claim.
+
 ## Performance Considerations
 
 ### Computational Cost
 
 - **Standard Inference**: 1 forward pass
-- **Resonant Inference**: N resonance cycles + 1 forward pass
-- **Overhead**: ~N × (number of layers) projection/harmonization operations
+- **Resonant Inference**: N + 1 full forward passes, plus inexpensive projections
+- **Overhead**: approximately N extra model evaluations
 
-### Parallelization
+### Execution
 
-The inference-time resonance system uses **parallelization within each phase**:
-
-1. **Projection Phase (Parallelized)**: All layers compute their projections simultaneously since they're independent operations. TensorFlow's graph executor automatically parallelizes these when operations are collected together.
-
-2. **Harmonization Phase (Parallelized)**: All layers apply harmonizations simultaneously since each layer only modifies its own `resonance_alignment` variable.
-
-3. **Divergence Computation (Parallelized)**: All divergence values are computed in parallel.
-
-**Performance Benefit**: With L layers, parallelization reduces the time complexity from O(L) sequential operations to O(1) parallel operations per phase (limited by hardware parallelism). This provides significant speedup, especially for models with many resonance levels.
-
-**Note**: True parallelism depends on TensorFlow's graph execution and hardware capabilities (GPU/TPU). On CPU, operations may still execute sequentially but benefit from optimized graph execution.
+Projection operations are independent, but the Python implementation does not promise O(1) execution across layers. The forward refinements dominate runtime and remain sequential across resonance cycles.
 
 ### When to Use
 
 **Use inference-time resonance when:**
-- Quality is more important than speed
-- Tasks require complex reasoning
-- You want to study deliberative behavior
-- Contextual coherence is critical
+- You can measure whether added cycles improve the task objective
+- Latency from extra forward evaluations is acceptable
+- You want to study state refinement or top-down alignment
+- You will compare against zero-cycle inference from the same checkpoint
 
 **Use standard inference when:**
 - Speed is critical
@@ -197,7 +243,7 @@ The inference-time resonance system uses **parallelization within each phase**:
 
 ```
 Running 5 resonance cycles for inference-time alignment...
-Resonance converged. Final divergence: 0.000234
+Resonance finished. Best divergence: 0.000234 (cycle 3)
 Prediction shape: (1, 1000)
 Top 5 predicted tokens: [342, 891, 123, 567, 234]
 ```
@@ -208,12 +254,12 @@ Top 5 predicted tokens: [342, 891, 123, 567, 234]
 
 ```python
 # HierarchicalResonanceFoundationModel
-def run_resonance_cycle(self, num_cycles=1) -> List[float]
-def predict_with_resonance(self, inputs, resonance_cycles=5, verbose=0) -> np.ndarray
+def run_resonance_cycle(self, num_cycles=1, inputs=None, reset_state=True) -> List[float]
+def predict_with_resonance(self, inputs, resonance_cycles=5, verbose=0, reset_state=True) -> np.ndarray
 
 # NeuromimeticSemanticModel  
-def run_resonance_cycle(self, num_cycles=1) -> List[float]
-def predict_with_resonance(self, inputs, resonance_cycles=5, verbose=0) -> np.ndarray
+def run_resonance_cycle(self, num_cycles=1, inputs=None, reset_state=True) -> List[float]
+def predict_with_resonance(self, inputs, resonance_cycles=5, verbose=0, reset_state=True) -> np.ndarray
 
 # ResonantGSER Layer
 def propagate_feedback_to_lower(self) -> None
@@ -225,11 +271,13 @@ def get_divergence(self) -> float
 ### Internal State Management
 
 - Each `ResonantGSERCell` maintains:
-  - `resonance_alignment`: Target state from higher layer
-  - `last_h`: Last hidden state for projection
+  - ephemeral runtime alignment: per-example target used by explicit resonance
+  - `resonance_alignment`: legacy target for non-explicit calls and the training callback; explicit resonance never writes it, so later plain calls are unaffected (per-example targets: `last_resonance_targets`)
+  - `last_h`: compatibility/monitoring batch mean
   - `global_divergence`: Current divergence metric
 
-- Resonance cycles update `resonance_alignment` without modifying weights.
+- Resonance cycles carry batch-shaped target tensors without modifying weights.
+- `reset_state=True` prevents unrelated prior requests from supplying the initial state.
 
 ## See Also
 
@@ -237,15 +285,10 @@ def get_divergence(self) -> float
 - `docs/NEURAL_RESONANCE.md` - Detailed explanation of resonance mechanism
 - `docs/RESONANT_GSER.md` - Technical details on ResonantGSER layers
 
-## Future Enhancements
+## Remaining research work
 
-Potential improvements:
-- Automatic cycle count optimization based on convergence
-- Parallelized resonance cycles across layers
-- Adaptive resonance cycles (more for difficult inputs)
-- Integration with generation loops for autoregressive models
+The implementation now makes the proposed mechanisms testable; it does not establish a gain. The next result should come from the controlled ablation above on a trained checkpoint, with uncertainty across seeds and a pre-declared primary metric.
 
 ---
 
-*Implementation completed: February 2026*
-*ARCANE v3.0.0 - Inference-Time Resonance Support*
+*Implementation revised: October 2026*

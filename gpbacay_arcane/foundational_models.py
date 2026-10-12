@@ -12,14 +12,21 @@ from gpbacay_arcane.layers import (
     DenseGSER,
     LatentTemporalCoherence,
     PositionalEncodingLayer,
+    HierarchicalHomeostaticController,
 )
+from gpbacay_arcane.resonance import (
+    attach_resonance_probe,
+    run_per_example_resonance,
+    train_feedback_step,
+)
+from gpbacay_arcane.test_time_adaptation import adapt_at_inference
 
 class HierarchicalResonanceFoundationModel:
     """
     Hierarchical Neural Resonance Foundation Model
     
-    A deep neuromimetic architecture implementing the full Hierarchical Neural Resonance
-    mechanism for deliberative "System 2" reasoning. 
+    A deep neuromimetic architecture for experimental hierarchical latent-state
+    refinement. Task-level reasoning benefits require empirical validation.
     """
     
     def __init__(
@@ -32,7 +39,10 @@ class HierarchicalResonanceFoundationModel:
         resonance_factor=0.15,
         use_temporal_coherence=True,
         use_attention_fusion=True,
-        dropout_rate=0.1
+        dropout_rate=0.1,
+        enable_inference_plasticity=False,
+        use_hierarchical_homeostasis=False,
+        homeostasis_config=None,
     ):
         self.vocab_size = vocab_size
         self.seq_len = seq_len
@@ -43,6 +53,9 @@ class HierarchicalResonanceFoundationModel:
         self.use_temporal_coherence = use_temporal_coherence
         self.use_attention_fusion = use_attention_fusion
         self.dropout_rate = dropout_rate
+        self.enable_inference_plasticity = bool(enable_inference_plasticity)
+        self.use_hierarchical_homeostasis = bool(use_hierarchical_homeostasis)
+        self.homeostasis_config = dict(homeostasis_config or {})
         self.model = None
         self.resonant_layers = []
         
@@ -119,6 +132,21 @@ class HierarchicalResonanceFoundationModel:
             
             # Store for external access
             self.resonant_layer_objects = resonant_layer_objects
+
+            resonance_signal = None
+            target_signal = None
+            if self.use_hierarchical_homeostasis:
+                controlled = HierarchicalHomeostaticController(
+                    target_activity=self.homeostasis_config.get("target_avg", 0.12),
+                    regulation_rate=self.homeostasis_config.get("hierarchical_rate", 0.1),
+                    level_target_slope=self.homeostasis_config.get("hierarchy_target_slope", 0.0),
+                    adaptive_target_rate=self.homeostasis_config.get("hierarchy_adaptive_rate", 0.1),
+                    name="hierarchical_homeostasis",
+                )([*skip_connections, current])
+                skip_connections = controlled[:self.num_resonance_levels]
+                current = controlled[self.num_resonance_levels]
+                resonance_signal = controlled[-2]
+                target_signal = controlled[-1]
             
             lstm_out = LSTM(self.hidden_dim, return_sequences=True, dropout=self.dropout_rate, recurrent_dropout=self.dropout_rate / 2, name='temporal_lstm')(current)
             gser_out = DenseGSER(units=self.hidden_dim, spectral_radius=0.9, leak_rate=0.1, spike_threshold=0.3, activation='gelu', name='dense_gser_reservoir')(lstm_out)
@@ -137,103 +165,158 @@ class HierarchicalResonanceFoundationModel:
                 pathways.append(LatentTemporalCoherence(d_coherence=min(64, self.hidden_dim), name='temporal_coherence')(gser_out))
             
             fused = Concatenate(name='pathway_fusion')(pathways)
+            attention_weights = None
             if self.use_attention_fusion:
                 gate = Dense(fused.shape[-1] or self.hidden_dim * 4, activation='sigmoid', name='pathway_gate')(fused)
                 fused = Multiply(name='gated_fusion')([fused, gate])
+                attention_weights = gate
             
-            bioplastic1 = BioplasticDenseLayer(units=self.hidden_dim * 2, normalization='l2', activation='gelu', name='bioplastic_1')(fused)
-            bioplastic2 = BioplasticDenseLayer(units=self.hidden_dim, normalization='l2', activation='gelu', name='bioplastic_2')(bioplastic1)
+            bioplastic_kwargs = {
+                "normalization": "l2",
+                "activation": "gelu",
+            }
+            if self.enable_inference_plasticity:
+                bioplastic_kwargs.update({
+                    "homeostasis_mode": "hybrid",
+                    "homeostatic_window_size": 16,
+                    "slow_bcm_tau": 4000.0,
+                    "adaptive_target_rate": 0.05,
+                    "resonance_coupling": 0.5,
+                })
+            bioplastic_kwargs.update(self.homeostasis_config)
+            for key in (
+                "hierarchical_rate",
+                "hierarchy_adaptive_rate",
+                "hierarchy_level",
+                "num_hierarchy_levels",
+            ):
+                bioplastic_kwargs.pop(key, None)
+            bioplastic_1 = BioplasticDenseLayer(
+                units=self.hidden_dim * 2,
+                enable_inference_plasticity=self.enable_inference_plasticity,
+                hierarchy_level=0,
+                num_hierarchy_levels=2,
+                name='bioplastic_1',
+                **bioplastic_kwargs,
+            )
+            bioplastic1 = bioplastic_1(
+                fused,
+                attention_weights=attention_weights,
+                resonance_signal=resonance_signal,
+                target_signal=target_signal,
+            )
+            bioplastic_2 = BioplasticDenseLayer(
+                units=self.hidden_dim,
+                enable_inference_plasticity=self.enable_inference_plasticity,
+                hierarchy_level=1,
+                num_hierarchy_levels=2,
+                name='bioplastic_2',
+                **bioplastic_kwargs,
+            )
+            bioplastic2 = bioplastic_2(
+                bioplastic1,
+                resonance_signal=resonance_signal,
+                target_signal=target_signal,
+            )
             
             dense_out = Dense(self.hidden_dim, activation='gelu', name='output_dense')(bioplastic2)
             dense_out = Dropout(self.dropout_rate / 2, name='output_dropout')(dense_out)
             outputs = Dense(self.vocab_size, activation='softmax', name='semantic_output')(dense_out)
             self.model = Model(inputs=inputs, outputs=outputs, name='hierarchical_resonance_foundation_model')
+            attach_resonance_probe(self, inputs, outputs, self.resonant_layers)
         return self.model
     
-    def run_resonance_cycle(self, num_cycles=1, use_parallel=True):
+    def reset_resonance_state(self, clear_prototypes=True):
+        """Clear transient resonance state so separate requests are independent."""
+        if not hasattr(self, 'resonant_layer_objects'):
+            raise ValueError("Model must be built before resetting resonance state")
+        for layer in self.resonant_layer_objects:
+            layer.cell.resonance_alignment.assign(
+                tf.zeros_like(layer.cell.resonance_alignment)
+            )
+            layer.cell.alignment_set.assign(0.0)
+            layer.cell.global_divergence.assign(0.0)
+            if clear_prototypes:
+                layer.cell.last_h.assign(tf.zeros_like(layer.cell.last_h))
+
+    def _project_and_harmonize(self):
+        """Stage one simultaneous top-down target for every non-top layer."""
+        projections = {
+            i - 1: self.resonant_layer_objects[i].project_feedback()
+            for i in range(len(self.resonant_layer_objects) - 1, 0, -1)
+        }
+        for i, layer in enumerate(self.resonant_layer_objects):
+            if i in projections:
+                layer.harmonize_states(projections[i])
+
+    def _hierarchy_divergence(self):
+        """Fresh mismatch between this pass's lower states and top-down projections."""
+        total = 0.0
+        for i in range(1, len(self.resonant_layer_objects)):
+            projection = self.resonant_layer_objects[i].project_feedback()
+            projection = tf.reduce_mean(projection, axis=0)
+            lower_state = self.resonant_layer_objects[i - 1].cell.last_h
+            total += float(tf.reduce_mean(tf.square(lower_state - projection)).numpy())
+        return total
+
+    def run_resonance_cycle(
+        self, num_cycles=1, use_parallel=True, inputs=None, reset_state=True
+    ):
         """
         Execute the full RSAA algorithm across the hierarchy.
         
-        This implements Algorithm 1 from the RSAA paper:
-        1. Project (Top-Down): Higher layers send expectations to lower layers
-        2. Harmonize (Bottom-Up): Lower layers adjust to reduce divergence
-        3. Check Convergence: Monitor global divergence
-        
-        The implementation uses parallelization within each phase:
-        - All projections are computed simultaneously (parallel)
-        - All harmonizations are applied simultaneously (parallel)
-        - All divergence computations run in parallel
+        With ``inputs``, this implements an actual current-example refinement:
+        initialize the hierarchy with a forward pass, project top-down targets,
+        re-run the same input so lower states respond to those targets, and only
+        then measure convergence. Each cycle therefore changes the state used by
+        the following cycle.
         
         Args:
             num_cycles: Number of full hierarchy resonance cycles to run
-            use_parallel: Whether to use parallelized operations (default: True)
+            use_parallel: Retained for API compatibility. TensorFlow schedules
+                independent projection ops; no O(1) parallelism is promised.
+            inputs: Current batch to refine. If omitted, one target is staged
+                from the most recent forward pass, without claiming convergence.
+            reset_state: Clear cross-request prototypes/alignment before the
+                initialization pass. Disable only for an intentional stream.
         
         Returns:
             List of divergence values for each cycle
         """
-        if not hasattr(self, 'resonant_layer_objects'):
-            raise ValueError("Model must be built before running resonance cycles")
-        
-        # Store model reference in layers for propagate_feedback_to_lower
-        for layer in self.resonant_layer_objects:
-            layer._model = self.model
-        
-        divergences = []
-        
-        for cycle in range(num_cycles):
-            # Step A: Project (Top-Down) - PARALLELIZED
-            # All layers can compute projections simultaneously since they're independent.
-            # We collect all projection operations first, then TensorFlow executes them in parallel
-            # when they're part of the same computation graph.
-            projections = {}
-            
-            # Collect all projection operations (independent operations that can run in parallel)
-            projection_pairs = [
-                (i - 1, self.resonant_layer_objects[i].project_feedback())
-                for i in range(len(self.resonant_layer_objects) - 1, 0, -1)
-            ]
-            
-            # Execute projections - TensorFlow will parallelize independent operations
-            # when they're in eager mode or part of a tf.function graph
-            for idx, proj_tensor in projection_pairs:
-                projections[idx] = proj_tensor
-            
-            # Step B: Harmonize (Bottom-Up) - PARALLELIZED
-            # All harmonizations can be applied simultaneously since they're independent.
-            # Each layer only modifies its own resonance_alignment variable.
-            harmonization_pairs = [
-                (layer, projections[i])
-                for i, layer in enumerate(self.resonant_layer_objects)
-                if i in projections
-            ]
-            
-            # Execute all harmonizations - operations are independent and can run in parallel
-            for layer, proj in harmonization_pairs:
-                layer.harmonize_states(proj)
-            
-            # Step C: Check Convergence - PARALLELIZED divergence computation
-            # All divergence computations are independent and can run in parallel
-            divergence_values = [layer.get_divergence() for layer in self.resonant_layer_objects]
-            cycle_divergence = sum(divergence_values)
-            divergences.append(float(cycle_divergence))
-            
-            # Early stopping if converged
-            if cycle_divergence < self.resonant_layer_objects[0].cell.convergence_epsilon:
-                break
-        
-        return divergences
+        del use_parallel
+        if inputs is None:
+            if num_cycles < 1:
+                raise ValueError("num_cycles must be at least 1 without current inputs")
+            self._project_and_harmonize()
+            return [float(sum(layer.get_divergence() for layer in self.resonant_layer_objects))]
+        return run_per_example_resonance(
+            self, inputs, num_cycles=num_cycles, reset_state=reset_state
+        )
+
+    def train_feedback_step(self, inputs, labels=None, **kwargs):
+        """Train task weights and feedback projections through reconstruction."""
+        return train_feedback_step(self, inputs, labels=labels, **kwargs)
+
+    def adapt_at_inference(self, inputs, **kwargs):
+        """Run bounded objective-driven adaptation with episodic reset by default."""
+        return adapt_at_inference(self, inputs, **kwargs)
     
-    def predict_with_resonance(self, inputs, resonance_cycles=5, verbose=0):
+    def predict_with_resonance(
+        self, inputs, resonance_cycles=5, verbose=0, reset_state=True
+    ):
         """
         Perform prediction with inference-time resonance cycles.
         
-        This method runs resonance cycles before prediction to align the hierarchical
-        states, enabling deliberative "System 2" reasoning at inference time.
+        The current input first initializes the hierarchy. Every resonance cycle
+        then stages top-down targets and performs another forward pass of that
+        same input. Weights remain fixed; this is iterative latent-state inference.
         
         Args:
             inputs: Input data (numpy array or tensor)
             resonance_cycles: Number of resonance cycles to run before prediction
             verbose: Verbosity level (0 or 1)
+            reset_state: Make this request independent of prior requests. Set
+                False only for an intentional continuous stream.
         
         Returns:
             Model predictions after resonance alignment
@@ -244,15 +327,24 @@ class HierarchicalResonanceFoundationModel:
         if verbose > 0:
             print(f"Running {resonance_cycles} resonance cycles for inference-time alignment...")
         
-        # Run resonance cycles to align hierarchical states
-        divergences = self.run_resonance_cycle(num_cycles=resonance_cycles)
+        divergences = self.run_resonance_cycle(
+            num_cycles=resonance_cycles,
+            inputs=inputs,
+            reset_state=reset_state,
+        )
         
         if verbose > 0:
-            print(f"Resonance converged. Final divergence: {divergences[-1]:.6f}")
+            best = self.last_resonance_best_cycle
+            if best:
+                print(
+                    f"Resonance finished. Best divergence: "
+                    f"{divergences[best - 1]:.6f} (cycle {best})"
+                )
+            else:
+                print("Resonance disabled (0 cycles).")
         
-        # Perform prediction with aligned states
-        predictions = self.model.predict(inputs, verbose=verbose)
-        return predictions
+        predictions = self._last_resonance_predictions
+        return predictions.numpy() if hasattr(predictions, "numpy") else predictions
     
     def compile_model(self, learning_rate=5e-4):
         if self.model is None: raise ValueError("Build model first.")
@@ -267,5 +359,10 @@ class HierarchicalResonanceFoundationModel:
         return {
             "name": "Hierarchical Neural Resonance Foundation Model",
             "resonance_levels": self.num_resonance_levels,
-            "hidden_dim": self.hidden_dim
+            "hidden_dim": self.hidden_dim,
+            "homeostasis": {
+                "inference_plasticity": self.enable_inference_plasticity,
+                "hierarchical": self.use_hierarchical_homeostasis,
+                "config": self.homeostasis_config,
+            }
         }

@@ -276,6 +276,12 @@ class ResonantGSERCell(Layer):
         self.state_size = [units, units]  # [h, c]
         self.output_size = units
         self.lstm_cell = tf.keras.layers.LSTMCell(units)
+        # An ephemeral, batch-shaped target used only for the duration of an
+        # explicit resonance forward pass.  It is intentionally not a Weight:
+        # saving a (batch, units) request tensor in the model would both couple
+        # unrelated examples and make the saved model batch-size dependent.
+        object.__setattr__(self, "_runtime_alignment", None)
+        object.__setattr__(self, "_runtime_alignment_active", False)
         
     def build(self, input_shape):
         # Handle symbolic or undefined feature dimension in Functional API
@@ -311,7 +317,11 @@ class ResonantGSERCell(Layer):
         )
         self.projection_kernel = self.add_weight(
             name='projection_kernel', shape=(self.units, self.units),
-            initializer='glorot_uniform', trainable=True
+            # Feedback assignments happen outside GradientTape, so a random
+            # trainable matrix never actually learned. Equal-width ARCANE
+            # hierarchies share a latent space; identity is the honest and
+            # stable default projection for that space.
+            initializer=tf.keras.initializers.Identity(), trainable=True
         )
         self.projection_bias = self.add_weight(
             name='projection_bias', shape=(self.units,),
@@ -322,7 +332,10 @@ class ResonantGSERCell(Layer):
             initializer='zeros', trainable=False
         )
         
-        # Track last hidden state for external access
+        # Track the latest batch prototype for external top-down projection.
+        # This must represent the current forward pass: using a cross-batch EMA
+        # here makes explicit resonance depend on earlier requests and prevents
+        # its convergence metric from describing the input being refined.
         self.last_h = self.add_weight(
             name='last_h', shape=(self.units,),
             initializer='zeros', trainable=False
@@ -371,7 +384,9 @@ class ResonantGSERCell(Layer):
         )
         return current_state - alpha * divergence
 
-    def resonance_loop(self, h_initial, projection_from_above=None):
+    def resonance_loop(
+        self, h_initial, projection_from_above=None, alignment_is_explicit=False
+    ):
         """
         Closed-form equivalent of N harmonization steps:
 
@@ -383,8 +398,16 @@ class ResonantGSERCell(Layer):
         if projection_from_above is None:
             return h_initial
 
-        align = tf.reshape(tf.cast(projection_from_above, h_initial.dtype), [1, self.units])
+        align = tf.cast(projection_from_above, h_initial.dtype)
+        if align.shape.rank == 1:
+            align = tf.expand_dims(align, axis=0)
+        elif align.shape.rank != 2:
+            raise ValueError("A resonance target must have shape (units,) or (batch, units)")
+
+        # Explicit targets are valid even when they happen to be all zero.
         alignment_energy = tf.reduce_sum(tf.square(align)) + self.alignment_set
+        if alignment_is_explicit:
+            alignment_energy = alignment_energy + tf.cast(1.0, alignment_energy.dtype)
 
         def _apply():
             alpha = tf.clip_by_value(
@@ -422,8 +445,20 @@ class ResonantGSERCell(Layer):
         c_new = new_states[1]
         
         # === Step 2: Resonance Loop ===
-        projection_from_above = self.resonance_alignment
-        h_resonated = self.resonance_loop(h_new, projection_from_above)
+        runtime_alignment = self._runtime_alignment
+        runtime_alignment_active = self._runtime_alignment_active
+        projection_from_above = (
+            runtime_alignment
+            if runtime_alignment_active
+            else self.resonance_alignment
+        )
+        h_resonated = self.resonance_loop(
+            h_new,
+            projection_from_above,
+            alignment_is_explicit=(
+                runtime_alignment_active and runtime_alignment is not None
+            ),
+        )
         
         # === Step 3: Apply Resonance Modulation ===
         res_mod = tf.sigmoid(self.resonance_gate) * self.resonance_factor
@@ -432,11 +467,37 @@ class ResonantGSERCell(Layer):
         # === Step 4: Spiking Mechanism (STE so spike decisions train) ===
         h_final = _spike(self, h_modulated)
 
-        # === Step 5: Track a slow prototype of the hidden state ===
+        # === Step 5: Track this forward pass's batch prototype ===
         batch_mean = tf.reduce_mean(h_final, axis=0)
-        self.last_h.assign(0.9 * self.last_h + 0.1 * batch_mean)
+        self.last_h.assign(batch_mean)
         
         return h_final, [h_final, c_new]
+
+    def set_runtime_alignment(self, alignment):
+        """Set a per-example target for the next enclosing model call.
+
+        The caller must clear it in a ``finally`` block.  This API exists so
+        the hierarchy can carry an explicit ``(batch, units)`` tensor without
+        serializing request state into a global layer variable.
+        """
+        if alignment is None:
+            object.__setattr__(self, "_runtime_alignment", None)
+            object.__setattr__(self, "_runtime_alignment_active", True)
+            return
+        alignment = tf.convert_to_tensor(alignment)
+        if alignment.shape.rank != 2:
+            raise ValueError("runtime alignment must have shape (batch, units)")
+        if alignment.shape[-1] is not None and int(alignment.shape[-1]) != self.units:
+            raise ValueError(
+                f"runtime alignment has {alignment.shape[-1]} units; expected {self.units}"
+            )
+        object.__setattr__(self, "_runtime_alignment", alignment)
+        object.__setattr__(self, "_runtime_alignment_active", True)
+
+    def clear_runtime_alignment(self):
+        """Remove the ephemeral per-example target."""
+        object.__setattr__(self, "_runtime_alignment", None)
+        object.__setattr__(self, "_runtime_alignment_active", False)
     
     def get_projection(self):
         """

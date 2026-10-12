@@ -2,13 +2,13 @@
 
 **Augmented Reconstruction of Consciousness through Artificial Neural Evolution**
 
-A Python library for building neuromimetic AI models inspired by biological neural principles. ARCANE provides researchers and developers with biologically-plausible neural layers, models, and training mechanisms that bridge neuroscience and artificial intelligence.
+A Python library for experimenting with neural layers and models inspired by recurrent processing, predictive coding, local plasticity, spiking dynamics, and homeostatic regulation. These are engineering inspirations; biological equivalence and task improvements require empirical validation.
 
 ## What is ARCANE?
 
 ARCANE is a comprehensive Python library that enables you to build, train, and deploy neuromimetic AI models. Unlike traditional deep learning frameworks, ARCANE incorporates biological neural principles such as:
 
-- **Neural Resonance**: Bi-directional prototype alignment between ResonantGSER layers, plus local per-example alignment in PredictiveResonantLayer. Optional inference-time BCM plasticity.
+- **Neural Resonance**: Per-example hierarchical alignment between ResonantGSER layers, plus local recurrent alignment in PredictiveResonantLayer. Optional, reversible objective-driven test-time adaptation and BCM fast weights.
 - **Spiking Neural Dynamics**: LIF-style leak plus graded spikes: signed spike counts against a self-scaling threshold, trained end to end.
 - **Hebbian / BCM Learning**: Dual-weight plastic kernels (`BioplasticDenseLayer`, `HebbianHomeostaticNeuroplasticity`).
 - **Homeostatic Plasticity**: Activity-dependent gain and plastic-kernel scaling.
@@ -29,18 +29,19 @@ The library provides ready-to-use models, customizable neural layers, and traini
 
 ### Ready-to-Use Models
 - **ArcaneSmallLanguageModel**: Causal decoder LM (~100M with the `100m` preset, ~145M with the distillation-tuned `distill` preset).
-- **HierarchicalResonanceFoundationModel**: Advanced model with multi-level resonance hierarchy and deliberative reasoning.
-- **NeuromimeticSemanticModel**: Standard neuromimetic model with biological learning rules for general tasks.
+- **HierarchicalResonanceFoundationModel**: Research model with a configurable multi-level resonance hierarchy.
+- **NeuromimeticSemanticModel**: Compact wrapper for semantic-model prototyping.
 - **Custom Architecture Support**: Build your own models using individual layers.
 
 ### Training and Generation Tools
-- **Neural Resonance Callbacks**: Orchestrate the "thinking phase" during training.
+- **Explicit Resonance APIs**: Refine the current input with per-example targets; the legacy callback stages only a previous-batch prototype.
+- **Test-Time Adaptation**: Optional entropy, consistency, reconstruction, masked-token, or custom objectives with bounded updates and rollback.
 - **Multi-Temperature Generation**: Conservative, balanced, and creative text generation modes.
 - **Dynamic Self-Modeling**: Adaptive reservoir sizing during training.
 - **CLI Tools**: Command-line utilities for model management and information.
 
 ### Research-Focused Design
-- **Biologically-Plausible**: Grounded in neuroscience principles.
+- **Biologically Inspired**: Implements testable analogies to several neural mechanisms.
 - **Highly Configurable**: Extensive parameter control for experimentation.
 - **Extensible Architecture**: Easy to add new layers and mechanisms.
 - **Performance Monitoring**: Built-in callbacks for tracking neural dynamics.
@@ -89,9 +90,9 @@ generated = model.generate_text(
 ### Advanced Usage with Resonance
 
 ```python
-from gpbacay_arcane import HierarchicalResonanceFoundationModel, NeuralResonanceCallback
+from gpbacay_arcane import HierarchicalResonanceFoundationModel
 
-# Create an advanced model with biological neural principles
+# Create a configurable resonant hierarchy
 model = HierarchicalResonanceFoundationModel(
     vocab_size=3000,
     seq_len=32,
@@ -102,9 +103,24 @@ model = HierarchicalResonanceFoundationModel(
 model.build_model()
 model.compile_model(learning_rate=3e-4)
 
-# Train with neural resonance (biological "thinking phase")
-resonance_callback = NeuralResonanceCallback(resonance_cycles=10)
-model.model.fit(X_train, y_train, callbacks=[resonance_callback])
+# Standard task training
+model.model.fit(X_train, y_train)
+
+# Train task weights and feedback projections with explicit alignment loss
+model.train_feedback_step(X_train[:32], labels=y_train[:32])
+
+# Refine the current batch while keeping learned weights fixed
+predictions = model.predict_with_resonance(X_test, resonance_cycles=4)
+
+# Optional objective-driven adaptation; the checkpoint is restored afterward
+adaptation = model.adapt_at_inference(
+    X_test,
+    variables="all",
+    objective="entropy",
+    steps=2,
+    max_update_norm=1e-3,
+    episodic=True,
+)
 
 # Generate text with different creativity levels
 generated = model.generate_text(
@@ -391,18 +407,17 @@ Causal decoder language model (~100M with `from_preset("100m")`). Uses causal li
 - Autoregressive generation
 
 ### HierarchicalResonanceFoundationModel
-Advanced model with multi-level neural resonance, temporal coherence, and attention fusion. Best for:
-- Complex reasoning tasks
-- Research applications
-- When training stability is crucial
-- Maximum biological accuracy
+Research model with multi-level neural resonance, temporal coherence, and attention fusion. Best for:
+- Resonance cycle-count ablations
+- Feedback-projection experiments
+- Test-time adaptation research
+- Studying hierarchical recurrent state refinement
 
 ### NeuromimeticSemanticModel
-Standard neuromimetic model with biological learning rules. Best for:
-- General NLP tasks
-- Faster training and inference
-- Balanced performance and biological plausibility
-- Prototyping and experimentation
+Compact neuromimetic model wrapper. Best for:
+- Small semantic-model experiments
+- Lower-depth baselines
+- Prototyping optional plasticity and homeostasis
 
 ## Available Layers
 
@@ -410,8 +425,9 @@ Standard neuromimetic model with biological learning rules. Best for:
 |-------|-------------|
 | `GSER` | Gated spiking elastic reservoir; recurrent weights scaled to `spectral_radius` |
 | `DenseGSER` | Dense map with leak-controlled spike gating and optional conceptual gate (not a reservoir) |
-| `ResonantGSER` | Hierarchical resonant RNN; closed-form EMA toward a top-down prototype |
+| `ResonantGSER` | Hierarchical resonant RNN; closed-form alignment toward per-example top-down targets |
 | `PredictiveResonantLayer` | Local predictive resonance; alignment is per-example in RNN state |
+| `HierarchicalHomeostaticController` | Bounded multi-level activity regulation and hierarchy signals for plastic layers |
 | `BioplasticDenseLayer` | Dual kernel; optional inference-time BCM + homeostasis on `plastic_kernel` |
 | `HebbianHomeostaticNeuroplasticity` | Trainable dense + Hebbian plastic kernel and homeostatic gain |
 | `RelationalConceptModeling` | Multi-head self-attention wrapper |
@@ -504,7 +520,7 @@ gpbacay_arcane/
 ## Contributing
 
 We welcome contributions to advance neuromimetic AI:
-1. Research: Novel biological neural mechanisms.
+1. Research: Controlled evaluations of biologically inspired mechanisms.
 2. Engineering: Performance optimizations and scaling.
 3. Applications: Domain-specific implementations.
 4. Documentation: Tutorials and examples.
@@ -530,5 +546,5 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 
 **"Neurons that fire together, wire together, and now they learn together."**
 
-*ARCANE - Building the future of biologically-inspired AI, one neural connection at a time.*
+*ARCANE — experimental, biologically inspired neural components with measurable behavior.*
 

@@ -12,6 +12,7 @@ from gpbacay_arcane.layers import (
     BioplasticDenseLayer,
     DenseGSER,
     HebbianHomeostaticNeuroplasticity,
+    HierarchicalHomeostaticController,
     PositionalEncodingLayer,
     ResonantGSER,
 )
@@ -130,6 +131,151 @@ def test_bioplastic_bcm_updates_plastic_kernel():
     layer(x, training=False)
     after = layer.plastic_kernel.numpy()
     assert np.linalg.norm(after - before) > 0
+    assert np.all(layer.trace.numpy() >= 0.0)
+
+
+def test_bioplastic_current_output_uses_update_and_can_reset():
+    layer = BioplasticDenseLayer(
+        units=3,
+        enable_inference_plasticity=True,
+        dropout_rate=0.0,
+        activation="linear",
+        bcm_tau=2.0,
+        learning_rate=0.5,
+    )
+    x = tf.ones((4, 2))
+    layer.build(x.shape)
+
+    output = layer(x, training=False)
+    expected = tf.matmul(x, layer.kernel + layer.plastic_kernel) + layer.bias
+    np.testing.assert_allclose(output.numpy(), expected.numpy(), atol=1e-6)
+    assert np.linalg.norm(layer.plastic_kernel.numpy()) > 0.0
+
+    layer.reset_plasticity()
+    np.testing.assert_allclose(layer.plastic_kernel.numpy(), 0.0, atol=0.0)
+    np.testing.assert_allclose(layer.trace.numpy(), 0.0, atol=0.0)
+
+
+def test_bioplastic_finite_window_and_attention_weighted_activity():
+    layer = BioplasticDenseLayer(
+        units=2,
+        activation="linear",
+        normalization=None,
+        enable_inference_plasticity=True,
+        learning_rate=0.0,
+        homeostatic_rate=0.0,
+        homeostatic_window_size=2,
+        slow_bcm_tau=10.0,
+    )
+    layer.build((None, 2))
+    layer.kernel.assign(tf.eye(2))
+
+    layer(
+        tf.constant([[1.0, 0.0], [10.0, 0.0]]),
+        training=False,
+        attention_weights=tf.constant([1.0, 0.0]),
+    )
+    layer(
+        tf.constant([[2.0, 0.0], [20.0, 0.0]]),
+        training=False,
+        attention_weights=tf.constant([1.0, 0.0]),
+    )
+
+    np.testing.assert_allclose(
+        layer.activity_window.numpy()[:, 0], [1.0, 4.0], atol=1e-6
+    )
+    assert int(layer.window_count.numpy()) == 2
+    assert np.all(layer.slow_trace.numpy() >= 0.0)
+
+
+def test_bioplastic_local_and_global_regulation_are_distinct():
+    def make_layer(mode):
+        current = BioplasticDenseLayer(
+            units=2,
+            activation="linear",
+            normalization=None,
+            enable_inference_plasticity=True,
+            learning_rate=0.0,
+            homeostatic_rate=0.1,
+            target_avg=2.0,
+            target_bounds=(0.01, 5.0),
+            homeostasis_mode=mode,
+        )
+        current.build((None, 2))
+        current.kernel.assign(tf.zeros((2, 2)))
+        current.plastic_kernel.assign(tf.constant([[1.0, 0.0], [0.0, 4.0]]))
+        return current
+
+    local = make_layer("local")
+    global_layer = make_layer("global")
+    before = np.array([[1.0, 0.0], [0.0, 4.0]], dtype=np.float32)
+    inputs = tf.ones((1, 2))
+    local(inputs, training=False)
+    global_layer(inputs, training=False)
+
+    local_ratios = np.diag(local.plastic_kernel.numpy()) / np.diag(before)
+    global_ratios = np.diag(global_layer.plastic_kernel.numpy()) / np.diag(before)
+    assert abs(local_ratios[0] - local_ratios[1]) > 0.1
+    np.testing.assert_allclose(global_ratios[0], global_ratios[1], atol=1e-6)
+
+
+def test_bioplastic_adaptive_target_and_resonance_coupling():
+    def make_layer():
+        current = BioplasticDenseLayer(
+            units=2,
+            activation="linear",
+            normalization=None,
+            enable_inference_plasticity=True,
+            learning_rate=0.0,
+            homeostatic_rate=0.1,
+            target_avg=0.2,
+            adaptive_target_rate=0.5,
+            resonance_coupling=1.0,
+            homeostasis_mode="local",
+        )
+        current.build((None, 2))
+        current.kernel.assign(tf.zeros((2, 2)))
+        current.plastic_kernel.assign(tf.eye(2) * 0.1)
+        return current
+
+    uncoupled = make_layer()
+    coupled = make_layer()
+    inputs = tf.ones((1, 2))
+    requested_target = tf.fill((1, 1), 0.6)
+    uncoupled(
+        inputs,
+        training=False,
+        resonance_signal=tf.zeros((1, 1)),
+        target_signal=requested_target,
+    )
+    coupled(
+        inputs,
+        training=False,
+        resonance_signal=tf.fill((1, 1), 2.0),
+        target_signal=requested_target,
+    )
+
+    np.testing.assert_allclose(coupled.adaptive_target.numpy(), 0.4, atol=1e-6)
+    coupled_change = np.linalg.norm(coupled.plastic_kernel.numpy() - 0.1 * np.eye(2))
+    uncoupled_change = np.linalg.norm(uncoupled.plastic_kernel.numpy() - 0.1 * np.eye(2))
+    assert coupled_change > uncoupled_change
+
+
+def test_hierarchical_homeostatic_controller_regulates_each_level():
+    controller = HierarchicalHomeostaticController(
+        target_activity=0.3,
+        regulation_rate=1.0,
+        adaptive_target_rate=0.5,
+    )
+    low = tf.fill((2, 3, 4), 0.1)
+    high = tf.fill((2, 3, 4), 0.8)
+
+    regulated_low, regulated_high, imbalance, target = controller([low, high])
+
+    assert float(tf.reduce_mean(regulated_low)) > 0.1
+    assert float(tf.reduce_mean(regulated_high)) < 0.8
+    assert imbalance.shape == (2, 1)
+    np.testing.assert_allclose(target.numpy(), 0.375, atol=1e-6)
 
 
 def test_hebbian_layer_inference_matches_dense():

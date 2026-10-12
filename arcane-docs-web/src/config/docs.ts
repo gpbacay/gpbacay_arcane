@@ -40,6 +40,16 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
           href: "/docs/neural-resonance",
           keywords: ["prospective configuration", "thinking phase", "feedback", "bidirectional", "alignment", "synchronization"]
         },
+        {
+          title: "Inference-Time Learning",
+          href: "/docs/inference-time-learning",
+          keywords: ["inference-time learning", "inference time", "test time adaptation", "resonance", "fast weights", "entropy", "consistency", "rollback", "ablation", "per example", "feedback alignment"]
+        },
+        {
+          title: "Homeostatic Plasticity",
+          href: "/docs/homeostatic-plasticity",
+          keywords: ["homeostasis", "BCM", "sliding window", "adaptive target", "attention guided", "hierarchical controller", "fast weights"]
+        },
         { 
           title: "Biological Layers", 
           href: "/docs/layers",

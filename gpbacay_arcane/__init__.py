@@ -27,6 +27,7 @@ from .layers import (
     PredictiveResonantLayer,
     BioplasticDenseLayer,
     HebbianHomeostaticNeuroplasticity,
+    HierarchicalHomeostaticController,
     RelationalConceptModeling,
     RelationalGraphAttentionReasoning,
     RelationalConceptGraphReasoning,
@@ -80,6 +81,18 @@ from .models import (
 # Convenience re-exports for foundational models
 from .foundational_models import (
     HierarchicalResonanceFoundationModel,
+)
+
+from .test_time_adaptation import (
+    AdaptationResult,
+    ModelSnapshot,
+    TestTimeAdapter,
+)
+
+from .ablation import (
+    AblationRecord,
+    AblationReport,
+    run_resonance_ablation,
 )
 
 from .language_model import (
@@ -170,6 +183,7 @@ __all__ = [
     "PredictiveResonantLayer",
     "BioplasticDenseLayer",
     "HebbianHomeostaticNeuroplasticity",
+    "HierarchicalHomeostaticController",
     "RelationalConceptModeling",
     "RelationalGraphAttentionReasoning",
     "RelationalConceptGraphReasoning",
@@ -204,6 +218,12 @@ __all__ = [
     # Models
     "NeuromimeticSemanticModel",
     "HierarchicalResonanceFoundationModel",
+    "TestTimeAdapter",
+    "AdaptationResult",
+    "ModelSnapshot",
+    "run_resonance_ablation",
+    "AblationRecord",
+    "AblationReport",
     "ArcaneSmallLanguageModel",
     "Arc1Model",
     "Arc1Config",

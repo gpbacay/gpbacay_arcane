@@ -2,7 +2,7 @@
 
 ## Overview
 
-Homeostatic Plasticity is a critical neuromimetic mechanism in the ARCANE (Augmented Reconstruction of Consciousness through Artificial Neural Evolution) framework that enables stable and adaptive neural activity regulation. This mechanism ensures that neural networks maintain appropriate activity levels over time, preventing issues like runaway activation or dead neurons.
+ARCANE implements homeostatic-plasticity-inspired mechanisms for measuring activity and applying bounded corrections toward configured targets. These controls can reduce a measured activity mismatch, but they do not guarantee training stability, prevent dead units, or improve task performance.
 
 ## Biological Inspiration
 
@@ -15,22 +15,24 @@ Homeostatic plasticity is inspired by biological neural systems where neurons ma
 
 ## Core Concept
 
-Homeostatic plasticity works by continuously monitoring neural activity levels and adjusting synaptic weights to maintain target activity levels. When activity is too high, weights are reduced; when activity is too low, weights are increased.
+The implementation tracks activity with exponential traces, optional exact windows, or both. Depending on the layer, it adjusts a plastic weight component, a bounded gain, or the representation itself. Learned task weights are not silently overwritten.
 
 ## Mathematical Formulation
 
 ### BCM plasticity (BioplasticDenseLayer)
 
-When `enable_inference_plasticity=True` and `training=False`, the **plastic** kernel (not the gradient kernel) is updated with a BCM rule. The sliding threshold $\theta$ is the running trace of postsynaptic activity:
+When `enable_inference_plasticity=True` and `training=False`, the **plastic** kernel (not the gradient kernel) is updated with a BCM rule. By default, the sliding threshold $\theta$ is the exponential running trace of postsynaptic activity:
 
 \[
-\theta \leftarrow \bigl(1 - 1/\tau\bigr)\,\theta + (1/\tau)\,\bar{y}
+\theta \leftarrow \bigl(1 - 1/\tau\bigr)\,\theta + (1/\tau)\,\overline{y^2}
 \]
 \[
 \Delta W_{\text{plastic}} \propto x^{\top}\bigl[y \odot (y - \theta)\bigr]
 \]
 
-Activity homeostasis then scales that plastic kernel toward `target_avg`. The plastic kernel is clipped by global norm (5.0). Gradient descent still updates `kernel`; the two do not overwrite each other.
+The anti-Hebbian term decays the fast component instead of biasing all correlations negative. Activity homeostasis then scales that plastic kernel toward `target_avg`, and the kernel is clipped by global norm (5.0). The output is recomputed with the new plastic weights, so adaptation affects the current inference. Gradient descent still updates `kernel`; the two do not overwrite each other. Call `reset_plasticity()` to begin a new episode.
+
+The threshold can instead use an exact finite window with `homeostatic_window_size`, and can blend that fast estimate with a second exponential trace configured by `slow_bcm_tau` and `slow_trace_weight`. Attention weights, when supplied, weight both the activity statistics and BCM correlation.
 
 Plasticity is **off** during `fit()` unless you call the layer with `training=False` and `enable_inference_plasticity=True`.
 
@@ -57,6 +59,13 @@ layer = BioplasticDenseLayer(
     target_avg=0.12,
     homeostatic_rate=5e-5,
     bcm_tau=800.0,
+    homeostatic_window_size=32,
+    slow_bcm_tau=4000.0,
+    slow_trace_weight=0.5,
+    homeostasis_mode='hybrid',
+    local_homeostasis_weight=0.5,
+    adaptive_target_rate=0.05,
+    resonance_coupling=0.5,
     enable_inference_plasticity=True,  # required for BCM / homeostasis at inference
     activation='gelu'
 )
@@ -68,6 +77,47 @@ layer = BioplasticDenseLayer(
 - `bcm_tau`: Time constant of the sliding BCM threshold
 - `enable_inference_plasticity`: If False (default), the layer is a dense map during both train and infer
 - `learning_rate`: Step size of the BCM update
+- `homeostatic_window_size`: Exact recent-activity window; zero keeps the EMA-only behavior
+- `slow_bcm_tau`: Optional second, slower activity trace
+- `homeostasis_mode`: `global`, `local`, or `hybrid` activity-error regulation
+- `local_homeostasis_weight`: Local contribution in hybrid mode
+- `adaptive_target_rate`: Update rate toward an externally supplied target signal
+- `target_bounds`: Lower and upper limits for adaptive targets
+- `resonance_coupling`: Strength by which hierarchy mismatch increases regulation
+- `hierarchy_level`, `num_hierarchy_levels`, `hierarchy_target_slope`: Optional level-specific target profile
+
+### Context-guided update
+
+The enhanced controls are explicit call-time inputs:
+
+```python
+output = layer(
+    features,
+    training=False,
+    attention_weights=token_or_sample_importance,
+    resonance_signal=hierarchy_divergence,
+    target_signal=task_conditioned_activity_target,
+)
+```
+
+- `attention_weights` determines which samples or tokens contribute to activity and BCM statistics.
+- `resonance_signal` scales the homeostatic correction rate. Larger hierarchy mismatch produces stronger bounded regulation when `resonance_coupling > 0`.
+- `target_signal` updates the per-neuron adaptive target. Without this signal, the configured target remains stable.
+
+### HierarchicalHomeostaticController
+
+`HierarchicalHomeostaticController` accepts two or more representation levels. It measures per-example activity at every level, creates a configurable level target profile, applies bounded gains to each representation, and returns both hierarchy imbalance and adaptive-target signals for downstream plastic layers.
+
+```python
+regulated_low, regulated_high, imbalance, target = (
+    HierarchicalHomeostaticController(
+        target_activity=0.12,
+        regulation_rate=0.1,
+        level_target_slope=0.1,
+        adaptive_target_rate=0.1,
+    )([low_level, high_level])
+)
+```
 
 ### HebbianHomeostaticNeuroplasticity
 
@@ -96,7 +146,15 @@ model = NeuromimeticSemanticModel(
     vocab_size=10000,
     seq_len=16,
     embed_dim=32,
-    hidden_dim=64
+    hidden_dim=64,
+    enable_inference_plasticity=True,
+    use_hierarchical_homeostasis=True,
+    homeostasis_config={
+        "homeostasis_mode": "hybrid",
+        "homeostatic_window_size": 32,
+        "slow_bcm_tau": 4000.0,
+        "resonance_coupling": 0.5,
+    },
 )
 
 # The model includes BioplasticDenseLayer with homeostatic regulation
@@ -118,7 +176,13 @@ bioplastic = BioplasticDenseLayer(
 `tests/test_mechanism_correctness.py` checks the implemented rules:
 
 - `test_bioplastic_bcm_updates_plastic_kernel`: with `enable_inference_plasticity=True`, `plastic_kernel` changes at inference
+- `test_bioplastic_finite_window_and_attention_weighted_activity`: the exact window records attention-weighted activity
+- `test_bioplastic_local_and_global_regulation_are_distinct`: local and global controllers produce different update structures
+- `test_bioplastic_adaptive_target_and_resonance_coupling`: targets adapt and hierarchy mismatch changes regulation strength
+- `test_hierarchical_homeostatic_controller_regulates_each_level`: low- and high-activity levels receive bounded corrections
 - `test_hebbian_layer_inference_matches_dense`: at inference, output equals `(kernel + 0) @ x + bias`
+
+`tests/test_inference_time_resonance.py` verifies that the hierarchical model wires controller, pathway-gating, target, and resonance signals into its plastic layers.
 
 ```bash
 python -m pytest tests/test_homeostatic_plasticity.py tests/test_mechanism_correctness.py -q
@@ -168,22 +232,22 @@ The test suite generates comprehensive visualizations showing:
 - Error convergence plots (log scale)
 - Performance metrics comparison
 
-## Benefits for Neural Networks
+## Measurements and Hypotheses
 
-### Stability
-- Prevents gradient explosion/collapse
-- Maintains network responsiveness
-- Enables long-term learning without degradation
+### Stability measurements
+- Activity error relative to the configured target
+- Oscillation and saturation across adaptation steps
+- Gradient and activation norms during training
 
-### Adaptability
-- Allows networks to adapt to new tasks
-- Maintains plasticity while ensuring stability
-- Supports continual learning scenarios
+### Adaptation measurements
+- Objective change before and after plastic updates
+- Retention after distribution or task changes
+- Order and batch-size sensitivity
 
-### Biological Fidelity
-- Mirrors real neural homeostatic mechanisms
-- Supports complex cognitive behaviors
-- Enables more brain-like information processing
+### Scope of the analogy
+- Sliding thresholds and bounded activity targets are biologically inspired
+- The implementation is an engineering abstraction, not a biological simulation
+- Cognitive behavior and biological fidelity are not inferred from mechanism names
 
 ## Usage Guidelines
 
@@ -212,28 +276,34 @@ The test suite generates comprehensive visualizations showing:
 ## Advanced Applications
 
 ### Continual Learning
-Homeostatic plasticity enables networks to learn new tasks without catastrophic forgetting by maintaining stable representations.
+Homeostatic plasticity can be evaluated as one component of continual-learning systems. ARCANE does not establish that it prevents catastrophic forgetting; report retention and forward/backward transfer explicitly.
 
 ### Meta-Learning
-The mechanism supports rapid adaptation to new learning contexts while preserving previously learned knowledge.
+Adaptive targets and fast weights provide mechanisms for meta-learning experiments, but rapid adaptation and knowledge retention are task-dependent outcomes.
 
 ### Robustness
-Networks with homeostatic plasticity are more robust to:
+Potential robustness evaluations include:
 - Input distribution shifts
 - Adversarial perturbations
 - Long training sequences
 
-## Future Directions
+## Implemented Advanced Mechanisms
 
-### Enhanced Mechanisms
-- **Sliding Window Homeostasis**: Activity regulation over time windows
-- **Local vs Global Regulation**: Neuron-specific vs. layer-wide control
-- **Adaptive Targets**: Dynamic target adjustment based on task requirements
+- **Finite-window and multi-timescale homeostasis**: Exact activity windows can be combined with fast and slow exponential traces.
+- **Local and global regulation**: Regulation can operate per neuron, layer-wide, or as a configurable hybrid.
+- **Adaptive targets**: Per-neuron targets track an explicit task or hierarchy target signal within configured bounds.
+- **Resonance-coupled homeostasis**: Hierarchy mismatch controls the strength of plastic regulation.
+- **Hierarchical regulation**: A differentiable controller regulates multiple representation levels and supplies imbalance and target signals to plastic layers.
+- **Attention-guided homeostasis**: Token or sample importance weights the activity and correlation statistics.
 
-### Integration with Other Mechanisms
-- **Neural Resonance**: Coordinating homeostatic stability with dynamic adaptation
-- **Hierarchical Regulation**: Multi-scale homeostatic control
-- **Attention-Guided Homeostasis**: Task-specific activity regulation
+All enhanced mechanisms are opt-in. Existing models retain their original behavior unless inference plasticity or hierarchical homeostasis is enabled. This preserves checkpoint compatibility and prevents stateful, order-dependent updates from being introduced silently; enable each mechanism for a controlled task-level comparison.
+
+## Remaining Research Directions
+
+- Learn target policies from an outer validation or reinforcement objective instead of supplying target signals directly.
+- Evaluate whether controller gains and adaptive targets improve calibration, robustness, or continual learning on held-out tasks.
+- Compare finite-window, dual-timescale, and EMA-only regulation under controlled distribution shifts.
+- Extend hierarchical regulation to generation-time token states and persistent streaming identities.
 
 ## References
 
@@ -243,4 +313,4 @@ Networks with homeostatic plasticity are more robust to:
 
 ---
 
-*This documentation covers the Homeostatic Plasticity mechanism as implemented in ARCANE v3.0.0. For the latest updates and additional features, refer to the main project repository.*
+*This documentation describes the current implementation. Performance benefits require task-level ablation rather than mechanism-level unit tests alone.*
