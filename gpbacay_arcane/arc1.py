@@ -60,6 +60,7 @@ ARC1_PRESETS: Dict[str, Dict] = {
         "binding_heads": 4,
         "binding_cycles": 3,
         "rsaa_cycles": 2,
+        "active_rsaa_cycles": 0,
     },
     # Causal LM (Arc1LanguageModel) sized for fast CPU distillation: ~10M params, ~40 MB.
     "arc1-lm": {
@@ -128,6 +129,7 @@ ARC1_PRESETS: Dict[str, Dict] = {
         "binding_heads": 8,
         "binding_cycles": 4,
         "rsaa_cycles": 2,
+        "active_rsaa_cycles": 0,
     },
 }
 
@@ -165,9 +167,18 @@ class Arc1Config:
     active_cycles: Optional[int] = None  # None = binding_cycles
     # State-only RSAA. Zero preserves checkpoints saved before ARCANE 5.0.
     rsaa_cycles: int = 0
+    active_rsaa_cycles: Optional[int] = None  # None = rsaa_cycles
     rsaa_factor: float = 0.15
     rsaa_epsilon: float = 1e-4
+    # ``identity`` reproduces the ARCANE 5.0 state-only implementation and
+    # adds no checkpoint variables. ``adaptive`` learns a top-down projection
+    # and token-wise update gate for every adjacent pair of perception layers.
+    rsaa_mode: str = "identity"
+    rsaa_max_factor: float = 0.35
+    rsaa_min_improvement: float = 0.0
+    rsaa_rollback: bool = True
     calibration: Dict[str, float] = field(default_factory=_default_calibration)
+    rsaa_calibration: Dict[str, Dict[str, float]] = field(default_factory=dict)
     # Causal-LM-only options.  ``legacy`` preserves every existing checkpoint.
     lm_architecture: str = "legacy"
     lm_block_pattern: Tuple[str, ...] = ()
@@ -188,11 +199,15 @@ class Arc1Config:
     def resolve_rsaa_cycles(self, cycles: Optional[int] = None) -> int:
         """Resolve a per-call RSAA budget, including the disabled value zero."""
         if cycles is None:
-            cycles = self.rsaa_cycles
+            cycles = self.active_rsaa_cycles
+        if cycles is None:
+            return self.rsaa_cycles
         return int(max(0, min(int(cycles), self.rsaa_cycles)))
 
-    def temperature(self, readout: str) -> float:
-        return float(max((self.calibration or {}).get(readout, 1.0), 1e-3))
+    def temperature(self, readout: str, rsaa_cycles: Optional[int] = None) -> float:
+        profile = (self.rsaa_calibration or {}).get(str(self.resolve_rsaa_cycles(rsaa_cycles)), {})
+        value = profile.get(readout, (self.calibration or {}).get(readout, 1.0))
+        return float(max(value, 1e-3))
 
     @classmethod
     def from_preset(cls, name: str, **overrides) -> "Arc1Config":
@@ -218,6 +233,13 @@ class Arc1Config:
             merged = _default_calibration()
             merged.update({k: float(v) for k, v in (data["calibration"] or {}).items() if k in merged})
             data["calibration"] = merged
+        if "rsaa_calibration" in data:
+            profiles = {}
+            for profile, values in (data["rsaa_calibration"] or {}).items():
+                merged = _default_calibration()
+                merged.update({k: float(v) for k, v in (values or {}).items() if k in merged})
+                profiles[str(profile)] = merged
+            data["rsaa_calibration"] = profiles
         return cls(**data)
 
     def to_dict(self) -> Dict:
@@ -226,6 +248,9 @@ class Arc1Config:
         data["lm_block_pattern"] = list(self.lm_block_pattern)
         data["resonance_decays"] = list(self.resonance_decays)
         data["calibration"] = dict(self.calibration)
+        data["rsaa_calibration"] = {
+            str(profile): dict(values) for profile, values in self.rsaa_calibration.items()
+        }
         return data
 
     def with_cycles(self, cycles: Optional[int]) -> "Arc1Config":
@@ -302,6 +327,12 @@ class Arc1Model(tf.keras.Model):
             raise ValueError("d_model must be divisible by num_heads and binding_heads")
         if cfg.rsaa_cycles < 0 or not 0.0 < cfg.rsaa_factor <= 1.0 or cfg.rsaa_epsilon < 0.0:
             raise ValueError("RSAA needs cycles >= 0, factor in (0, 1], and epsilon >= 0")
+        if cfg.rsaa_mode not in {"identity", "adaptive"}:
+            raise ValueError("rsaa_mode must be 'identity' or 'adaptive'")
+        if not cfg.rsaa_factor <= cfg.rsaa_max_factor <= 1.0:
+            raise ValueError("rsaa_max_factor must be between rsaa_factor and 1")
+        if cfg.rsaa_min_improvement < 0.0:
+            raise ValueError("rsaa_min_improvement must be non-negative")
         d = cfg.d_model
 
         self.token_embedding = tf.keras.layers.Embedding(cfg.vocab_size, d, name="token_embedding")
@@ -334,11 +365,43 @@ class Arc1Model(tf.keras.Model):
         self.select_query = tf.keras.layers.Dense(d, name="select_query")
         self.select_key = tf.keras.layers.Dense(d, name="select_key")
 
+        # Register optional variables after every legacy layer. Keras' weight
+        # object graph then remains compatible with pre-RSAA checkpoints when
+        # ``load_weights(..., skip_mismatch=True)`` warm-starts this model.
+        self.rsaa_projections = []
+        self.rsaa_gates = []
+        if cfg.rsaa_mode == "adaptive":
+            fraction = (cfg.rsaa_factor - 1e-3) / max(cfg.rsaa_max_factor - 1e-3, 1e-6)
+            fraction = min(max(fraction, 1e-4), 1.0 - 1e-4)
+            gate_bias = float(tf.math.log(fraction / (1.0 - fraction)))
+            for i in range(max(cfg.num_layers - 1, 0)):
+                self.rsaa_projections.append(
+                    tf.keras.layers.Dense(
+                        d,
+                        use_bias=False,
+                        kernel_initializer=tf.keras.initializers.Identity(),
+                        name=f"rsaa_feedback_{i}",
+                    )
+                )
+                self.rsaa_gates.append(
+                    tf.keras.layers.Dense(
+                        1,
+                        kernel_initializer="zeros",
+                        bias_initializer=tf.keras.initializers.Constant(gate_bias),
+                        name=f"rsaa_gate_{i}",
+                    )
+                )
+
     @classmethod
     def from_preset(cls, name: str = "arc1-tiny", **overrides) -> "Arc1Model":
         return cls(Arc1Config.from_preset(name, **overrides))
 
     # --------------------------------------------------------------- perceive
+    def _rsaa_target(self, boundary, upper):
+        if self.arc1_config.rsaa_mode == "adaptive":
+            return self.rsaa_projections[boundary](upper)
+        return upper
+
     def _rsaa_divergence(self, states, mask):
         """Per-example mean squared disagreement between adjacent hierarchy states."""
         if len(states) < 2:
@@ -346,19 +409,35 @@ class Arc1Model(tf.keras.Model):
         weight = tf.cast(tf.expand_dims(mask, -1), states[0].dtype)
         width = tf.cast(tf.shape(states[0])[-1], states[0].dtype)
         denom = tf.maximum(tf.reduce_sum(weight, axis=[1, 2]) * width, 1.0)
-        terms = [
-            tf.reduce_sum(tf.square(lower - upper) * weight, axis=[1, 2]) / denom
-            for lower, upper in zip(states[:-1], states[1:])
-        ]
+        terms = []
+        for i, (lower, upper) in enumerate(zip(states[:-1], states[1:])):
+            target = self._rsaa_target(i, upper)
+            terms.append(tf.reduce_sum(tf.square(lower - target) * weight, axis=[1, 2]) / denom)
         return tf.add_n(terms)
+
+    def _rsaa_update(self, boundary, lower, upper):
+        """Project one upper state down and return its gated lower-state update."""
+        cfg = self.arc1_config
+        target = self._rsaa_target(boundary, upper)
+        delta = target - lower
+        if cfg.rsaa_mode == "adaptive":
+            features = tf.concat([lower, target, tf.abs(delta)], axis=-1)
+            gate = tf.sigmoid(self.rsaa_gates[boundary](features))
+            lo = tf.cast(1e-3, lower.dtype)
+            hi = tf.cast(cfg.rsaa_max_factor, lower.dtype)
+            gamma = lo + (hi - lo) * tf.cast(gate, lower.dtype)
+        else:
+            gamma = tf.cast(cfg.rsaa_factor, lower.dtype)
+        return lower + gamma * delta, gamma
 
     def perceive(self, token_ids, training=False, rsaa_cycles=None, return_rsaa=False):
         """Return a field and mask after optional state-only RSAA alignment.
 
-        Every perception block has the same width, so ARC 1 uses an identity
-        ``f_proj`` for top-down feedback. A cycle applies the paper's update
-        ``S <- S - gamma * (S - P)`` to each lower state, then re-evaluates the
-        current input through the shared blocks. Weights never change.
+        Identity mode preserves the checkpoint-compatible ARCANE 5.0 update.
+        Adaptive mode uses learned layer-specific top-down projections and
+        token-wise gates. At inference, a cycle is committed per example only
+        when it reduces hierarchical divergence; a harmful cycle is rolled
+        back without consuming later cycles.
         """
         mask = tf.not_equal(token_ids, self.arc1_config.pad_id)
         embedded = self.embed_dropout(self.token_embedding(token_ids), training=training)
@@ -372,8 +451,10 @@ class Arc1Model(tf.keras.Model):
         divergence = self._rsaa_divergence(states, mask)
         initial_divergence = divergence
         steps = tf.zeros_like(divergence, dtype=tf.int32)
-        gamma = tf.cast(self.arc1_config.rsaa_factor, x.dtype)
         epsilon = tf.cast(self.arc1_config.rsaa_epsilon, divergence.dtype)
+        accepted_steps = tf.zeros_like(divergence, dtype=tf.int32)
+        rolled_back = tf.zeros_like(divergence, dtype=tf.int32)
+        gate_total = tf.zeros_like(divergence)
 
         for _ in range(budget):
             active = divergence >= epsilon
@@ -383,20 +464,46 @@ class Arc1Model(tf.keras.Model):
             for i, block in enumerate(self.blocks):
                 x = block(x, token_ids=token_ids, token_mask=mask, training=training)
                 if i < len(self.blocks) - 1:
-                    aligned = x - gamma * (x - targets[i])
+                    aligned, gamma = self._rsaa_update(i, x, targets[i])
                     align_here = tf.logical_and(mask, tf.expand_dims(active, -1))
                     x = tf.where(tf.expand_dims(align_here, -1), aligned, x)
+                    gate_value = tf.cast(gamma, divergence.dtype)
+                    if len(gate_value.shape) == 0:
+                        gate_value = tf.fill(tf.shape(x)[:2], gate_value)
+                    else:
+                        gate_value = tf.squeeze(gate_value, axis=-1)
+                    mean_gate = tf.math.divide_no_nan(
+                        tf.reduce_sum(gate_value * tf.cast(mask, gate_value.dtype), axis=1),
+                        tf.reduce_sum(tf.cast(mask, gate_value.dtype), axis=1),
+                    )
+                    gate_total += tf.where(active, mean_gate, tf.zeros_like(mean_gate))
                 candidates.append(x)
-            choose = tf.reshape(active, (-1, 1, 1))
+            candidate_divergence = self._rsaa_divergence(candidates, mask)
+            if self.arc1_config.rsaa_rollback and not training:
+                improvement = divergence - candidate_divergence
+                accept = tf.logical_and(
+                    active,
+                    improvement >= tf.cast(self.arc1_config.rsaa_min_improvement, improvement.dtype),
+                )
+            else:
+                accept = active
+            choose = tf.reshape(accept, (-1, 1, 1))
             states = [tf.where(choose, new, old) for new, old in zip(candidates, states)]
-            candidate_divergence = self._rsaa_divergence(states, mask)
-            divergence = tf.where(active, candidate_divergence, divergence)
+            divergence = tf.where(accept, candidate_divergence, divergence)
             steps += tf.cast(active, tf.int32)
+            accepted_steps += tf.cast(accept, tf.int32)
+            rolled_back += tf.cast(tf.logical_and(active, tf.logical_not(accept)), tf.int32)
 
         trace = {
             "rsaa_initial_divergence": initial_divergence,
             "rsaa_divergence": divergence,
             "rsaa_steps": steps,
+            "rsaa_accepted_steps": accepted_steps,
+            "rsaa_rolled_back": rolled_back,
+            "rsaa_mean_factor": tf.math.divide_no_nan(
+                gate_total,
+                tf.cast(tf.maximum(steps, 1) * max(len(self.blocks) - 1, 1), gate_total.dtype),
+            ),
         }
         if return_rsaa:
             return states[-1], mask, trace
@@ -409,17 +516,17 @@ class Arc1Model(tf.keras.Model):
         weights = tf.nn.softmax(scores, axis=-1)
         return tf.reduce_sum(field * tf.expand_dims(weights, -1), axis=1)
 
-    def schema_engrams(self, token_ids, training=False):
+    def schema_engrams(self, token_ids, training=False, rsaa_cycles=None):
         """One engram ``(S, D)`` per schema text (tool, parameter, or option)."""
-        field, mask = self.perceive(token_ids, training=training)
+        field, mask = self.perceive(token_ids, training=training, rsaa_cycles=rsaa_cycles)
         return self.schema_proj(self._attention_pool(field, mask, self.schema_pool))
 
     def pooled_embedding(self, field, mask):
         vec = self.utter_proj(self._attention_pool(field, mask, self.utter_pool))
         return tf.nn.l2_normalize(vec, axis=-1)
 
-    def embed_text(self, token_ids, training=False):
-        field, mask = self.perceive(token_ids, training=training)
+    def embed_text(self, token_ids, training=False, rsaa_cycles=None):
+        field, mask = self.perceive(token_ids, training=training, rsaa_cycles=rsaa_cycles)
         return self.pooled_embedding(field, mask)
 
     def call(self, token_ids, training=False):
@@ -514,6 +621,8 @@ class Arc1Model(tf.keras.Model):
         utter = tf.constant([[3, 40, 41, 42, 43, 0, 0, 0]], dtype=tf.int32)
         schema = tf.constant([[3, 50, 51, 52, 0, 0, 0, 0], [3, 60, 61, 0, 0, 0, 0, 0]], dtype=tf.int32)
         self(utter, training=False)  # Keras 3 marks the model built only via __call__
+        if self.arc1_config.rsaa_mode == "adaptive" and self.arc1_config.rsaa_cycles:
+            self.perceive(utter, training=False, rsaa_cycles=1)
         eng = self.schema_engrams(schema)
         self.decide(utter, tf.zeros((2,), tf.int32), eng, tf.zeros((2, d)), tf.constant([0, 1]))
         return self
@@ -529,10 +638,12 @@ class Arc1Model(tf.keras.Model):
         built = int(self.count_params()) if self.built else 0
         return {
             "name": "Arc1Model",
-            "architecture": "RSAA-Aligned Resonant Schema Binding",
+            "architecture": "RSAA-Capable Resonant Schema Binding",
             "built_parameters": built,
             "active_cycles": self.arc1_config.resolve_cycles(cycles),
-            "rsaa_cycles": self.arc1_config.resolve_rsaa_cycles(),
+            "active_rsaa_cycles": self.arc1_config.resolve_rsaa_cycles(),
+            "rsaa_cycles": self.arc1_config.rsaa_cycles,
+            "rsaa_mode": self.arc1_config.rsaa_mode,
             "config": self.arc1_config.to_dict(),
         }
 

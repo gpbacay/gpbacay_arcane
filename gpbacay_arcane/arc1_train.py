@@ -240,14 +240,18 @@ def _safe_mean(x):
     return tf.math.divide_no_nan(tf.reduce_sum(x), tf.cast(tf.size(x), x.dtype))
 
 
-def forward_batch(model: Arc1Model, batch, cycles: Optional[int], training: bool):
+def forward_batch(model: Arc1Model, batch, cycles: Optional[int], training: bool,
+                  rsaa_cycles: Optional[int] = None):
     """Perceive schemas and utterances once, bind every probe; add enum logits."""
-    engrams = model.schema_engrams(batch["schema_ids"], training=training)
+    engrams = model.schema_engrams(
+        batch["schema_ids"], training=training, rsaa_cycles=rsaa_cycles
+    )
     engram_a = tf.gather(engrams, batch["probe_a"])
     has_b = batch["probe_b"] >= 0
     engram_b = tf.where(has_b[:, None], tf.gather(engrams, tf.maximum(batch["probe_b"], 0)), 0.0)
     out = model.decide(batch["utter_ids"], batch["probe_example"], engram_a, engram_b, batch["probe_role"],
-                       cycles=cycles, training=training, with_embedding=True)
+                       cycles=cycles, training=training, with_embedding=True,
+                       rsaa_cycles=rsaa_cycles)
     options = batch["select_options"]
     q = tf.gather(out["select_q"], batch["select_param"])[:, None, :]
     k = tf.gather(out["select_k"], tf.maximum(options, 0))
@@ -255,8 +259,11 @@ def forward_batch(model: Arc1Model, batch, cycles: Optional[int], training: bool
     return out
 
 
-def compute_losses(model: Arc1Model, batch, cycles: Optional[int], training: bool, embed_temperature: float = 0.05):
-    out = forward_batch(model, batch, cycles, training)
+def compute_losses(model: Arc1Model, batch, cycles: Optional[int], training: bool,
+                   embed_temperature: float = 0.05, rsaa_cycles: Optional[int] = None,
+                   rsaa_alignment_weight: float = 0.0,
+                   rsaa_consistency_weight: float = 0.0):
+    out = forward_batch(model, batch, cycles, training, rsaa_cycles=rsaa_cycles)
     losses = {}
     fire = tf.gather(out["fire"], batch["fire_idx"])
     losses["fire"] = _safe_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=batch["fire_label"], logits=fire))
@@ -283,7 +290,38 @@ def compute_losses(model: Arc1Model, batch, cycles: Optional[int], training: boo
         _safe_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=sim))
         + _safe_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=tf.transpose(sim)))
     )
-    losses["total"] = losses["fire"] + losses["anchor"] + losses["select"] + 0.5 * losses["embed"]
+    initial_divergence = tf.stop_gradient(out["rsaa_initial_divergence"])
+    losses["rsaa_alignment"] = _safe_mean(
+        tf.math.divide_no_nan(out["rsaa_divergence"], initial_divergence + 1e-6)
+    )
+
+    # Preserve useful zero-cycle behavior while teaching the adaptive path.
+    # This distils the legacy prediction into RSAA only; gradients never flow
+    # through the reference pass.
+    if rsaa_consistency_weight and rsaa_cycles:
+        reference = forward_batch(model, batch, cycles, training, rsaa_cycles=0)
+        fire_ref = tf.stop_gradient(tf.sigmoid(reference["fire"]))
+        fire_now = tf.sigmoid(out["fire"])
+        fire_consistency = _safe_mean(tf.square(fire_now - fire_ref))
+        valid_select = batch["select_options"] >= 0
+        select_ref = tf.stop_gradient(tf.nn.softmax(reference["select"], axis=-1))
+        select_now = tf.nn.softmax(out["select"], axis=-1)
+        select_consistency = _safe_mean(
+            tf.boolean_mask(tf.square(select_now - select_ref), valid_select)
+        )
+        embed_ref = tf.stop_gradient(reference["embedding"])
+        embed_consistency = _safe_mean(
+            1.0 - tf.reduce_sum(out["embedding"] * embed_ref, axis=-1)
+        )
+        losses["rsaa_consistency"] = fire_consistency + select_consistency + embed_consistency
+    else:
+        losses["rsaa_consistency"] = tf.zeros((), dtype=losses["fire"].dtype)
+
+    losses["total"] = (
+        losses["fire"] + losses["anchor"] + losses["select"] + 0.5 * losses["embed"]
+        + rsaa_alignment_weight * losses["rsaa_alignment"]
+        + rsaa_consistency_weight * losses["rsaa_consistency"]
+    )
     return losses, out
 
 
@@ -519,6 +557,10 @@ class TrainConfig:
     n_embed: int = 8
     n_classify: int = 6
     full_cycles_prob: float = 0.6
+    rsaa_full_cycles_prob: float = 0.5
+    rsaa_alignment_weight: float = 0.05
+    rsaa_consistency_weight: float = 0.05
+    rsaa_adapter_steps: int = 100
     log_every: int = 50
     save_every: int = 500
     seed: int = 0
@@ -544,12 +586,27 @@ def train(model: Arc1Model, tokenizer, tc: TrainConfig, out_prefix: str, resume:
     full = cfg.binding_cycles
     step_fns = {}
 
-    def make_step(cycles: int):
+    def make_step(cycles: int, rsaa_cycles: int, adapter_only: bool):
         @tf.function(input_signature=[BATCH_SIGNATURE], reduce_retracing=True)
         def step(batch):
             with tf.GradientTape() as tape:
-                losses, _ = compute_losses(model, batch, cycles, training=True)
-            variables = model.trainable_variables
+                losses, _ = compute_losses(
+                    model,
+                    batch,
+                    cycles,
+                    training=True,
+                    rsaa_cycles=rsaa_cycles,
+                    rsaa_alignment_weight=tc.rsaa_alignment_weight if rsaa_cycles else 0.0,
+                    rsaa_consistency_weight=tc.rsaa_consistency_weight if rsaa_cycles else 0.0,
+                )
+            if adapter_only:
+                variables = [
+                    variable
+                    for layer in model.rsaa_projections + model.rsaa_gates
+                    for variable in layer.trainable_variables
+                ]
+            else:
+                variables = model.trainable_variables
             grads = tape.gradient(losses["total"], variables)
             opt.apply_gradients([(g, v) for g, v in zip(grads, variables) if g is not None])
             return losses
@@ -563,10 +620,21 @@ def train(model: Arc1Model, tokenizer, tc: TrainConfig, out_prefix: str, resume:
     history, running, t0 = [], {}, time.time()
     for step in range(1, tc.steps + 1):
         cycles = full if full == 1 or rng.random() < tc.full_cycles_prob else rng.randint(1, full - 1)
-        if cycles not in step_fns:
-            step_fns[cycles] = make_step(cycles)
+        adapter_only = cfg.rsaa_mode == "adaptive" and step <= tc.rsaa_adapter_steps
+        rsaa_max = cfg.rsaa_cycles
+        if rsaa_max <= 0:
+            rsaa_cycles = 0
+        elif adapter_only:
+            rsaa_cycles = rng.randint(1, rsaa_max)
+        elif rng.random() < tc.rsaa_full_cycles_prob:
+            rsaa_cycles = rsaa_max
+        else:
+            rsaa_cycles = rng.randint(0, rsaa_max - 1)
+        key = (cycles, rsaa_cycles, adapter_only)
+        if key not in step_fns:
+            step_fns[key] = make_step(cycles, rsaa_cycles, adapter_only)
         batch = sample_batch(rng, codec, lib, tc.n_tool, tc.n_extract, tc.n_embed, n_classify=tc.n_classify)
-        losses = step_fns[cycles]({k: tf.constant(v) for k, v in batch.items()})
+        losses = step_fns[key]({k: tf.constant(v) for k, v in batch.items()})
         for k, v in losses.items():
             running[k] = running.get(k, 0.0) + float(v)
         if step % tc.log_every == 0:
@@ -576,7 +644,8 @@ def train(model: Arc1Model, tokenizer, tc: TrainConfig, out_prefix: str, resume:
             eta = elapsed / step * (tc.steps - step)
             history.append({"step": step, **avg})
             print(
-                f"[arc1] step {step}/{tc.steps} cycles {cycles} "
+                f"[arc1] step {step}/{tc.steps} cycles {cycles} rsaa {rsaa_cycles} "
+                f"phase={'adapter' if adapter_only else 'joint'} "
                 + " ".join(f"{k}={v:.3f}" for k, v in avg.items())
                 + f" | {elapsed / step:.2f}s/step eta {eta / 60:.1f}m",
                 flush=True,

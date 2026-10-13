@@ -23,9 +23,34 @@
   "binding_heads": 4,
   "binding_cycles": 3,
   "active_cycles": null,
+  "rsaa_cycles": 2,
+  "active_rsaa_cycles": 0,
+  "rsaa_factor": 0.15,
+  "rsaa_epsilon": 0.0001,
+  "rsaa_mode": "identity",
+  "rsaa_max_factor": 0.35,
+  "rsaa_min_improvement": 0.0,
+  "rsaa_rollback": true,
   "calibration": {
     "fire": 1.0741938211263535,
     "anchor": 1.4215367520780082,
     "select": 2.3759086390590443
+  },
+  "rsaa_calibration": {
+    "0": {
+      "fire": 1.0741938211263535,
+      "anchor": 1.4215367520780082,
+      "select": 2.3759086390590443
+    },
+    "1": {
+      "fire": 0.978417403682632,
+      "anchor": 1.3566844646058023,
+      "select": 2.267516710505164
+    },
+    "2": {
+      "fire": 0.978417403682632,
+      "anchor": 1.3566844646058023,
+      "select": 2.267516710505164
+    }
   }
 }

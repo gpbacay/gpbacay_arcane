@@ -183,8 +183,10 @@ Binding**, is built from ARCANE mechanisms:
    pointer that copies strings and numbers from the user's words), `select` (enum option or
    classification label), embedding.
 
-A request has no autoregressive decoding loop. The `arc1-tiny` and `arc1` presets use two state-only
-RSAA cycles; `rsaa_cycles`, `rsaa_factor`, and `rsaa_epsilon` bound alignment and expose convergence.
+A request has no autoregressive decoding loop. The `arc1-tiny` and `arc1` presets expose up to two
+state-only RSAA cycles; `rsaa_cycles`, `rsaa_factor`, and `rsaa_epsilon` bound alignment and expose convergence.
+The current checkpoint defaults to zero after a same-checkpoint ablation found lower aggregate quality with RSAA enabled.
+The complete result is recorded in [`Models/arc1_rsaa_comparison.json`](Models/arc1_rsaa_comparison.json).
 Every readout has a temperature fitted on held-out data, so `confidence` is calibrated. Binding
 `cycles` independently trades accuracy for speed with the same weights. Pre-5.0 configs load with
 RSAA disabled for checkpoint compatibility.

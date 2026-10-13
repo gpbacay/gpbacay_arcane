@@ -350,7 +350,7 @@ def _softmax(x, t: float) -> np.ndarray:
 
 
 class SchemaMemory:
-    """Cache of schema engrams keyed by schema text.
+    """Cache of schema engrams keyed by schema text and inference profile.
 
     Tool, parameter, and option texts rarely change between requests, so ARC 1
     keeps the engram of each text it has perceived. Texts not yet cached are
@@ -431,13 +431,9 @@ class Arc1Agent:
         self.codec = Arc1Codec(tokenizer, cfg.seq_len, cfg.schema_len)
         self.memory = SchemaMemory()
         self._joint_fns: Dict[Tuple[int, int], Callable] = {}
+        self._embed_fns: Dict[int, Callable] = {}
         d = cfg.d_model
-
-        @tf.function(input_signature=[tf.TensorSpec([None, None], tf.int32)], reduce_retracing=True)
-        def embed(ids):
-            return model.embed_text(ids, training=False)
-
-        self._embed_fn = embed
+        self._embed_signature = [tf.TensorSpec([None, None], tf.int32)]
         self._signature = [
             tf.TensorSpec([None, None], tf.int32),   # row 0 utterance, rows 1.. uncached schema texts
             tf.TensorSpec([None, d], tf.float32),    # cached engrams used by this request
@@ -447,8 +443,8 @@ class Arc1Agent:
         ]
 
     # ------------------------------------------------------------ primitives
-    def _temp(self, readout: str) -> float:
-        return self.model.arc1_config.temperature(readout)
+    def _temp(self, readout: str, rsaa_cycles: Optional[int] = None) -> float:
+        return self.model.arc1_config.temperature(readout, rsaa_cycles)
 
     def _joint_fn(self, cycles: int, rsaa_cycles: int) -> Callable:
         key = (cycles, rsaa_cycles)
@@ -466,6 +462,20 @@ class Arc1Agent:
                 )
 
             self._joint_fns[key] = fn
+        return fn
+
+    def _embed_fn(self, rsaa_cycles: int) -> Callable:
+        fn = self._embed_fns.get(rsaa_cycles)
+        if fn is None:
+            import tensorflow as tf
+
+            model = self.model
+
+            @tf.function(input_signature=self._embed_signature, reduce_retracing=True)
+            def fn(ids):
+                return model.embed_text(ids, training=False, rsaa_cycles=rsaa_cycles)
+
+            self._embed_fns[rsaa_cycles] = fn
         return fn
 
     @staticmethod
@@ -497,11 +507,16 @@ class Arc1Agent:
         rsaa_cycles = cfg.resolve_rsaa_cycles(rsaa_cycles)
         utt = self.codec.utterance(text)
         needed = list(dict.fromkeys([p.text_a for p in probes] + [p.text_b for p in probes if p.text_b]))
-        cached = [t for t in needed if t in self.memory]
-        missing = [t for t in needed if t not in self.memory]
+        def cache_key(value: str) -> str:
+            return f"rsaa={rsaa_cycles}\0{value}"
+        cached = [t for t in needed if cache_key(t) in self.memory]
+        missing = [t for t in needed if cache_key(t) not in self.memory]
         index = {t: i for i, t in enumerate(cached + missing)}
         d = cfg.d_model
-        bank = np.stack([self.memory.get(t) for t in cached]) if cached else np.zeros((0, d), np.float32)
+        bank = (
+            np.stack([self.memory.get(cache_key(t)) for t in cached])
+            if cached else np.zeros((0, d), np.float32)
+        )
         ids = pad_batch([utt.ids] + [self.codec.schema(t) for t in missing], max_len=cfg.seq_len)
         probe_a = np.asarray([index[p.text_a] for p in probes], dtype=np.int32)
         probe_b = np.asarray([index[p.text_b] if p.text_b else -1 for p in probes], dtype=np.int32)
@@ -511,21 +526,27 @@ class Arc1Agent:
             tf.constant(roles),
         )
         out = {k: v.numpy() for k, v in out.items()}
-        self.memory.put(missing, out.pop("new_engrams"))
+        self.memory.put([cache_key(t) for t in missing], out.pop("new_engrams"))
         rsaa_initial = float(out.pop("rsaa_initial_divergence")[0])
         rsaa_final = float(out.pop("rsaa_divergence")[0])
         rsaa_steps = int(out.pop("rsaa_steps")[0])
+        rsaa_accepted = int(out.pop("rsaa_accepted_steps")[0])
+        rsaa_rolled_back = int(out.pop("rsaa_rolled_back")[0])
+        rsaa_mean_factor = float(out.pop("rsaa_mean_factor")[0])
         self.memory.hits += len(cached)
         self.memory.misses += len(missing)
         stats = {"tokens": len(utt.ids), "probes": len(probes), "cycles": cycles, "forward_passes": 1,
                  "rsaa_budget": rsaa_cycles, "perception_evaluations": 1 + rsaa_steps,
                  "rsaa_steps": rsaa_steps,
+                 "rsaa_accepted_steps": rsaa_accepted,
+                 "rsaa_rolled_back": rsaa_rolled_back,
+                 "rsaa_mean_factor": rsaa_mean_factor,
                  "rsaa_initial_divergence": rsaa_initial, "rsaa_divergence": rsaa_final,
                  "schema_encoded": len(missing), "schema_cached": len(cached)}
         return utt, out, stats
 
     def _anchor(self, utt, i: int, out: Dict[str, np.ndarray], ptype: str,
-                blocked: Optional[np.ndarray] = None) -> Dict[str, Any]:
+                blocked: Optional[np.ndarray] = None, rsaa_cycles: Optional[int] = None) -> Dict[str, Any]:
         """Best grounded span for probe ``i``, skipping ``blocked`` token positions."""
         from .arc1_codec import best_span
 
@@ -535,14 +556,16 @@ class Arc1Agent:
             end = np.where(blocked, -1e9, end)
             if not (~blocked[utt.lo:utt.hi]).any():
                 return {"ok": False, "value": None, "p": 0.0}
-        s, e, p_span = best_span(start, end, utt.lo, utt.hi, temperature=self._temp("anchor"))
+        s, e, p_span = best_span(
+            start, end, utt.lo, utt.hi, temperature=self._temp("anchor", rsaa_cycles)
+        )
         surface = self.codec.tokens_to_text(utt, s, e)
         ok, value = coerce_value(ptype, surface)
         return {"ok": ok, "value": value, "surface": surface, "tokens": (s, e),
                 "span": self.codec.tokens_to_char_span(utt, s, e), "p": p_span if ok else 0.0}
 
     def _read_arguments(self, utt, probes: List[_Probe], out: Dict[str, np.ndarray],
-                        p_fire: np.ndarray) -> List[Dict[str, Any]]:
+                        p_fire: np.ndarray, rsaa_cycles: Optional[int] = None) -> List[Dict[str, Any]]:
         """Decode every parameter probe into a typed, grounded decision."""
         from .arc1_codec import ROLE_BOOL, ROLE_ENUM, ROLE_OPTION, ROLE_SPAN
 
@@ -566,7 +589,7 @@ class Arc1Agent:
             elif pr.role == ROLE_ENUM:
                 idx = options.get((pr.tool, param.name), [])
                 logits = out["select_k"][idx] @ out["select_q"][i] / np.sqrt(d)
-                probs = _softmax(logits, self._temp("select"))
+                probs = _softmax(logits, self._temp("select", rsaa_cycles))
                 best = int(np.argmax(probs))
                 decision.update(
                     kind="select",
@@ -578,15 +601,16 @@ class Arc1Agent:
             elif utt.hi <= utt.lo:
                 decision.update(kind="anchor", present=False, value=None, p=0.0)
             else:
-                a = self._anchor(utt, i, out, ptype)
+                a = self._anchor(utt, i, out, ptype, rsaa_cycles=rsaa_cycles)
                 decision.update(kind="anchor", present=a["ok"] and p_present >= self.presence_threshold,
                                 value=a["value"], surface=a.get("surface"), span=a.get("span"), p=a["p"])
                 anchored.append((decision, i, ptype, param.required, a.get("tokens")))
             decisions.append(decision)
-        self._exclusive_anchoring(utt, out, anchored)
+        self._exclusive_anchoring(utt, out, anchored, rsaa_cycles)
         return decisions
 
-    def _exclusive_anchoring(self, utt, out: Dict[str, np.ndarray], anchored) -> None:
+    def _exclusive_anchoring(self, utt, out: Dict[str, np.ndarray], anchored,
+                             rsaa_cycles: Optional[int] = None) -> None:
         """Within one call a token belongs to at most one argument.
 
         The most confident anchors claim their tokens first. A later optional
@@ -602,7 +626,7 @@ class Arc1Agent:
                 if not required:
                     decision.update(present=False, note="span already anchored by a stronger argument")
                     continue
-                a = self._anchor(utt, i, out, ptype, blocked=taken)
+                a = self._anchor(utt, i, out, ptype, blocked=taken, rsaa_cycles=rsaa_cycles)
                 decision.update(present=a["ok"], value=a["value"], surface=a.get("surface"),
                                 span=a.get("span"), p=a["p"], note="re-anchored on unclaimed tokens")
                 if not a["ok"]:
@@ -640,7 +664,8 @@ class Arc1Agent:
         }
         if probes:
             utt, out, stats = self._bind(prompt, probes, cycles, rsaa_cycles)
-            p_fire = _sigmoid(out["fire"], self._temp("fire"))
+            profile = stats["rsaa_budget"]
+            p_fire = _sigmoid(out["fire"], self._temp("fire", profile))
             tool_probs = {p.tool: 1.0 - (1.0 - float(p_fire[i])) * (1.0 - prior.get(p.tool, 0.0))
                           for i, p in enumerate(probes) if p.role == ROLE_TOOL}
             fired = {name for name, p in tool_probs.items() if p >= self.tool_threshold}
@@ -649,6 +674,7 @@ class Arc1Agent:
                 utt, [p for p, k in zip(probes, keep) if k],
                 {k: v[np.asarray(keep)] for k, v in out.items()},
                 p_fire[np.asarray(keep)],
+                profile,
             ) if fired else []
         selected = sorted(
             (t for t in active if tool_probs.get(t.name, 0.0) >= self.tool_threshold),
@@ -740,7 +766,10 @@ class Arc1Agent:
         }
         if probes:
             utt, out, stats = self._bind(text, probes, cycles, rsaa_cycles)
-            decisions = self._read_arguments(utt, probes, out, _sigmoid(out["fire"], self._temp("fire")))
+            profile = stats["rsaa_budget"]
+            decisions = self._read_arguments(
+                utt, probes, out, _sigmoid(out["fire"], self._temp("fire", profile)), profile
+            )
         record, confs, notes = {}, [], []
         for d in decisions:
             if d["present"]:
@@ -786,8 +815,14 @@ class Arc1Agent:
         utt, out, stats = self._bind(
             text, self._plan([spec], with_tool_probes=False), cycles, rsaa_cycles
         )
-        decision = self._read_arguments(utt, self._plan([spec], with_tool_probes=False), out,
-                                        _sigmoid(out["fire"], self._temp("fire")))[0]
+        profile = stats["rsaa_budget"]
+        decision = self._read_arguments(
+            utt,
+            self._plan([spec], with_tool_probes=False),
+            out,
+            _sigmoid(out["fire"], self._temp("fire", profile)),
+            profile,
+        )[0]
         dist = decision["distribution"]
         ranked = sorted(dist.items(), key=lambda kv: -kv[1])
         return {
@@ -801,12 +836,13 @@ class Arc1Agent:
             "latency_ms": round((time.perf_counter() - t0) * 1000.0, 2),
         }
 
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str, rsaa_cycles: Optional[int] = None) -> List[float]:
         """Attention-pooled utterance field, L2-normalised."""
         import tensorflow as tf
 
         from .arc1_codec import pad_batch
 
+        rsaa_cycles = self.model.arc1_config.resolve_rsaa_cycles(rsaa_cycles)
         ids = pad_batch([self.codec.utterance(text).ids], max_len=self.model.arc1_config.seq_len)
-        vec = self._embed_fn(tf.constant(ids))
+        vec = self._embed_fn(rsaa_cycles)(tf.constant(ids))
         return [float(x) for x in vec.numpy()[0].tolist()]

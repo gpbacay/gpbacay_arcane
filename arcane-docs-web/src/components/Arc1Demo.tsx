@@ -35,6 +35,13 @@ type Health = {
   architecture?: string;
   active_cycles?: number;
   binding_cycles?: number;
+  active_rsaa_cycles?: number;
+  rsaa_cycles?: number;
+  rsaa_factor?: number;
+  rsaa_mode?: "identity" | "adaptive";
+  rsaa_max_factor?: number;
+  rsaa_rollback?: boolean;
+  rsaa_epsilon?: number;
   layers?: number;
   error?: string | null;
   hippocampus?: boolean;
@@ -68,6 +75,9 @@ type Stats = {
   perception_evaluations?: number;
   rsaa_budget?: number;
   rsaa_steps?: number;
+  rsaa_accepted_steps?: number;
+  rsaa_rolled_back?: number;
+  rsaa_mean_factor?: number;
   rsaa_initial_divergence?: number;
   rsaa_divergence?: number;
   schema_encoded?: number;
@@ -782,6 +792,7 @@ export function Arc1Demo() {
   // each request, so the server stays stateless and visitors never share a memory.
   const [memories, setMemories] = useState<Record<string, MemoryItem[]>>({});
   const [cycles, setCycles] = useState<number | null>(null);
+  const [rsaaCycles, setRsaaCycles] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
@@ -824,6 +835,8 @@ export function Arc1Demo() {
   }, [input, sceneId]);
   const maxCycles = health?.binding_cycles ?? 3;
   const activeCycles = cycles ?? health?.active_cycles ?? maxCycles;
+  const maxRsaaCycles = health?.rsaa_cycles ?? 0;
+  const activeRsaaCycles = rsaaCycles ?? health?.active_rsaa_cycles ?? 0;
 
   const refreshHealth = useCallback(async () => {
     try {
@@ -914,9 +927,9 @@ export function Arc1Demo() {
       const withMemory = hippocampusOn ? { memory } : {};
       const [url, body] =
         scene.mode === "run"
-          ? ["/api/arc1-run", { prompt: text, tools: scene.tools, execute: true, cycles: activeCycles, ...withMemory }]
+          ? ["/api/arc1-run", { prompt: text, tools: scene.tools, execute: true, cycles: activeCycles, rsaa_cycles: activeRsaaCycles, ...withMemory }]
           : scene.mode === "extract"
-            ? ["/api/arc1-extract", { text, schema: scene.extractSchema, cycles: activeCycles }]
+            ? ["/api/arc1-extract", { text, schema: scene.extractSchema, cycles: activeCycles, rsaa_cycles: activeRsaaCycles }]
             : [
                 "/api/arc1-classify",
                 {
@@ -925,6 +938,7 @@ export function Arc1Demo() {
                   descriptions: Object.fromEntries(labels.map(splitLabel).filter(([, d]) => d)),
                   task: scene.task,
                   cycles: activeCycles,
+                  rsaa_cycles: activeRsaaCycles,
                   ...withMemory,
                 },
               ];
@@ -943,7 +957,7 @@ export function Arc1Demo() {
     } finally {
       setSending(false);
     }
-  }, [input, sending, health, scene, labels, activeCycles, applyEffects, hippocampusOn, memory]);
+  }, [input, sending, health, scene, labels, activeCycles, activeRsaaCycles, applyEffects, hippocampusOn, memory]);
 
   const decisions = useMemo(() => (result ? argumentDecisions(result) : []), [result]);
   const calls = result?.function_calls || [];
@@ -1350,6 +1364,48 @@ export function Arc1Demo() {
             </div>
           </fieldset>
 
+          {maxRsaaCycles > 0 && (
+            <fieldset className="mt-6">
+              <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium text-zinc-200">
+                RSAA alignment cycles
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="About RSAA alignment cycles"
+                      className="text-zinc-500 transition-colors hover:text-zinc-200 focus-visible:text-zinc-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
+                    >
+                      <Info className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-64 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
+                    Higher perception states align lower states before the grounded decision. Zero runs the legacy ARC
+                    1 path; additional cycles cost latency and should only be preferred when the measured evaluation
+                    supports them.
+                  </TooltipContent>
+                </Tooltip>
+              </legend>
+              <div className="grid grid-flow-col gap-px bg-zinc-800" role="radiogroup" aria-label="RSAA cycles">
+                {Array.from({ length: maxRsaaCycles + 1 }, (_, i) => i).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    role="radio"
+                    aria-checked={activeRsaaCycles === c}
+                    onClick={() => setRsaaCycles(c)}
+                    className={`py-1.5 text-sm tabular-nums transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2] ${
+                      activeRsaaCycles === c
+                        ? "bg-[#835BD9] text-white"
+                        : "bg-zinc-950 text-zinc-400 hover:text-zinc-100"
+                    }`}
+                  >
+                    {c === 0 ? "Off" : c}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
           {result?.stats && (
             <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
               <div>
@@ -1369,7 +1425,11 @@ export function Arc1Demo() {
               <div>
                 <dt className="text-xs text-zinc-500">RSAA perception</dt>
                 <dd className="tabular-nums text-zinc-100">
-                  {result.stats.perception_evaluations ?? 1} evaluations, {result.stats.rsaa_steps ?? 0} alignment steps
+                  {result.stats.perception_evaluations ?? 1} evaluations, {result.stats.rsaa_accepted_steps ?? result.stats.rsaa_steps ?? 0}
+                  {" "}accepted
+                  {typeof result.stats.rsaa_rolled_back === "number" && result.stats.rsaa_rolled_back > 0
+                    ? `, ${result.stats.rsaa_rolled_back} rolled back`
+                    : ""}
                 </dd>
               </div>
               <div>

@@ -1,0 +1,474 @@
+{
+  "checkpoint": "Models/arc1_arc1_tiny.weights.h5",
+  "evaluation_sizes": {
+    "tools": 300,
+    "extraction_and_classification": 150
+  },
+  "candidates": {
+    "0": {
+      "rsaa_cycles": 0,
+      "config": {
+        "vocab_size": 512,
+        "d_model": 128,
+        "num_layers": 3,
+        "num_heads": 4,
+        "seq_len": 160,
+        "schema_len": 64,
+        "dropout_rate": 0.05,
+        "resonance_factor": 0.15,
+        "resonance_cycles": 3,
+        "spike_threshold": 0.4,
+        "leak_rate": 0.1,
+        "pad_id": 0,
+        "use_rope": true,
+        "gate_normalize": true,
+        "mixer_rank_div": 2,
+        "engram_table_size": 4096,
+        "engram_rows": 4,
+        "ngram_sizes": [
+          2,
+          3
+        ],
+        "binding_heads": 4,
+        "binding_cycles": 3,
+        "active_cycles": null,
+        "rsaa_cycles": 0,
+        "active_rsaa_cycles": 0,
+        "rsaa_factor": 0.15,
+        "rsaa_epsilon": 0.0001,
+        "calibration": {
+          "fire": 1.0741938211263535,
+          "anchor": 1.4215367520780082,
+          "select": 2.3759086390590443
+        },
+        "rsaa_calibration": {
+          "0": {
+            "fire": 1.0741938211263535,
+            "anchor": 1.4215367520780082,
+            "select": 2.3759086390590443
+          }
+        },
+        "lm_architecture": "legacy",
+        "lm_block_pattern": [],
+        "num_kv_heads": 2,
+        "ffn_mult": 1.5,
+        "conv_kernel_size": 3,
+        "resonance_decays": [
+          0.5,
+          0.9,
+          0.99
+        ],
+        "rope_base": 10000.0,
+        "residual_scale": 1.0
+      },
+      "calibration": {
+        "temperatures": {
+          "fire": 1.0741938211263535,
+          "anchor": 1.4215367520780082,
+          "select": 2.3759086390590443
+        },
+        "fire_ece_before": 0.006771185702113762,
+        "fire_ece_after": 0.006021034886946575,
+        "n_fire": 749,
+        "n_anchor": 411,
+        "n_select": 141
+      },
+      "evaluation": {
+        "cycles_3": {
+          "tools_heldout_values": {
+            "n": 300,
+            "tool_selection_acc": 0.9833333333333333,
+            "exact_call_acc": 0.86,
+            "argument_acc": 0.8590078328981723,
+            "no_tool_acc": 1.0,
+            "latency_ms_p50": 4.84,
+            "latency_ms_p90": 10.934000000000005
+          },
+          "tools_unseen_tools": {
+            "n": 150,
+            "tool_selection_acc": 0.49333333333333335,
+            "exact_call_acc": 0.38666666666666666,
+            "argument_acc": 0.1827956989247312,
+            "no_tool_acc": 1.0,
+            "latency_ms_p50": 2.85,
+            "latency_ms_p90": 4.936
+          },
+          "extraction_heldout_values": {
+            "n": 150,
+            "field_precision": 0.975669099756691,
+            "field_recall": 0.9570405727923628,
+            "field_f1": 0.9662650602409639,
+            "exact_record_acc": 0.88
+          },
+          "classify_heldout": {
+            "n": 150,
+            "accuracy": 0.7466666666666667,
+            "accuracy_intent_domain": 1.0,
+            "accuracy_intent_tool": 1.0,
+            "accuracy_keyword": 0.6470588235294118,
+            "accuracy_request": 1.0,
+            "accuracy_sentiment": 0.6551724137931034,
+            "accuracy_support": 0.7037037037037037,
+            "accuracy_topic_feed": 0.5,
+            "accuracy_topic_products": 0.5454545454545454,
+            "accuracy_topic_search": 0.5833333333333334,
+            "latency_ms_p50": 5.88
+          },
+          "classify_unseen_tools": {
+            "n": 75,
+            "accuracy": 0.6266666666666667,
+            "accuracy_intent_tool": 0.6266666666666667,
+            "latency_ms_p50": 4.07
+          }
+        },
+        "embeddings": {
+          "n": 60,
+          "intent_retrieval_at_1": 1.0
+        }
+      },
+      "summary": {
+        "quality": {
+          "tool_selection": 0.9833333333333333,
+          "exact_call": 0.86,
+          "unseen_tool_selection": 0.49333333333333335,
+          "unseen_exact_call": 0.38666666666666666,
+          "extraction_f1": 0.9662650602409639,
+          "classification": 0.7466666666666667,
+          "unseen_classification": 0.6266666666666667
+        },
+        "quality_macro": 0.7232759609868044,
+        "latency": {
+          "tools_p50_ms": 4.84,
+          "tools_p90_ms": 10.934000000000005,
+          "classify_p50_ms": 5.88
+        },
+        "latency_macro_ms": 5.359999999999999
+      },
+      "elapsed_seconds": 16.266753699999754
+    },
+    "1": {
+      "rsaa_cycles": 1,
+      "config": {
+        "vocab_size": 512,
+        "d_model": 128,
+        "num_layers": 3,
+        "num_heads": 4,
+        "seq_len": 160,
+        "schema_len": 64,
+        "dropout_rate": 0.05,
+        "resonance_factor": 0.15,
+        "resonance_cycles": 3,
+        "spike_threshold": 0.4,
+        "leak_rate": 0.1,
+        "pad_id": 0,
+        "use_rope": true,
+        "gate_normalize": true,
+        "mixer_rank_div": 2,
+        "engram_table_size": 4096,
+        "engram_rows": 4,
+        "ngram_sizes": [
+          2,
+          3
+        ],
+        "binding_heads": 4,
+        "binding_cycles": 3,
+        "active_cycles": null,
+        "rsaa_cycles": 1,
+        "active_rsaa_cycles": 1,
+        "rsaa_factor": 0.15,
+        "rsaa_epsilon": 0.0001,
+        "calibration": {
+          "fire": 0.978417403682632,
+          "anchor": 1.3566844646058023,
+          "select": 2.267516710505164
+        },
+        "rsaa_calibration": {
+          "1": {
+            "fire": 0.978417403682632,
+            "anchor": 1.3566844646058023,
+            "select": 2.267516710505164
+          }
+        },
+        "lm_architecture": "legacy",
+        "lm_block_pattern": [],
+        "num_kv_heads": 2,
+        "ffn_mult": 1.5,
+        "conv_kernel_size": 3,
+        "resonance_decays": [
+          0.5,
+          0.9,
+          0.99
+        ],
+        "rope_base": 10000.0,
+        "residual_scale": 1.0
+      },
+      "calibration": {
+        "temperatures": {
+          "fire": 0.978417403682632,
+          "anchor": 1.3566844646058023,
+          "select": 2.267516710505164
+        },
+        "fire_ece_before": 0.008688162019358011,
+        "fire_ece_after": 0.00810779134837361,
+        "n_fire": 749,
+        "n_anchor": 411,
+        "n_select": 141
+      },
+      "evaluation": {
+        "cycles_3": {
+          "tools_heldout_values": {
+            "n": 300,
+            "tool_selection_acc": 0.9833333333333333,
+            "exact_call_acc": 0.8633333333333333,
+            "argument_acc": 0.8668407310704961,
+            "no_tool_acc": 1.0,
+            "latency_ms_p50": 4.74,
+            "latency_ms_p90": 8.682000000000002
+          },
+          "tools_unseen_tools": {
+            "n": 150,
+            "tool_selection_acc": 0.46,
+            "exact_call_acc": 0.35333333333333333,
+            "argument_acc": 0.15591397849462366,
+            "no_tool_acc": 1.0,
+            "latency_ms_p50": 3.87,
+            "latency_ms_p90": 6.326
+          },
+          "extraction_heldout_values": {
+            "n": 150,
+            "field_precision": 0.9805825242718447,
+            "field_recall": 0.964200477326969,
+            "field_f1": 0.9723225030084236,
+            "exact_record_acc": 0.9
+          },
+          "classify_heldout": {
+            "n": 150,
+            "accuracy": 0.74,
+            "accuracy_intent_domain": 1.0,
+            "accuracy_intent_tool": 1.0,
+            "accuracy_keyword": 0.6470588235294118,
+            "accuracy_request": 1.0,
+            "accuracy_sentiment": 0.6206896551724138,
+            "accuracy_support": 0.7037037037037037,
+            "accuracy_topic_feed": 0.5,
+            "accuracy_topic_products": 0.5454545454545454,
+            "accuracy_topic_search": 0.5833333333333334,
+            "latency_ms_p50": 8.97
+          },
+          "classify_unseen_tools": {
+            "n": 75,
+            "accuracy": 0.6,
+            "accuracy_intent_tool": 0.6,
+            "latency_ms_p50": 5.415
+          }
+        },
+        "embeddings": {
+          "n": 60,
+          "intent_retrieval_at_1": 1.0
+        }
+      },
+      "summary": {
+        "quality": {
+          "tool_selection": 0.9833333333333333,
+          "exact_call": 0.8633333333333333,
+          "unseen_tool_selection": 0.46,
+          "unseen_exact_call": 0.35333333333333333,
+          "extraction_f1": 0.9723225030084236,
+          "classification": 0.74,
+          "unseen_classification": 0.6
+        },
+        "quality_macro": 0.7103317861440605,
+        "latency": {
+          "tools_p50_ms": 4.74,
+          "tools_p90_ms": 8.682000000000002,
+          "classify_p50_ms": 8.97
+        },
+        "latency_macro_ms": 6.855
+      },
+      "elapsed_seconds": 24.83346209999945
+    },
+    "2": {
+      "rsaa_cycles": 2,
+      "config": {
+        "vocab_size": 512,
+        "d_model": 128,
+        "num_layers": 3,
+        "num_heads": 4,
+        "seq_len": 160,
+        "schema_len": 64,
+        "dropout_rate": 0.05,
+        "resonance_factor": 0.15,
+        "resonance_cycles": 3,
+        "spike_threshold": 0.4,
+        "leak_rate": 0.1,
+        "pad_id": 0,
+        "use_rope": true,
+        "gate_normalize": true,
+        "mixer_rank_div": 2,
+        "engram_table_size": 4096,
+        "engram_rows": 4,
+        "ngram_sizes": [
+          2,
+          3
+        ],
+        "binding_heads": 4,
+        "binding_cycles": 3,
+        "active_cycles": null,
+        "rsaa_cycles": 2,
+        "active_rsaa_cycles": 2,
+        "rsaa_factor": 0.15,
+        "rsaa_epsilon": 0.0001,
+        "calibration": {
+          "fire": 0.978417403682632,
+          "anchor": 1.3566844646058023,
+          "select": 2.267516710505164
+        },
+        "rsaa_calibration": {
+          "2": {
+            "fire": 0.978417403682632,
+            "anchor": 1.3566844646058023,
+            "select": 2.267516710505164
+          }
+        },
+        "lm_architecture": "legacy",
+        "lm_block_pattern": [],
+        "num_kv_heads": 2,
+        "ffn_mult": 1.5,
+        "conv_kernel_size": 3,
+        "resonance_decays": [
+          0.5,
+          0.9,
+          0.99
+        ],
+        "rope_base": 10000.0,
+        "residual_scale": 1.0
+      },
+      "calibration": {
+        "temperatures": {
+          "fire": 0.978417403682632,
+          "anchor": 1.3566844646058023,
+          "select": 2.267516710505164
+        },
+        "fire_ece_before": 0.006050582268735033,
+        "fire_ece_after": 0.005462334112245896,
+        "n_fire": 749,
+        "n_anchor": 411,
+        "n_select": 141
+      },
+      "evaluation": {
+        "cycles_3": {
+          "tools_heldout_values": {
+            "n": 300,
+            "tool_selection_acc": 0.9833333333333333,
+            "exact_call_acc": 0.8633333333333333,
+            "argument_acc": 0.8668407310704961,
+            "no_tool_acc": 1.0,
+            "latency_ms_p50": 5.72,
+            "latency_ms_p90": 11.178
+          },
+          "tools_unseen_tools": {
+            "n": 150,
+            "tool_selection_acc": 0.46,
+            "exact_call_acc": 0.35333333333333333,
+            "argument_acc": 0.16129032258064516,
+            "no_tool_acc": 1.0,
+            "latency_ms_p50": 4.49,
+            "latency_ms_p90": 7.06
+          },
+          "extraction_heldout_values": {
+            "n": 150,
+            "field_precision": 0.9805825242718447,
+            "field_recall": 0.964200477326969,
+            "field_f1": 0.9723225030084236,
+            "exact_record_acc": 0.9
+          },
+          "classify_heldout": {
+            "n": 150,
+            "accuracy": 0.7333333333333333,
+            "accuracy_intent_domain": 1.0,
+            "accuracy_intent_tool": 1.0,
+            "accuracy_keyword": 0.5882352941176471,
+            "accuracy_request": 1.0,
+            "accuracy_sentiment": 0.6206896551724138,
+            "accuracy_support": 0.7037037037037037,
+            "accuracy_topic_feed": 0.5,
+            "accuracy_topic_products": 0.5454545454545454,
+            "accuracy_topic_search": 0.5833333333333334,
+            "latency_ms_p50": 12.11
+          },
+          "classify_unseen_tools": {
+            "n": 75,
+            "accuracy": 0.6133333333333333,
+            "accuracy_intent_tool": 0.6133333333333333,
+            "latency_ms_p50": 7.61
+          }
+        },
+        "embeddings": {
+          "n": 60,
+          "intent_retrieval_at_1": 1.0
+        }
+      },
+      "summary": {
+        "quality": {
+          "tool_selection": 0.9833333333333333,
+          "exact_call": 0.8633333333333333,
+          "unseen_tool_selection": 0.46,
+          "unseen_exact_call": 0.35333333333333333,
+          "extraction_f1": 0.9723225030084236,
+          "classification": 0.7333333333333333,
+          "unseen_classification": 0.6133333333333333
+        },
+        "quality_macro": 0.7112841670964415,
+        "latency": {
+          "tools_p50_ms": 5.72,
+          "tools_p90_ms": 11.178,
+          "classify_p50_ms": 12.11
+        },
+        "latency_macro_ms": 8.915
+      },
+      "elapsed_seconds": 35.597345199999836
+    }
+  },
+  "replacement_gates": {
+    "1": {
+      "passed": false,
+      "criteria": {
+        "minimum_macro_quality_gain": 0.01,
+        "maximum_single_metric_regression": 0.01,
+        "maximum_latency_ratio": 2.0
+      },
+      "quality_macro_delta": -0.012944174842743905,
+      "metric_deltas": {
+        "tool_selection": 0.0,
+        "exact_call": 0.0033333333333332993,
+        "unseen_tool_selection": -0.033333333333333326,
+        "unseen_exact_call": -0.033333333333333326,
+        "extraction_f1": 0.006057442767459675,
+        "classification": -0.00666666666666671,
+        "unseen_classification": -0.026666666666666727
+      },
+      "latency_ratio": 1.2789179104477615
+    },
+    "2": {
+      "passed": false,
+      "criteria": {
+        "minimum_macro_quality_gain": 0.01,
+        "maximum_single_metric_regression": 0.01,
+        "maximum_latency_ratio": 2.0
+      },
+      "quality_macro_delta": -0.011991793890362867,
+      "metric_deltas": {
+        "tool_selection": 0.0,
+        "exact_call": 0.0033333333333332993,
+        "unseen_tool_selection": -0.033333333333333326,
+        "unseen_exact_call": -0.033333333333333326,
+        "extraction_f1": 0.006057442767459675,
+        "classification": -0.01333333333333342,
+        "unseen_classification": -0.01333333333333342
+      },
+      "latency_ratio": 1.6632462686567164
+    }
+  },
+  "winner_rsaa_cycles": 0,
+  "replace_legacy": false
+}

@@ -115,7 +115,7 @@ def save_rcn(model, tokenizer, path: str, quant: str = "rq8", cycles: Optional[i
 
     tok = {"vocab_size": tokenizer.vocab_size, "merges": [list(m) for m in tokenizer.merges]} if tokenizer else None
     meta = json.dumps({
-        "format": "rcn", "model": "ARC 1", "architecture": "Resonant Schema Binding",
+        "format": "rcn", "model": "ARC 1", "architecture": "RSAA-Capable Resonant Schema Binding",
         "config": cfg.to_dict(), "tokenizer": tok, "profile": {"quant": quant, "cycles": cfg.resolve_cycles()},
         "tensors": directory,
     }, separators=(",", ":")).encode("utf-8")

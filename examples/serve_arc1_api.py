@@ -91,9 +91,16 @@ _state = {
     "error": None,
     "preset": PRESET,
     "parameters": None,
-    "architecture": "Resonant Schema Binding",
+    "architecture": "RSAA-Capable Resonant Schema Binding",
     "active_cycles": None,
     "binding_cycles": None,
+    "active_rsaa_cycles": None,
+    "rsaa_cycles": None,
+    "rsaa_factor": None,
+    "rsaa_mode": None,
+    "rsaa_max_factor": None,
+    "rsaa_rollback": None,
+    "rsaa_epsilon": None,
     "layers": None,
     "calibration": None,
     "metrics": None,
@@ -280,6 +287,13 @@ def _load_model() -> None:
             parameters=int(model.count_params()),
             active_cycles=config.resolve_cycles(),
             binding_cycles=config.binding_cycles,
+            active_rsaa_cycles=config.resolve_rsaa_cycles(),
+            rsaa_cycles=config.rsaa_cycles,
+            rsaa_factor=config.rsaa_factor,
+            rsaa_mode=config.rsaa_mode,
+            rsaa_max_factor=config.rsaa_max_factor,
+            rsaa_rollback=config.rsaa_rollback,
+            rsaa_epsilon=config.rsaa_epsilon,
             layers=config.num_layers,
             calibration=dict(config.calibration),
             metrics=_metrics_summary(metrics),
@@ -336,6 +350,15 @@ def _check_cycles(cycles: Optional[int]) -> Optional[int]:
     return int(cycles)
 
 
+def _check_rsaa_cycles(cycles: Optional[int]) -> Optional[int]:
+    if cycles is None or _model is None:
+        return None
+    top = _model.arc1_config.rsaa_cycles
+    if not 0 <= int(cycles) <= top:
+        raise HTTPException(status_code=422, detail=f"rsaa_cycles must be in 0..{top}")
+    return int(cycles)
+
+
 class MemoryExample(BaseModel):
     text: str = Field(..., min_length=1, max_length=500)
     label: Optional[str] = Field(default=None, max_length=200)  # a class label or tool name; None = no tool
@@ -359,6 +382,7 @@ class RunRequest(BaseModel):
     tools: Optional[List[Dict[str, Any]]] = None
     execute: bool = True
     cycles: Optional[int] = None
+    rsaa_cycles: Optional[int] = None
     memory: Memory = Field(default=None, max_length=MEMORY_LIMIT)  # set = run through the Hippocampus harness
 
 
@@ -366,6 +390,7 @@ class ExtractRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=4000)
     schema: Dict[str, Any] = Field(default_factory=dict)
     cycles: Optional[int] = None
+    rsaa_cycles: Optional[int] = None
 
 
 class ClassifyRequest(BaseModel):
@@ -374,11 +399,13 @@ class ClassifyRequest(BaseModel):
     task: Optional[str] = Field(default=None, max_length=500)
     descriptions: Optional[Dict[str, str]] = None
     cycles: Optional[int] = None
+    rsaa_cycles: Optional[int] = None
     memory: Memory = Field(default=None, max_length=MEMORY_LIMIT)
 
 
 class EmbedRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=2000)
+    rsaa_cycles: Optional[int] = None
 
 
 @app.on_event("startup")
@@ -398,6 +425,13 @@ def health():
         "architecture": _state["architecture"],
         "active_cycles": _state["active_cycles"],
         "binding_cycles": _state["binding_cycles"],
+        "active_rsaa_cycles": _state["active_rsaa_cycles"],
+        "rsaa_cycles": _state["rsaa_cycles"],
+        "rsaa_factor": _state["rsaa_factor"],
+        "rsaa_mode": _state["rsaa_mode"],
+        "rsaa_max_factor": _state["rsaa_max_factor"],
+        "rsaa_rollback": _state["rsaa_rollback"],
+        "rsaa_epsilon": _state["rsaa_epsilon"],
         "layers": _state["layers"],
         "calibration": _state["calibration"],
         "metrics": _state["metrics"],
@@ -414,10 +448,14 @@ def run(req: RunRequest):
     if not _state["ready"] or _agent is None or _model is None:
         raise HTTPException(status_code=503, detail=_state["error"] or "ARC 1 still loading")
     cycles = _check_cycles(req.cycles)
+    rsaa_cycles = _check_rsaa_cycles(req.rsaa_cycles)
     tools = _tools_from_payload(req.tools)
     try:
         model = _agent if req.memory is None else _hippocampus(req.memory)
-        out = model.run(req.prompt, tools=tools, execute=req.execute, cycles=cycles)
+        out = model.run(
+            req.prompt, tools=tools, execute=req.execute, cycles=cycles,
+            rsaa_cycles=rsaa_cycles,
+        )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"run failed: {exc}") from exc
     return out
@@ -432,8 +470,9 @@ def extract(req: ExtractRequest):
         "city": {"type": "string", "description": "City"},
     }
     cycles = _check_cycles(req.cycles)
+    rsaa_cycles = _check_rsaa_cycles(req.rsaa_cycles)
     try:
-        return _agent.extract(req.text, schema, cycles=cycles)
+        return _agent.extract(req.text, schema, cycles=cycles, rsaa_cycles=rsaa_cycles)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"extract failed: {exc}") from exc
 
@@ -446,9 +485,13 @@ def classify(req: ClassifyRequest):
     if not labels:
         raise HTTPException(status_code=422, detail="labels must contain at least one non-empty label")
     cycles = _check_cycles(req.cycles)
+    rsaa_cycles = _check_rsaa_cycles(req.rsaa_cycles)
     try:
         model = _agent if req.memory is None else _hippocampus(req.memory)
-        return model.classify(req.text, labels, task=req.task, cycles=cycles, descriptions=req.descriptions)
+        return model.classify(
+            req.text, labels, task=req.task, cycles=cycles,
+            descriptions=req.descriptions, rsaa_cycles=rsaa_cycles,
+        )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"classify failed: {exc}") from exc
 
@@ -458,7 +501,8 @@ def embed(req: EmbedRequest):
     if not _state["ready"] or _agent is None:
         raise HTTPException(status_code=503, detail=_state["error"] or "ARC 1 still loading")
     try:
-        vec = _agent.embed(req.text)
+        rsaa_cycles = _check_rsaa_cycles(req.rsaa_cycles)
+        vec = _agent.embed(req.text, rsaa_cycles=rsaa_cycles)
         return {"embedding": vec, "dim": len(vec)}
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"embed failed: {exc}") from exc

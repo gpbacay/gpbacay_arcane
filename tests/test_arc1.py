@@ -201,6 +201,34 @@ def test_rsaa_is_checkpoint_compatible_and_disabled_for_legacy_configs():
     legacy = Arc1Config.from_dict({"d_model": 32, "num_layers": 2, "unknown_key": 1})
     assert legacy.rsaa_cycles == 0
     assert legacy.resolve_rsaa_cycles() == 0
+    preset = Arc1Config.from_preset("arc1-tiny")
+    assert preset.rsaa_cycles == 2
+    assert preset.resolve_rsaa_cycles() == 0
+
+
+def test_adaptive_rsaa_learns_feedback_and_preserves_legacy_zero_cycle(tmp_path):
+    ids = tf.constant([[3, 10, 11, 12, 0], [3, 20, 21, 22, 23]])
+    legacy = Arc1Model(Arc1Config(**SMALL, rsaa_cycles=2)).build_model()
+    expected = legacy.embed_text(ids, rsaa_cycles=0).numpy()
+    path = tmp_path / "legacy.weights.h5"
+    legacy.save_weights(path)
+
+    adaptive = Arc1Model(
+        Arc1Config(**SMALL, rsaa_cycles=2, rsaa_mode="adaptive", rsaa_rollback=True)
+    ).build_model()
+    adaptive.load_weights(path, skip_mismatch=True)
+    actual = adaptive.embed_text(ids, rsaa_cycles=0).numpy()
+    np.testing.assert_allclose(actual, expected, atol=1e-6)
+
+    with tf.GradientTape() as tape:
+        _, _, trace = adaptive.perceive(ids, training=True, rsaa_cycles=1, return_rsaa=True)
+        loss = tf.reduce_mean(trace["rsaa_divergence"])
+    variables = [v for layer in adaptive.rsaa_projections + adaptive.rsaa_gates for v in layer.trainable_variables]
+    gradients = tape.gradient(loss, variables)
+    assert variables and all(gradient is not None for gradient in gradients)
+    assert trace["rsaa_accepted_steps"].shape == (2,)
+    assert trace["rsaa_rolled_back"].shape == (2,)
+    assert np.isfinite(trace["rsaa_mean_factor"].numpy()).all()
 
 
 def test_cycles_are_per_call_and_stateless():
@@ -226,11 +254,15 @@ def test_probes_of_different_utterances_are_independent():
 
 def test_config_roundtrip_keeps_calibration():
     cfg = Arc1Config(**SMALL)
+    cfg.rsaa_cycles = 2
     cfg.calibration = {"fire": 1.7, "select": 2.0, "anchor": 0.9}
+    cfg.rsaa_calibration = {"1": {"fire": 1.2, "select": 1.3, "anchor": 1.4}}
     again = Arc1Config.from_dict(cfg.to_dict())
     assert again.calibration == cfg.calibration
+    assert again.rsaa_calibration == cfg.rsaa_calibration
+    assert again.temperature("fire", 1) == 1.2
     assert again.binding_cycles == 2
-    assert again.rsaa_cycles == 0
+    assert again.rsaa_cycles == 2
     assert Arc1Config.from_dict({"d_model": 32, "unknown_key": 1}).d_model == 32
 
 
@@ -397,6 +429,18 @@ def test_schema_memory_caches_engrams():
     assert second["stats"]["schema_cached"] == first["stats"]["schema_encoded"] + first["stats"]["schema_cached"]
 
 
+def test_schema_memory_separates_rsaa_profiles():
+    model = Arc1Model(Arc1Config(**SMALL, rsaa_cycles=2)).build_model()
+    agent = Arc1Agent(model, BytePairTokenizer(512))
+    tools = [ToolSpec("get_weather", "Get the weather.", [ToolParam("city")])]
+    legacy = agent.run("weather in Lagos", tools=tools, execute=False, rsaa_cycles=0)
+    aligned = agent.run("weather in Lagos", tools=tools, execute=False, rsaa_cycles=1)
+    aligned_warm = agent.run("weather in Paris", tools=tools, execute=False, rsaa_cycles=1)
+    assert legacy["stats"]["schema_encoded"] > 0
+    assert aligned["stats"]["schema_encoded"] == legacy["stats"]["schema_encoded"]
+    assert aligned_warm["stats"]["schema_encoded"] == 0
+
+
 def test_exclusive_anchoring_resolves_overlaps():
     from gpbacay_arcane.tools import _Probe
 
@@ -438,9 +482,10 @@ def test_new_schemas_are_encoded_inside_the_same_pass():
     assert cold["stats"]["schema_encoded"] > 0 and warm["stats"]["schema_encoded"] == 0
     np.testing.assert_allclose(cold["decisions"]["tools"]["set_mode"], warm["decisions"]["tools"]["set_mode"], atol=1e-5)
     # The engram computed inside the joint pass equals a standalone schema encoding.
-    text = next(iter(agent.memory._store))
+    cache_key = next(iter(agent.memory._store))
+    text = cache_key.split("\0", 1)[1]
     alone = model.schema_engrams(tf.constant(pad_batch([agent.codec.schema(text)]))).numpy()[0]
-    np.testing.assert_allclose(agent.memory.get(text), alone, atol=1e-4)
+    np.testing.assert_allclose(agent.memory.get(cache_key), alone, atol=1e-4)
 
 
 def test_classify_returns_calibrated_distribution():

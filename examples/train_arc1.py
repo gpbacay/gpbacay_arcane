@@ -53,6 +53,29 @@ def parse_args():
     p.add_argument("--build-only", action="store_true")
     p.add_argument("--skip-eval", action="store_true", help="Train and save only; run --eval-only afterwards")
     p.add_argument("--eval-examples", type=int, default=300)
+    p.add_argument(
+        "--rsaa-cycles", type=int, choices=[0, 1, 2], default=None,
+        help="Train/evaluate with this RSAA budget (default: preset production profile)",
+    )
+    p.add_argument(
+        "--rsaa-mode", choices=["identity", "adaptive"], default="identity",
+        help="Adaptive adds learned feedback projections, learned gates, and inference rollback",
+    )
+    p.add_argument("--rsaa-max-factor", type=float, default=0.35)
+    p.add_argument("--rsaa-alignment-weight", type=float, default=0.05)
+    p.add_argument("--rsaa-consistency-weight", type=float, default=0.05)
+    p.add_argument(
+        "--rsaa-adapter-steps", type=int, default=100,
+        help="Initial steps that train only adaptive feedback/gate variables",
+    )
+    p.add_argument(
+        "--init-weights", default=None,
+        help="Warm-start a new run; adaptive models safely skip only their new RSAA variables",
+    )
+    p.add_argument(
+        "--run-name", default=None,
+        help="Artifact stem (adaptive defaults to arc1_<preset>_rsaa_adaptive)",
+    )
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--teacher-cache", default=None,
                    help="Teacher embeddings dir (gpbacay_arcane/arc1_distill.py): stages A, B, then --steps of stage C")
@@ -78,8 +101,19 @@ def make_tokenizer(config: Arc1Config) -> BytePairTokenizer:
 
 def main():
     args = parse_args()
-    config = Arc1Config.from_preset(args.preset)
-    prefix = os.path.join(args.out_dir, f"arc1_{args.preset.replace('-', '_')}")
+    config = Arc1Config.from_preset(
+        args.preset,
+        rsaa_mode=args.rsaa_mode,
+        rsaa_max_factor=args.rsaa_max_factor,
+    )
+    if args.rsaa_cycles is not None:
+        config.active_rsaa_cycles = args.rsaa_cycles
+    stem = args.run_name or (
+        f"arc1_{args.preset.replace('-', '_')}_rsaa_adaptive"
+        if args.rsaa_mode == "adaptive"
+        else f"arc1_{args.preset.replace('-', '_')}"
+    )
+    prefix = os.path.join(args.out_dir, stem)
     os.makedirs(args.out_dir, exist_ok=True)
 
     tok_path = prefix + "_tokenizer.json"
@@ -104,6 +138,12 @@ def main():
         model.load_weights(prefix + ".weights.h5")
         train_info = {}
     else:
+        if args.init_weights:
+            model.load_weights(
+                args.init_weights,
+                skip_mismatch=(config.rsaa_mode == "adaptive"),
+            )
+            print(f"[arc1] initialized compatible weights from {args.init_weights}", flush=True)
         tc = TrainConfig(
             steps=args.steps,
             learning_rate=args.learning_rate,
@@ -111,6 +151,9 @@ def main():
             n_extract=args.n_extract,
             n_embed=args.n_embed,
             n_classify=args.n_classify,
+            rsaa_alignment_weight=args.rsaa_alignment_weight,
+            rsaa_consistency_weight=args.rsaa_consistency_weight,
+            rsaa_adapter_steps=args.rsaa_adapter_steps,
             seed=args.seed,
         )
         tokenizer.save(tok_path)
@@ -128,6 +171,8 @@ def main():
 
     lib = build_tool_library()
     calibration = calibrate(model, Arc1Codec(tokenizer, config.seq_len, config.schema_len), lib)
+    profile = str(config.resolve_rsaa_cycles())
+    config.rsaa_calibration[profile] = dict(config.calibration)
     print(f"[arc1] calibration: {json.dumps(calibration)}", flush=True)
     evaluation = full_evaluation(model, tokenizer, n_tool=args.eval_examples,
                                  cycles_list=sorted({1, config.binding_cycles}))
@@ -143,6 +188,12 @@ def main():
         "architecture": "RSAA-Aligned Resonant Schema Binding",
         "parameters": int(model.count_params()),
         "calibration": calibration,
+        "rsaa_profile": {
+            "mode": config.rsaa_mode,
+            "cycles": config.resolve_rsaa_cycles(),
+            "alignment_weight": args.rsaa_alignment_weight,
+            "consistency_weight": args.rsaa_consistency_weight,
+        },
         "evaluation": evaluation,
         "train": {k: v for k, v in train_info.items() if k != "history"},
         "history_tail": train_info.get("history", [])[-5:],

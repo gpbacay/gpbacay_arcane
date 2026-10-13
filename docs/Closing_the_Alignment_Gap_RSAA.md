@@ -16,7 +16,7 @@ ARCANE 5.0 provides two concrete RSAA paths. General ARCANE models use per-examp
 
 Earlier ARC 1 releases were **resonance-inspired, not an implementation of this algorithm**. `FieldResonance` mixed token fields and `ResonantBinding` iteratively settled schema probes, but neither projected a higher perception-layer state to the layer below, measured global hierarchy divergence, or stopped per example at an RSAA threshold.
 
-ARCANE 5.0 adds those missing operations to ARC 1. New `arc1-tiny` and `arc1` presets use two RSAA cycles by default. Configurations saved before 5.0 omit `rsaa_cycles`; they load with zero cycles so their tensor layout and inference behavior remain compatible. RSAA changes activations only and adds no trainable parameters.
+ARCANE 5.0 adds those missing operations to ARC 1. New `arc1-tiny` and `arc1` presets expose up to two RSAA cycles, while `active_rsaa_cycles` selects the default. The current checkpoint keeps zero as its production default because the same-checkpoint RSAA ablation did not pass the replacement gate. Configurations saved before 5.0 omit `rsaa_cycles`; they load with zero cycles so their tensor layout and inference behavior remain compatible. RSAA changes activations only and adds no trainable parameters.
 
 ---
 
@@ -146,6 +146,18 @@ Output: Aligned states {S_1, ..., S_L}
 The paper's state update alone changes lower states but leaves an already-computed top state unchanged. ARC 1 therefore re-evaluates the current input after each harmonization step, feeding aligned lower state into the next perception block. This makes the final field and its grounded readouts depend on alignment while keeping the learned weights fixed.
 
 ARC 1 exposes three per-example measurements: `rsaa_initial_divergence`, `rsaa_divergence`, and `rsaa_steps`. Its operational divergence is the sum of adjacent-layer mean squared errors over real (non-padding) token coordinates, a length- and width-normalized version of $\mathcal{D}$. `rsaa_epsilon` stops updates independently for examples that have converged; `rsaa_factor` is $\gamma$; and `rsaa_cycles` is the hard latency bound. Since re-evaluation changes the states used as projections, Theorem 3.2's fixed-projection guarantee does not apply to the full ARC 1 loop. Its convergence and task benefit must be measured empirically.
+
+### 3.5 Existing-checkpoint ablation
+
+The ARCANE 5.0 rollout evaluated the same published `arc1-tiny` weights at zero, one, and two RSAA cycles. Each profile received its own held-out temperature calibration. The macro quality score averages held-out and unseen tool selection, exact calls, extraction F1, and held-out and unseen classification.
+
+| RSAA cycles | Macro quality | Macro median latency | Result |
+|---:|---:|---:|---|
+| 0 | 72.33% | 5.36 ms | Production default |
+| 1 | 71.03% | 6.86 ms | Rejected |
+| 2 | 71.13% | 8.92 ms | Rejected |
+
+The aligned profiles slightly improved held-out exact calls and extraction F1, but lost 3.33 percentage points on both unseen-tool selection and unseen exact calls. Neither passed the predeclared replacement gate, so ARCANE exposes RSAA for experimentation without replacing the validated zero-cycle checkpoint. The complete machine-readable result is in [`Models/arc1_rsaa_comparison.json`](../Models/arc1_rsaa_comparison.json).
 
 ---
 

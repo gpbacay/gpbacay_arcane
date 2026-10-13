@@ -138,10 +138,10 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           What it does
         </h2>
         <p className={p}>
-          The input crosses a bounded RSAA perception loop before a decision is committed. Higher perception states
-          align lower states, then every tool, argument, option, and label listens to the resulting field in {m.cycles}{" "}
-          short binding cycles. Matching probes open a spiking gate and readouts return typed results directly, with no
-          decoding loop.
+          ARC 1 can run a bounded RSAA perception loop before a decision is committed. Higher perception states align
+          lower states, then every tool, argument, option, and label listens to the resulting field in {m.cycles} short
+          binding cycles. Matching probes open a spiking gate and readouts return typed results directly, with no decoding
+          loop. The deployed checkpoint defaults to RSAA off because its same-checkpoint evaluation favored the legacy path.
         </p>
         <ul className="not-prose mt-6 grid gap-px border border-zinc-800 bg-zinc-800 sm:grid-cols-2 lg:grid-cols-4">
           {CAPABILITIES.map(({ icon: Icon, title, body }) => (
@@ -172,9 +172,9 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           Architecture
         </h2>
         <p className={p}>
-          ARC 1 uses RSAA-aligned Resonant Schema Binding. The request and every schema element go through the same
-          perception hierarchy; bounded, state-only alignment uses higher layers as feedback and re-evaluates the current
-          input with fixed weights. Each schema element becomes a probe that binds to the request in {m.cycles}{" "}
+          ARC 1 uses Resonant Schema Binding with optional RSAA alignment. The request and every schema element go through
+          the same perception hierarchy; bounded, state-only alignment can use higher layers as feedback and re-evaluate
+          the current input with fixed weights. Each schema element becomes a probe that binds in {m.cycles}{" "}
           shared-weight cycles, and four readouts are taken from the settled probes. Nothing is decoded token by token.
         </p>
         <Mermaid
@@ -195,9 +195,9 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
         />
         <p className={`${p} text-sm text-zinc-400`}>
           Fire, anchor and select each have a temperature fitted on held-out data, which is what makes the reported
-          confidence meaningful. RSAA reports initial divergence, final divergence, and per-example steps; the default
-          presets cap alignment at two cycles. Changing binding or alignment cycles trades accuracy for compute without
-          new weights.
+          confidence meaningful. RSAA reports initial divergence, final divergence, and per-example steps; the model caps
+          alignment at two cycles. On this checkpoint, neither aligned profile passed the replacement gate, so zero is the
+          production default. The live controls expose the measured profiles without presenting them as an accuracy gain.
         </p>
 
         <h2 id="accuracy" className={h2}>
@@ -508,7 +508,9 @@ await agent.embed("hello");`}
         <p className={p}>
           The downloaded <code className={code}>arc1-tiny.rcn</code> is a base checkpoint. Finetuning teaches it your own
           tools, fields and labels. Training runs from the source repository and learns from examples it generates out of
-          tool definitions you write, so you describe each tool once and it produces the phrasings. It needs Python and TensorFlow.
+          tool definitions you write, so you describe each tool once and it produces the phrasings. It needs Python and
+          TensorFlow. The download remains the validated zero-cycle artifact; the optional live RSAA profiles did not pass
+          the replacement gate for these weights.
         </p>
 
         <Tabs
