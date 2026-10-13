@@ -1,7 +1,7 @@
 """
 gpbacay_arcane CLI commands
 
-Command-line interface for the ARCANE neuromimetic semantic model library.
+Command-line interface for the ARCANE 5.0 System 1 AI library.
 """
 
 import argparse
@@ -16,13 +16,12 @@ def about():
 ║                              Evolution                                       ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                              ║
-║  A neuromimetic semantic foundation model library featuring:                 ║
+║  ARCANE 5.0: adaptive, grounded System 1 AI                                  ║
 ║                                                                              ║
-║  • Hierarchical Neural Resonance - Bi-directional state alignment            ║
-║  • Spiking Neural Networks - ResonantGSER with reservoir computing           ║
-║  • Hebbian Learning - BioplasticDenseLayer with synaptic plasticity          ║
-║  • Homeostatic Plasticity - Activity-dependent neural regulation             ║
-║  • Temporal Integration - LSTM and spiking dynamics                          ║
+║  • Adaptive inference - bounded resonance and reversible updates             ║
+║  • Grounded decisions - schemas, confidence, evidence, and abstention        ║
+║  • Neural memory - immediate learning from decided examples                  ║
+║  • Biological components - feedback, spikes, plasticity, and homeostasis     ║
 ║                                                                              ║
 ║  Author: Gianne P. Bacay                                                     ║
 ║  GitHub: https://github.com/gpbacay/gpbacay_arcane                           ║
@@ -38,7 +37,10 @@ def list_models():
 │                           Available Models                                    │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  1. Arc1Model  ⭐ NEW — Automation foundation (tools / extract / embed)         │
+│  1. System1 — ARCANE 5.0 composition API                                     │
+│     Grounding, abstention, neural memory, evidence, and adaptation traces.    │
+│                                                                              │
+│  2. Arc1Model — Automation foundation (tools / extract / embed)              │
 │     Resonant Schema Binding: perceive once, bind every schema probe, read    │
 │     out fire / anchor / select. One pass per request, calibrated.            │
 │     Presets: arc1-tiny, arc1. Speed knob: agent.run(..., cycles=N).          │
@@ -46,17 +48,17 @@ def list_models():
 │     Serve: python examples/serve_arc1_api.py  (port 8002)                    │
 │     Export: python examples/export_arc1.py --tflite --cycles 2               │
 │                                                                              │
-│  2. ArcaneSmallLanguageModel                                                  │
+│  3. ArcaneSmallLanguageModel                                                  │
 │     Causal decoder LM (~100M with the 100m preset). Linear attention,        │
 │     DenseGSER, bioplastic FFN, token-parallel resonance, AttentionResidual.  │
 │                                                                              │
-│  3. HierarchicalResonanceFoundationModel                                      │
+│  4. HierarchicalResonanceFoundationModel                                      │
 │     Deep neuromimetic architecture with bi-directional resonance.            │
 │     Features: Multi-level ResonantGSER hierarchy, cross-level skip           │
 │     connections, temporal coherence, attention fusion, BCM plasticity.       │
-│     Use with NeuralResonanceCallback for "System 2" reasoning.               │
+│     Use for controlled adaptive-inference and resonance experiments.         │
 │                                                                              │
-│  4. NeuromimeticSemanticModel                                                │
+│  5. NeuromimeticSemanticModel                                                │
 │     Standard semantic model with neural resonance and Hebbian learning.      │
 │                                                                              │
 │  Legacy Aliases (for backward compatibility):                                │
@@ -152,7 +154,7 @@ def version():
 def cli():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="ARCANE - Neuromimetic Semantic Foundation Model CLI",
+        description="ARCANE 5.0 - adaptive, grounded System 1 AI CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

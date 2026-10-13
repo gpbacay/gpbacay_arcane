@@ -1,6 +1,6 @@
 # gpbacay-arcane (Node.js)
 
-ARC 1 tool calling, field extraction, classification, and embeddings from Node.js.
+The ARCANE 5.0 Node runtime provides the grounded-decision and neural-memory parts of the System 1 stack: ARC 1 tool calling, field extraction, classification, embeddings, and Hippocampus memory.
 
 The model runs locally in a Python child process, so you also need the Python package:
 

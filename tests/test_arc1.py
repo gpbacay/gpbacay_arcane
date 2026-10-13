@@ -168,6 +168,41 @@ def test_decisions_ignore_right_padding():
     np.testing.assert_allclose(s1, s2, atol=1e-4)
 
 
+def test_rsaa_aligns_perception_with_bounded_per_example_trace():
+    cfg = Arc1Config(**SMALL, rsaa_cycles=2, rsaa_factor=0.2, rsaa_epsilon=0.0)
+    model = Arc1Model(cfg).build_model()
+    ids = tf.constant([[3, 10, 11, 12, 0], [3, 20, 21, 22, 23]])
+    baseline, _ = model.perceive(ids, rsaa_cycles=0)
+    aligned, mask, trace = model.perceive(ids, rsaa_cycles=2, return_rsaa=True)
+
+    @tf.function
+    def compiled_perception(batch):
+        return model.perceive(batch, return_rsaa=True)
+
+    compiled_aligned, _, compiled_trace = compiled_perception(ids)
+
+    assert aligned.shape == baseline.shape and mask.shape == ids.shape
+    assert not np.allclose(aligned.numpy(), baseline.numpy())
+    np.testing.assert_allclose(compiled_aligned.numpy(), aligned.numpy(), atol=1e-5)
+    np.testing.assert_array_equal(trace["rsaa_steps"].numpy(), [2, 2])
+    np.testing.assert_array_equal(compiled_trace["rsaa_steps"].numpy(), [2, 2])
+    assert np.isfinite(trace["rsaa_initial_divergence"].numpy()).all()
+    assert np.isfinite(trace["rsaa_divergence"].numpy()).all()
+    assert cfg.resolve_rsaa_cycles(99) == 2
+
+    agent = Arc1Agent(model, BytePairTokenizer(512))
+    decision = agent.classify("my invoice was charged twice", ["billing", "shipping"], rsaa_cycles=1)
+    assert decision["stats"]["rsaa_budget"] == 1
+    assert decision["stats"]["rsaa_steps"] == 1
+    assert decision["stats"]["perception_evaluations"] == 2
+
+
+def test_rsaa_is_checkpoint_compatible_and_disabled_for_legacy_configs():
+    legacy = Arc1Config.from_dict({"d_model": 32, "num_layers": 2, "unknown_key": 1})
+    assert legacy.rsaa_cycles == 0
+    assert legacy.resolve_rsaa_cycles() == 0
+
+
 def test_cycles_are_per_call_and_stateless():
     model = _small_model()
     utter = tf.constant([[3, 5, 6, 7]])
@@ -195,6 +230,7 @@ def test_config_roundtrip_keeps_calibration():
     again = Arc1Config.from_dict(cfg.to_dict())
     assert again.calibration == cfg.calibration
     assert again.binding_cycles == 2
+    assert again.rsaa_cycles == 0
     assert Arc1Config.from_dict({"d_model": 32, "unknown_key": 1}).d_model == 32
 
 

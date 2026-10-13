@@ -3,11 +3,11 @@
 Train the Hierarchical Neural Resonance Foundation Model
 
 This example demonstrates how to train the HierarchicalResonanceFoundationModel
-with the NeuralResonanceCallback for deliberative "System 2" reasoning.
+with feedback alignment for adaptive System 1 inference.
 
 Features demonstrated:
 - Multi-level ResonantGSER hierarchy with bi-directional feedback
-- Neural Resonance cycles (Thinking Phase) during training
+- Neural resonance alignment cycles during training
 - Prospective Configuration for stable deep learning
 - Multi-pathway feature fusion with attention
 - Bioplastic Hebbian learning layers
@@ -148,8 +148,8 @@ def train_hierarchical_resonance_model(
     # === Setup Callbacks ===
     print(f"\n⚙️  Setting up training callbacks...")
     
-    # 1. Neural Resonance Callback - The "Thinking Phase"
-    # This orchestrates bi-directional feedback between layers
+    # 1. Neural Resonance Callback - training-time feedback alignment
+    # This orchestrates bi-directional state alignment between layers.
     resonance_callback = NeuralResonanceCallback(
         resonance_cycles=resonance_cycles,
         learning_rate=0.01

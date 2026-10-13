@@ -157,7 +157,7 @@ You can choose:
 Enables studying:
 - How many resonance cycles are optimal for different tasks
 - The relationship between divergence and prediction quality
-- The trade-off between inference speed and reasoning quality
+- The trade-off between inference speed and direct-decision quality
 
 ## Training the feedback maps
 

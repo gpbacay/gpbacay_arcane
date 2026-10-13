@@ -2,19 +2,21 @@
 
 ARC 1 is an ultra-compact, non-autoregressive "System 1" decision model: it
 maps text plus a schema (tools, a record, or a label set) to typed, grounded,
-calibrated decisions in one forward pass. It does not generate text; the
+calibrated decisions in one bounded computation graph. It does not generate text; the
 causal variant ``Arc1LanguageModel`` (bottom of this file) does.
 
 Pipeline
 --------
-1. **Perceive once.** The utterance is read a single time by a stack of
+1. **Aligned perception.** The utterance is read by a stack of
    bidirectional ``Arc1PerceptionBlock`` layers (FieldAttention →
    ResonantChannelMixer → ConceptEngram lexical memory → FieldResonance).
-   The result is the *utterance field* ``U`` (T x D).
+   Bounded RSAA cycles project higher states downward, harmonize lower states,
+   and re-evaluate the stack before the decision is committed. The result is
+   the *utterance field* ``U`` (T x D).
 2. **Schema engrams.** Every tool, parameter, enum option, and label is
    perceived by the same blocks and attention-pooled into one vector. Texts
    not yet cached are perceived in the same batch as the utterance
-   (``decide_joint``), so a request is always exactly one forward pass.
+   (``decide_joint``), so alignment remains per example.
 3. **Resonant binding.** Each engram becomes a *probe* (composed with its
    context engram and a role embedding) that resonates with ``U`` for a few
    shared-weight cycles through a GSER spiking gate (``ResonantBinding``).
@@ -57,6 +59,7 @@ ARC1_PRESETS: Dict[str, Dict] = {
         "engram_rows": 4,
         "binding_heads": 4,
         "binding_cycles": 3,
+        "rsaa_cycles": 2,
     },
     # Causal LM (Arc1LanguageModel) sized for fast CPU distillation: ~10M params, ~40 MB.
     "arc1-lm": {
@@ -124,6 +127,7 @@ ARC1_PRESETS: Dict[str, Dict] = {
         "engram_rows": 8,
         "binding_heads": 8,
         "binding_cycles": 4,
+        "rsaa_cycles": 2,
     },
 }
 
@@ -159,6 +163,10 @@ class Arc1Config:
     binding_heads: int = 4
     binding_cycles: int = 3
     active_cycles: Optional[int] = None  # None = binding_cycles
+    # State-only RSAA. Zero preserves checkpoints saved before ARCANE 5.0.
+    rsaa_cycles: int = 0
+    rsaa_factor: float = 0.15
+    rsaa_epsilon: float = 1e-4
     calibration: Dict[str, float] = field(default_factory=_default_calibration)
     # Causal-LM-only options.  ``legacy`` preserves every existing checkpoint.
     lm_architecture: str = "legacy"
@@ -176,6 +184,12 @@ class Arc1Config:
         if cycles is None:
             return self.binding_cycles
         return int(max(1, min(int(cycles), self.binding_cycles)))
+
+    def resolve_rsaa_cycles(self, cycles: Optional[int] = None) -> int:
+        """Resolve a per-call RSAA budget, including the disabled value zero."""
+        if cycles is None:
+            cycles = self.rsaa_cycles
+        return int(max(0, min(int(cycles), self.rsaa_cycles)))
 
     def temperature(self, readout: str) -> float:
         return float(max((self.calibration or {}).get(readout, 1.0), 1e-3))
@@ -278,7 +292,7 @@ def _hybrid_lm_blocks(cfg: Arc1Config) -> List[Arc1HybridBlock]:
 
 
 class Arc1Model(tf.keras.Model):
-    """Resonant Schema Binding model: perceive once, bind every schema probe, read out."""
+    """RSAA-aligned schema binding: perceive, align, bind every probe, read out."""
 
     def __init__(self, config: Optional[Arc1Config] = None, **kwargs):
         super().__init__(**kwargs)
@@ -286,6 +300,8 @@ class Arc1Model(tf.keras.Model):
         cfg = self.arc1_config
         if cfg.d_model % cfg.num_heads or cfg.d_model % cfg.binding_heads:
             raise ValueError("d_model must be divisible by num_heads and binding_heads")
+        if cfg.rsaa_cycles < 0 or not 0.0 < cfg.rsaa_factor <= 1.0 or cfg.rsaa_epsilon < 0.0:
+            raise ValueError("RSAA needs cycles >= 0, factor in (0, 1], and epsilon >= 0")
         d = cfg.d_model
 
         self.token_embedding = tf.keras.layers.Embedding(cfg.vocab_size, d, name="token_embedding")
@@ -323,13 +339,68 @@ class Arc1Model(tf.keras.Model):
         return cls(Arc1Config.from_preset(name, **overrides))
 
     # --------------------------------------------------------------- perceive
-    def perceive(self, token_ids, training=False):
-        """Utterance / schema field ``(B, T, D)`` and its real-token mask ``(B, T)``."""
+    def _rsaa_divergence(self, states, mask):
+        """Per-example mean squared disagreement between adjacent hierarchy states."""
+        if len(states) < 2:
+            return tf.zeros((tf.shape(mask)[0],), dtype=states[0].dtype)
+        weight = tf.cast(tf.expand_dims(mask, -1), states[0].dtype)
+        width = tf.cast(tf.shape(states[0])[-1], states[0].dtype)
+        denom = tf.maximum(tf.reduce_sum(weight, axis=[1, 2]) * width, 1.0)
+        terms = [
+            tf.reduce_sum(tf.square(lower - upper) * weight, axis=[1, 2]) / denom
+            for lower, upper in zip(states[:-1], states[1:])
+        ]
+        return tf.add_n(terms)
+
+    def perceive(self, token_ids, training=False, rsaa_cycles=None, return_rsaa=False):
+        """Return a field and mask after optional state-only RSAA alignment.
+
+        Every perception block has the same width, so ARC 1 uses an identity
+        ``f_proj`` for top-down feedback. A cycle applies the paper's update
+        ``S <- S - gamma * (S - P)`` to each lower state, then re-evaluates the
+        current input through the shared blocks. Weights never change.
+        """
         mask = tf.not_equal(token_ids, self.arc1_config.pad_id)
-        x = self.embed_dropout(self.token_embedding(token_ids), training=training)
+        embedded = self.embed_dropout(self.token_embedding(token_ids), training=training)
+        x = embedded
+        states = []
         for block in self.blocks:
             x = block(x, token_ids=token_ids, token_mask=mask, training=training)
-        return x, mask
+            states.append(x)
+
+        budget = self.arc1_config.resolve_rsaa_cycles(rsaa_cycles)
+        divergence = self._rsaa_divergence(states, mask)
+        initial_divergence = divergence
+        steps = tf.zeros_like(divergence, dtype=tf.int32)
+        gamma = tf.cast(self.arc1_config.rsaa_factor, x.dtype)
+        epsilon = tf.cast(self.arc1_config.rsaa_epsilon, divergence.dtype)
+
+        for _ in range(budget):
+            active = divergence >= epsilon
+            targets = states[1:]
+            x = embedded
+            candidates = []
+            for i, block in enumerate(self.blocks):
+                x = block(x, token_ids=token_ids, token_mask=mask, training=training)
+                if i < len(self.blocks) - 1:
+                    aligned = x - gamma * (x - targets[i])
+                    align_here = tf.logical_and(mask, tf.expand_dims(active, -1))
+                    x = tf.where(tf.expand_dims(align_here, -1), aligned, x)
+                candidates.append(x)
+            choose = tf.reshape(active, (-1, 1, 1))
+            states = [tf.where(choose, new, old) for new, old in zip(candidates, states)]
+            candidate_divergence = self._rsaa_divergence(states, mask)
+            divergence = tf.where(active, candidate_divergence, divergence)
+            steps += tf.cast(active, tf.int32)
+
+        trace = {
+            "rsaa_initial_divergence": initial_divergence,
+            "rsaa_divergence": divergence,
+            "rsaa_steps": steps,
+        }
+        if return_rsaa:
+            return states[-1], mask, trace
+        return states[-1], mask
 
     @staticmethod
     def _attention_pool(field, mask, scorer):
@@ -394,17 +465,21 @@ class Arc1Model(tf.keras.Model):
         }
 
     def decide(self, utter_ids, probe_example, engram_a, engram_b, roles, cycles=None, training=False,
-               with_embedding=False):
-        """One pass: perceive the utterances, compose probes, bind, read out."""
-        field, mask = self.perceive(utter_ids, training=training)
+               with_embedding=False, rsaa_cycles=None):
+        """Align perception, compose probes, bind, and read out without decoding."""
+        field, mask, trace = self.perceive(
+            utter_ids, training=training, rsaa_cycles=rsaa_cycles, return_rsaa=True
+        )
         probes = self.compose_probes(engram_a, engram_b, roles)
         out = self.bind(field, mask, probes, probe_example, cycles=cycles, training=training)
+        out.update(trace)
         if with_embedding:
             out["embedding"] = self.pooled_embedding(field, mask)
         return out
 
-    def decide_joint(self, token_ids, engram_bank, probe_a, probe_b, roles, cycles=None, training=False):
-        """A whole request in exactly one forward pass.
+    def decide_joint(self, token_ids, engram_bank, probe_a, probe_b, roles, cycles=None, training=False,
+                     rsaa_cycles=None):
+        """A whole request in one bounded, non-autoregressive computation graph.
 
         ``token_ids`` row 0 is the utterance; rows 1.. are schema texts not yet
         cached. All rows share one perception batch (every stage is pad-masked,
@@ -413,7 +488,9 @@ class Arc1Model(tf.keras.Model):
         index the combined bank, with -1 in ``probe_b`` for "no context".
         Returns the readouts plus ``new_engrams`` for the caller to cache.
         """
-        field, mask = self.perceive(token_ids, training=training)
+        field, mask, trace = self.perceive(
+            token_ids, training=training, rsaa_cycles=rsaa_cycles, return_rsaa=True
+        )
         new = self.schema_proj(self._attention_pool(field[1:], mask[1:], self.schema_pool))
         bank = tf.concat([tf.cast(engram_bank, new.dtype), new], axis=0)
         engram_a = tf.gather(bank, probe_a)
@@ -422,6 +499,7 @@ class Arc1Model(tf.keras.Model):
         probes = self.compose_probes(engram_a, engram_b, roles)
         out = self.bind(field[:1], mask[:1], probes, tf.zeros_like(roles), cycles=cycles, training=training)
         out["new_engrams"] = new
+        out.update(trace)
         return out
 
     @staticmethod
@@ -451,9 +529,10 @@ class Arc1Model(tf.keras.Model):
         built = int(self.count_params()) if self.built else 0
         return {
             "name": "Arc1Model",
-            "architecture": "Resonant Schema Binding",
+            "architecture": "RSAA-Aligned Resonant Schema Binding",
             "built_parameters": built,
             "active_cycles": self.arc1_config.resolve_cycles(cycles),
+            "rsaa_cycles": self.arc1_config.resolve_rsaa_cycles(),
             "config": self.arc1_config.to_dict(),
         }
 

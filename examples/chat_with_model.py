@@ -426,7 +426,7 @@ def chat_with_model():
             if not seed_text:
                 seed_text = user_input
             
-            print("ARCANE is thinking...")
+            print("ARCANE is generating...")
             
             # Generate response using the appropriate method
             if hybrid_model is not None:

@@ -101,7 +101,10 @@ def main():
     )
     with open(os.path.join(args.out, "config.json"), "w", encoding="utf-8") as f:
         json.dump(config.to_dict(), f, indent=2)
-    print(f"SavedModel -> {saved}  (binding cycles={cycles})")
+    print(
+        f"SavedModel -> {saved}  (binding cycles={cycles}, "
+        f"RSAA cycles={config.resolve_rsaa_cycles()})"
+    )
 
     if args.rcn:
         from gpbacay_arcane.rcn import save_rcn

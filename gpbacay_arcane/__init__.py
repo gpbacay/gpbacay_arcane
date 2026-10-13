@@ -1,9 +1,12 @@
 """
-gpbacay_arcane - ARCANE Neuromimetic Semantic Foundation Model
+gpbacay_arcane - ARCANE 5.0 System 1 AI
 
 Augmented Reconstruction of Consciousness through Artificial Neural Evolution
 
-A Python library for neuromimetic neural network mechanisms featuring:
+A Python library for adaptive, grounded System 1 models featuring:
+- A unified perceive-recall-adapt-decide contract
+- Grounded decisions with uncertainty and abstention
+- Neural memory of decided examples
 - Hierarchical Neural Resonance
 - Spiking Neural Networks (ResonantGSER)
 - Hebbian Learning (BioplasticDenseLayer)
@@ -121,6 +124,16 @@ from .arc1_codec import Arc1Codec
 from .got import DocumentGraph, GroundedGraphOfThought, got_tools
 from .hippocampus import Hippocampus
 
+from .system1 import (
+    AdaptationTrace,
+    AdaptiveInference,
+    DecisionSpace,
+    GroundedDecision,
+    NeuralMemory,
+    System1,
+    System1Model,
+)
+
 from .rcn import load_arc1, load_rcn, read_header as read_rcn_header, save_rcn
 
 from .tokenization import BytePairTokenizer
@@ -152,9 +165,9 @@ DSTSMGSER = NeuromimeticSemanticModel
 GSERModel = NeuromimeticSemanticModel
 CoherentThoughtModel = NeuromimeticSemanticModel
 
-__version__ = "4.1.0"
+__version__ = "5.0.0"
 __author__ = "Gianne P. Bacay"
-__description__ = "Neuromimetic Semantic Foundation Model with Biologically-Inspired Neural Mechanisms"
+__description__ = "The first library for building System 1 AI through adaptive inference, grounded decisions, neural memory, and biologically inspired components"
 
 _OPTIONAL_EXPORTS = {
     "OllamaARCANEHybrid": (".ollama_integration", "OllamaARCANEHybrid"),
@@ -176,6 +189,18 @@ def __getattr__(name):
 
 
 __all__ = [
+    # ARCANE 5.0 System 1 composition API
+    "System1",
+    "System1Model",
+    "DecisionSpace",
+    "GroundedDecision",
+    "AdaptiveInference",
+    "AdaptationTrace",
+    "NeuralMemory",
+    "Hippocampus",
+    "DocumentGraph",
+    "GroundedGraphOfThought",
+    "got_tools",
     # Layers
     "GSER",
     "DenseGSER",

@@ -51,7 +51,7 @@ $$y = \text{GELU}(x \cdot G(t))$$
 ## Scope and Trade-offs
 
 ### Stateful versus memoryless mappings
-Standard activations such as ReLU and GELU are memoryless. ARCANE's stateful wrappers can integrate activity across calls or accept an external resonance factor. This adds state-management cost and does not imply deliberation or superior task performance.
+Standard activations such as ReLU and GELU are memoryless. ARCANE's stateful wrappers can integrate activity across calls or accept an external resonance factor. This adds state-management cost and does not imply superior task performance.
 
 ### Implemented behavior
 The activation functions provide three directly testable behaviors:
@@ -142,4 +142,4 @@ python -m pytest tests/test_activations.py tests/test_mechanism_correctness.py -
 
 ---
 
-*This page documents the activation behavior shipped with ARCANE v4.1.0.*
+*This page documents the activation behavior shipped with ARCANE v5.0.0.*

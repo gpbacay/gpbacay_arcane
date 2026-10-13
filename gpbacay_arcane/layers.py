@@ -120,10 +120,8 @@ class DenseGSER(tf.keras.layers.Layer):
 
 class ResonantGSER(tf.keras.layers.RNN):
     """
-    A wrapper layer for ResonantGSERCell, implementing hierarchical resonance for
-    Latent Space Reasoning, Unified Multi-Modal Semantic Space integration, and
-    Direct Semantic Optimization. It facilitates iterative state alignment and
-    feedback propagation within a multi-layered semantic hierarchy.
+    A wrapper for ``ResonantGSERCell`` that performs bounded hierarchical state
+    alignment and feedback propagation before a direct System 1 prediction.
     """
     def __init__(self, units, resonance_factor=0.1, spike_threshold=0.5, 
                  resonance_cycles=3, convergence_epsilon=1e-4,
@@ -320,9 +318,8 @@ class PredictiveResonantLayer(tf.keras.layers.RNN):
 
 class RelationalConceptModeling(tf.keras.layers.Layer):
     """
-    A layer designed to model and abstract relational concepts within a Unified Multi-Modal Semantic Space.
-    It uses multi-head attention to identify and extract salient conceptual relationships from input features,
-    contributing to Latent Space Reasoning by focusing on interconnected semantic entities.
+    Multi-head attention over relational features for direct classification or
+    downstream System 1 processing.
     """
     def __init__(self, d_model, num_heads, **kwargs):
         super().__init__(**kwargs)
@@ -332,9 +329,8 @@ class RelationalConceptModeling(tf.keras.layers.Layer):
 
 class RelationalGraphAttentionReasoning(tf.keras.layers.Layer):
     """
-    A layer for performing Latent Space Reasoning by applying graph-like attention over relational semantic embeddings.
-    It extracts and processes intricate relationships between conceptual entities, contributing to a deeper
-    semantic understanding.
+    Graph-like attention over relational embeddings followed by a pooled direct
+    classification head.
     """
     def __init__(self, d_model, num_heads, num_classes, **kwargs):
         super().__init__(**kwargs)
@@ -346,20 +342,18 @@ class RelationalGraphAttentionReasoning(tf.keras.layers.Layer):
 
 class RelationalConceptGraphReasoning(tf.keras.layers.Layer):
     """
-    A unified mechanism combining relational concept modeling and graph attention reasoning.
-    This novel mechanism integrates multi-head attention with configurable semantic processing
-    to enable both concept extraction and relational reasoning within a unified framework.
+    A configurable stack of relational self-attention blocks for feature
+    extraction and direct classification.
 
     Features:
     - Multi-head attention for relational semantic processing
     - Configurable output modes: concept features or classification predictions
     - Enhanced semantic processing with residual connections and layer normalization
-    - Support for hierarchical reasoning with multiple attention layers
+    - Stacked relational processing with multiple attention layers
     - Adaptive pooling strategies for different semantic tasks
 
-    This mechanism advances Latent Space Reasoning by providing a flexible architecture
-    that can model concepts, reason about relationships, and perform semantic classification
-    within the Unified Multi-Modal Semantic Space.
+    The layer produces features, a direct classification, or both. The historical
+    class name is retained for API compatibility.
     """
     def __init__(self, d_model, num_heads, output_mode='features', num_classes=None,
                  num_reasoning_layers=1, use_residual=True, use_layer_norm=True,
@@ -980,7 +974,7 @@ class SpatioTemporalSummarization(tf.keras.layers.Layer):
     """
     A layer for unifying multi-modal spatio-temporal features into coherent Semantic Summaries.
     It supports a Unified Multi-Modal Semantic Space by abstracting away surface-level conceptual variability,
-    producing compact representations suitable for Latent Space Reasoning.
+    producing compact representations for direct System 1 decisions.
     """
     def __init__(self, d_model, **kwargs):
         super().__init__(**kwargs)
@@ -1032,8 +1026,7 @@ class PositionalEncodingLayer(tf.keras.layers.Layer):
 class LatentTemporalCoherence(tf.keras.layers.Layer):
     """
     A layer designed to distill a compact 'semantic coherence vector' from temporal inputs,
-    facilitating Latent Space Reasoning and Abstraction of Surface-Level Conceptual Variability
-    in sequential data. It captures the essential semantic flow over time.
+    producing a compact temporal context for direct decisions from sequential data.
     """
     def __init__(self, d_coherence, **kwargs):
         super().__init__(**kwargs)

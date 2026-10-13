@@ -63,9 +63,9 @@ export default function SystemOnePage() {
   return (
     <div className="text-zinc-300">
       <header className="mb-12 border-b border-zinc-900 pb-10">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#C785F2]">ARCANE architecture</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#C785F2]">ARCANE 5.0 architecture</p>
         <h1 className="mt-3 max-w-3xl text-4xl font-extrabold leading-tight tracking-[-0.035em] text-white sm:text-5xl">
-          System 1 AI, defined by behavior.
+          True System 1 AI, defined by behavior.
         </h1>
         <p className="mt-5 max-w-2xl text-lg leading-relaxed text-zinc-300">
           ARCANE builds fast, automatic models that respond with grounded outcomes, learn from bounded experience,
@@ -159,7 +159,7 @@ export default function SystemOnePage() {
         <h2 id="comparison" className="text-2xl font-bold text-white">System 1 and generative AI solve different jobs</h2>
         <p className="mt-3 max-w-2xl leading-relaxed text-zinc-400">
           ARCANE does not replace generative models. It handles fast, repeatable decisions directly and can route work
-          to a generative model when the task needs open-ended language or deliberate reasoning.
+          to a generative model when the task needs open-ended language or multi-step synthesis.
         </p>
         <div className="mt-6 overflow-x-auto">
           <table className="w-full min-w-[620px] border-collapse text-left text-sm">

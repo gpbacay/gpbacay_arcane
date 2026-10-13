@@ -1,4 +1,4 @@
-# ARCANE - Neuromimetic Semantic Foundation Model
+# ARCANE 5.0 - adaptive, grounded System 1 AI
 # Core library dependencies
 
 # Machine Learning & Neural Networks
@@ -29,4 +29,3 @@ Pillow>=9.0.0
 # python setup.py sdist bdist_wheel
 # pip install dist/gpbacay_arcane-3.0.2-py3-none-any.whl --force-reinstall
 # twine upload dist/*
-

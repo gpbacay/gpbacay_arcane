@@ -48,9 +48,8 @@ class GSER(Layer):
     The Gated Spiking Elastic Reservoir (GSER) Mechanism (RNN Cell) for semantic processing.
     Combines dynamic reservoir sizing, spiking neurons, and adaptive gating, with an integrated conceptual
     gating mechanism to dynamically adjust the influence of input and recurrent connections based on semantic relevance.
-    This contributes to Direct Semantic Optimization and Abstraction of Surface-Level Conceptual Variability
-    by focusing on the most salient semantic features in the latent space, supporting Latent Space Reasoning
-    within a Unified Multi-Modal Semantic Space.
+    This supports fast System 1 sequence processing by selecting salient latent features
+    before a direct downstream decision.
     """
     def __init__(self, input_dim, initial_reservoir_size, max_dynamic_reservoir_dim, spectral_radius, leak_rate, spike_threshold, neurogenesis_rate=0.05, pruning_rate=0.1, use_semantic_gate=True, **kwargs):
         super().__init__(**kwargs)
@@ -259,10 +258,9 @@ class GSER(Layer):
 class ResonantGSERCell(Layer):
     """
     Cell for the Resonant Gated Spiking Elastic Reservoir (ResonantGSER).
-    This cell is a core component for Latent Space Reasoning, integrating concepts of
-    Unified Multi-Modal Semantic Space and Direct Semantic Optimization through its
-    deliberative resonance mechanism. It combines robust gated updates with biomimetic
-    spiking and iterative harmonization to abstract away surface-level conceptual variability.
+    This cell is a core adaptive System 1 component. It combines robust gated
+    updates, biomimetic spiking, and bounded recurrent harmonization before a
+    direct output.
     """
     def __init__(self, units, resonance_factor=0.1, spike_threshold=0.5, 
                  resonance_cycles=3, convergence_epsilon=1e-4, semantic_divergence_weight=0.1, **kwargs):
@@ -426,7 +424,7 @@ class ResonantGSERCell(Layer):
         
     def call(self, inputs, states, **kwargs):
         """
-        Forward pass integrating Direct Semantic Optimization and Latent Space Reasoning.
+        Run gated recurrent processing and bounded resonance for a direct output.
         """
         # Handle states whether they are list or tuple
         if isinstance(states, (list, tuple)):
@@ -728,10 +726,9 @@ class PredictiveResonantCell(Layer):
 
 class MultiheadLinearSelfAttentionKernalization(Layer):
     """
-    A Multi-head linear self-attention mechanism with kernel approximation, designed for efficient
-    Latent Space Reasoning and establishing coherent relationships within a Unified Multi-Modal Semantic Space.
-    It achieves linear complexity (O(n)) for long sequences, and incorporates semantic re-weighting
-    to enhance Direct Semantic Optimization by prioritizing semantically important features.
+    Multi-head linear self-attention with kernel approximation for efficient
+    System 1 sequence processing. It is linear in sequence length and can
+    re-weight features before a direct prediction.
     """
     def __init__(self, d_model, num_heads, dropout_rate=0.1, use_weighted_summary=False, 
                  use_semantic_reweighting=True, eps=1e-6, **kwargs):
@@ -1319,9 +1316,8 @@ class ResonantSequenceMixer(Layer):
 class SpatioTemporalSummaryMixingLayer(Layer):
     """
     A mechanism that enhances spatio-temporal data by mixing local and global context to generate
-    Non-Autoregressive Semantic Predictions for Efficiency and construct a Unified Multi-Modal Semantic Space.
-    It uses gated linear units (GLU) for local gating and GELU for high-level semantic summaries,
-    actively abstracting away surface-level conceptual variability for Latent Space Reasoning.
+    efficient non-autoregressive predictions. It uses gated linear units (GLU)
+    for local gating and GELU for compact summaries consumed by direct decisions.
     """
     def __init__(self, d_model, dropout_rate=0.1, use_weighted_summary=False, **kwargs):
         super(SpatioTemporalSummaryMixingLayer, self).__init__(**kwargs)

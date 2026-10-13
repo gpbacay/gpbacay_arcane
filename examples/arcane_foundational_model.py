@@ -113,7 +113,7 @@ def chat_with_arcane_foundational_model():
             # Add to conversation history
             conversation_history.append(f"You: {user_input}")
             
-            print("🧠 ARCANE is thinking...")
+            print("🧠 ARCANE is processing...")
             
             # Generate enhanced response using the foundational model
             response = foundational_model.generate_text_with_improved_sampling(

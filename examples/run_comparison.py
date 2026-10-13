@@ -142,8 +142,8 @@ class LiquidResonantGSER(ResonantGSER):
         # Or even better: We implement a separate "get_state" method that re-calculates 
         # or we just rely on the fact that NeuralResonanceCallback is experimental.
         
-        # DECISION: For this "Liquid" run, the Resonance mechanism (Thinking Phase) 
-        # is actually LESS critical than the Trainability.
+        # DECISION: For this "Liquid" run, resonance-based state alignment
+        # is less critical than basic trainability.
         # The crash is happening in the Callback.
         # Let's DISABLE the feedback projection LOGIC inside the ProjectFeedback 
         # if the state isn't available, to prevent the crash.

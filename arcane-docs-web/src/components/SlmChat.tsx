@@ -254,7 +254,7 @@ export function SlmChat() {
         {sending && (
           <div className="flex justify-start">
             <div className="bg-zinc-900 border border-zinc-800 px-3 py-2 text-sm text-zinc-500">
-              {selectedModel ? `${selectedModel.label} is generating…` : "Thinking…"}
+              {selectedModel ? `${selectedModel.label} is generating…` : "Generating…"}
             </div>
           </div>
         )}

@@ -398,8 +398,8 @@ class _Probe:
 class Arc1Agent:
     """Tool calling, extraction, and embeddings with ARC 1 Resonant Schema Binding.
 
-    A request is **one** forward pass: the utterance (plus any schema text not
-    yet cached) is perceived once, every offered tool, parameter, and enum
+    A request is **one** bounded computation graph: the utterance (plus any schema text not
+    yet cached) is perceived and RSAA-aligned, every offered tool, parameter, and enum
     option binds to it in parallel, and the readouts are assembled into
     schema-valid calls or a classification label. Strings and numbers are
     anchored in the user's words; enums are selected; booleans and optional
@@ -430,7 +430,7 @@ class Arc1Agent:
         cfg = model.arc1_config
         self.codec = Arc1Codec(tokenizer, cfg.seq_len, cfg.schema_len)
         self.memory = SchemaMemory()
-        self._joint_fns: Dict[int, Callable] = {}
+        self._joint_fns: Dict[Tuple[int, int], Callable] = {}
         d = cfg.d_model
 
         @tf.function(input_signature=[tf.TensorSpec([None, None], tf.int32)], reduce_retracing=True)
@@ -450,8 +450,9 @@ class Arc1Agent:
     def _temp(self, readout: str) -> float:
         return self.model.arc1_config.temperature(readout)
 
-    def _joint_fn(self, cycles: int) -> Callable:
-        fn = self._joint_fns.get(cycles)
+    def _joint_fn(self, cycles: int, rsaa_cycles: int) -> Callable:
+        key = (cycles, rsaa_cycles)
+        fn = self._joint_fns.get(key)
         if fn is None:
             import tensorflow as tf
 
@@ -459,9 +460,12 @@ class Arc1Agent:
 
             @tf.function(input_signature=self._signature, reduce_retracing=True)
             def fn(ids, bank, probe_a, probe_b, roles):
-                return model.decide_joint(ids, bank, probe_a, probe_b, roles, cycles=cycles, training=False)
+                return model.decide_joint(
+                    ids, bank, probe_a, probe_b, roles, cycles=cycles,
+                    rsaa_cycles=rsaa_cycles, training=False,
+                )
 
-            self._joint_fns[cycles] = fn
+            self._joint_fns[key] = fn
         return fn
 
     @staticmethod
@@ -481,8 +485,8 @@ class Arc1Agent:
                     probes.append(_Probe(ROLE_OPTION, option_text(opt, hints.get(str(opt))), ptext, t.name, p, str(opt)))
         return probes
 
-    def _bind(self, text: str, probes: List[_Probe], cycles: Optional[int]):
-        """One forward pass: perceive ``text`` and any uncached schema texts together,
+    def _bind(self, text: str, probes: List[_Probe], cycles: Optional[int], rsaa_cycles: Optional[int] = None):
+        """Perceive and align ``text`` and uncached schema texts together,
         then bind every probe. Returns (utterance, outputs, stats)."""
         import tensorflow as tf
 
@@ -490,6 +494,7 @@ class Arc1Agent:
 
         cfg = self.model.arc1_config
         cycles = cfg.resolve_cycles(cycles)
+        rsaa_cycles = cfg.resolve_rsaa_cycles(rsaa_cycles)
         utt = self.codec.utterance(text)
         needed = list(dict.fromkeys([p.text_a for p in probes] + [p.text_b for p in probes if p.text_b]))
         cached = [t for t in needed if t in self.memory]
@@ -501,15 +506,21 @@ class Arc1Agent:
         probe_a = np.asarray([index[p.text_a] for p in probes], dtype=np.int32)
         probe_b = np.asarray([index[p.text_b] if p.text_b else -1 for p in probes], dtype=np.int32)
         roles = np.asarray([p.role for p in probes], dtype=np.int32)
-        out = self._joint_fn(cycles)(
+        out = self._joint_fn(cycles, rsaa_cycles)(
             tf.constant(ids), tf.constant(bank, tf.float32), tf.constant(probe_a), tf.constant(probe_b),
             tf.constant(roles),
         )
         out = {k: v.numpy() for k, v in out.items()}
         self.memory.put(missing, out.pop("new_engrams"))
+        rsaa_initial = float(out.pop("rsaa_initial_divergence")[0])
+        rsaa_final = float(out.pop("rsaa_divergence")[0])
+        rsaa_steps = int(out.pop("rsaa_steps")[0])
         self.memory.hits += len(cached)
         self.memory.misses += len(missing)
         stats = {"tokens": len(utt.ids), "probes": len(probes), "cycles": cycles, "forward_passes": 1,
+                 "rsaa_budget": rsaa_cycles, "perception_evaluations": 1 + rsaa_steps,
+                 "rsaa_steps": rsaa_steps,
+                 "rsaa_initial_divergence": rsaa_initial, "rsaa_divergence": rsaa_final,
                  "schema_encoded": len(missing), "schema_cached": len(cached)}
         return utt, out, stats
 
@@ -607,10 +618,11 @@ class Arc1Agent:
         execute: bool = True,
         cycles: Optional[int] = None,
         tool_prior: Optional[Dict[str, float]] = None,
+        rsaa_cycles: Optional[int] = None,
     ) -> Dict[str, Any]:
         """``tool_prior`` (tool name -> probability the tool applies, e.g. retrieval evidence from ``Hippocampus``)
         is combined with ARC 1's firing probability by noisy-OR, so either can fire a tool; ARC 1 still
-        anchors the arguments."""
+        anchors the arguments. ``rsaa_cycles`` can lower the configured alignment budget per request."""
         from .arc1_codec import ROLE_TOOL
 
         t0 = time.perf_counter()
@@ -618,9 +630,16 @@ class Arc1Agent:
         probes = self._plan(active)
         prior, tool_probs = tool_prior or {}, {}
         decisions: List[Dict[str, Any]] = []
-        stats: Dict[str, Any] = {"tokens": 0, "probes": 0, "cycles": self.model.arc1_config.resolve_cycles(cycles)}
+        stats: Dict[str, Any] = {
+            "tokens": 0,
+            "probes": 0,
+            "cycles": self.model.arc1_config.resolve_cycles(cycles),
+            "rsaa_budget": self.model.arc1_config.resolve_rsaa_cycles(rsaa_cycles),
+            "rsaa_steps": 0,
+            "perception_evaluations": 0,
+        }
         if probes:
-            utt, out, stats = self._bind(prompt, probes, cycles)
+            utt, out, stats = self._bind(prompt, probes, cycles, rsaa_cycles)
             p_fire = _sigmoid(out["fire"], self._temp("fire"))
             tool_probs = {p.tool: 1.0 - (1.0 - float(p_fire[i])) * (1.0 - prior.get(p.tool, 0.0))
                           for i, p in enumerate(probes) if p.role == ROLE_TOOL}
@@ -692,7 +711,8 @@ class Arc1Agent:
             "latency_ms": round((time.perf_counter() - t0) * 1000.0, 2),
         }
 
-    def extract(self, text: str, record_schema: Dict[str, Any], cycles: Optional[int] = None) -> Dict[str, Any]:
+    def extract(self, text: str, record_schema: Dict[str, Any], cycles: Optional[int] = None,
+                rsaa_cycles: Optional[int] = None) -> Dict[str, Any]:
         from .arc1_data import EXTRACT_TOOL_DESCRIPTION, EXTRACT_TOOL_NAME
 
         t0 = time.perf_counter()
@@ -710,9 +730,16 @@ class Arc1Agent:
             )
         spec = ToolSpec(EXTRACT_TOOL_NAME, EXTRACT_TOOL_DESCRIPTION, params)
         probes = self._plan([spec], with_tool_probes=False)
-        decisions, stats = [], {"tokens": 0, "probes": 0, "cycles": self.model.arc1_config.resolve_cycles(cycles)}
+        decisions, stats = [], {
+            "tokens": 0,
+            "probes": 0,
+            "cycles": self.model.arc1_config.resolve_cycles(cycles),
+            "rsaa_budget": self.model.arc1_config.resolve_rsaa_cycles(rsaa_cycles),
+            "rsaa_steps": 0,
+            "perception_evaluations": 0,
+        }
         if probes:
-            utt, out, stats = self._bind(text, probes, cycles)
+            utt, out, stats = self._bind(text, probes, cycles, rsaa_cycles)
             decisions = self._read_arguments(utt, probes, out, _sigmoid(out["fire"], self._temp("fire")))
         record, confs, notes = {}, [], []
         for d in decisions:
@@ -738,14 +765,16 @@ class Arc1Agent:
         }
 
     def classify(self, text: str, labels: Sequence[str], task: Optional[str] = None,
-                 cycles: Optional[int] = None, descriptions: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        """Pick one of ``labels`` for ``text`` in one forward pass.
+                 cycles: Optional[int] = None, descriptions: Optional[Dict[str, str]] = None,
+                 rsaa_cycles: Optional[int] = None) -> Dict[str, Any]:
+        """Pick one of ``labels`` in one bounded, non-autoregressive graph.
 
         The label set is a classification schema: one argument whose options are
         the labels, so each label is a probe that resonates with the text and
         the ``select`` readout returns a calibrated distribution over them.
         ``task`` optionally says what the labels mean ("Route the ticket to a team"), and
         ``descriptions`` optionally gives each label a hint ({"billing": "charges, refunds"}).
+        ``rsaa_cycles`` can lower the configured alignment budget per request.
         """
         from .arc1_data import classify_tool_spec
 
@@ -754,7 +783,9 @@ class Arc1Agent:
         if not labels:
             raise ValueError("classify() needs at least one label")
         spec = classify_tool_spec(labels, task, descriptions)
-        utt, out, stats = self._bind(text, self._plan([spec], with_tool_probes=False), cycles)
+        utt, out, stats = self._bind(
+            text, self._plan([spec], with_tool_probes=False), cycles, rsaa_cycles
+        )
         decision = self._read_arguments(utt, self._plan([spec], with_tool_probes=False), out,
                                         _sigmoid(out["fire"], self._temp("fire")))[0]
         dist = decision["distribution"]

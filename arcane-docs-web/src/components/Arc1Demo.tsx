@@ -65,6 +65,11 @@ type Stats = {
   probes: number;
   cycles: number;
   forward_passes?: number;
+  perception_evaluations?: number;
+  rsaa_budget?: number;
+  rsaa_steps?: number;
+  rsaa_initial_divergence?: number;
+  rsaa_divergence?: number;
   schema_encoded?: number;
   schema_cached?: number;
 };
@@ -1362,13 +1367,24 @@ export function Arc1Demo() {
                 <dd className="tabular-nums text-zinc-100">{result.stats.tokens}</dd>
               </div>
               <div>
-                <dt className="text-xs text-zinc-500">Forward passes</dt>
-                <dd className="tabular-nums text-zinc-100">{result.stats.forward_passes ?? 1}</dd>
+                <dt className="text-xs text-zinc-500">RSAA perception</dt>
+                <dd className="tabular-nums text-zinc-100">
+                  {result.stats.perception_evaluations ?? 1} evaluations, {result.stats.rsaa_steps ?? 0} alignment steps
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-zinc-500">Probes bound</dt>
                 <dd className="tabular-nums text-zinc-100">{result.stats.probes}</dd>
               </div>
+              {typeof result.stats.rsaa_divergence === "number" && (
+                <div>
+                  <dt className="text-xs text-zinc-500">RSAA divergence</dt>
+                  <dd className="tabular-nums text-zinc-100">
+                    {result.stats.rsaa_initial_divergence?.toPrecision(3)} →{" "}
+                    {result.stats.rsaa_divergence.toPrecision(3)}
+                  </dd>
+                </div>
+              )}
               <div className="col-span-2">
                 <dt className="text-xs text-zinc-500">Schema engrams</dt>
                 <dd className="text-zinc-100">

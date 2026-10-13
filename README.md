@@ -2,19 +2,22 @@
 
 **Augmented Reconstruction of Consciousness through Artificial Neural Evolution**
 
-A Python library for experimenting with neural layers and models inspired by recurrent processing, predictive coding, local plasticity, spiking dynamics, and homeostatic regulation. These are engineering inspirations; biological equivalence and task improvements require empirical validation.
+**The first library for making true System 1 AI models through adaptive inference, grounded decisions, neural memory, and biologically inspired model components.**
 
-## What is ARCANE?
+ARCANE 5.0 is a Python library for models that make fast, bounded decisions rather than defaulting to open-ended token generation. A System 1 model in ARCANE has a declared output space, an explicit abstention policy, inspectable evidence, optional memory of prior decisions, and controlled inference-time adaptation.
 
-ARCANE is a comprehensive Python library that enables you to build, train, and deploy neuromimetic AI models. Unlike traditional deep learning frameworks, ARCANE incorporates biological neural principles such as:
+“System 1” is an operational engineering profile, not a claim of consciousness or biological equivalence. The biological mechanisms in ARCANE are testable design inspirations whose value must be established on the target task.
 
-- **Neural Resonance**: Per-example hierarchical alignment between ResonantGSER layers, plus local recurrent alignment in PredictiveResonantLayer. Optional, reversible objective-driven test-time adaptation and BCM fast weights.
-- **Spiking Neural Dynamics**: LIF-style leak plus graded spikes: signed spike counts against a self-scaling threshold, trained end to end.
-- **Hebbian / BCM Learning**: Dual-weight plastic kernels (`BioplasticDenseLayer`, `HebbianHomeostaticNeuroplasticity`).
-- **Homeostatic Plasticity**: Activity-dependent gain and plastic-kernel scaling.
-- **Hierarchical Processing**: Multi-level ResonantGSER stacks with `set_higher_layer` / `set_lower_layer` (Keras 3-safe).
+## ARCANE 5.0
 
-The library provides ready-to-use models, customizable neural layers, and training callbacks that make it easy to experiment with biologically-inspired AI architectures.
+ARCANE 5.0 unifies four capabilities behind one deployment contract:
+
+- **Adaptive inference** — refine transient state or bounded fast weights against a measurable objective, with trust regions and rollback.
+- **Grounded decisions** — return a label, action, field, score, or abstention constrained to a declared schema.
+- **Neural memory** — teach decisions from examples immediately and expose the recalled evidence without retraining model weights.
+- **Biologically inspired components** — compose feedback, resonance, spiking dynamics, Hebbian/BCM plasticity, reservoirs, and homeostasis.
+
+The `System1` API composes these pieces while ARC 1, Hippocampus, Graph of Thought, and every neural layer remain available independently.
 
 ## Key Features
 
@@ -68,24 +71,39 @@ pip install -e .
 
 ## Quick Start
 
-### Basic Usage
+### Build a System 1 decision model
 
 ```python
-from gpbacay_arcane import NeuromimeticSemanticModel
+from gpbacay_arcane import DecisionSpace, System1
 
-# Create a simple neuromimetic model
-model = NeuromimeticSemanticModel(vocab_size=1000)
-model.build_model()
-model.compile_model()
+# Use ARC 1, a TensorFlow classifier, or any callable that returns scores.
+def route(text, labels):
+    return {
+        "billing": 0.72 if "charged" in text.lower() else 0.10,
+        "shipping": 0.18,
+        "other": 0.10,
+    }
 
-# Generate text (requires a trained tokenizer)
-generated = model.generate_text(
-    seed_text="artificial intelligence",
-    tokenizer=your_tokenizer,
-    max_length=50,
-    temperature=0.8
+support = System1(
+    predictor=route,
+    decisions=DecisionSpace(
+        ["billing", "shipping", "other"],
+        min_confidence=0.60,
+        min_margin=0.15,
+    ),
+    memory_weight=0.65,
 )
+
+# Neural memory changes the next decision without fine-tuning the predictor.
+support.remember("my card was charged twice", "billing")
+
+decision = support.decide("why was I charged again?")
+print(decision.label, decision.confidence, decision.source)
+print(decision.evidence)       # recalled examples behind the result
+print(decision.adaptation)     # bounded-update diagnostics, when enabled
 ```
+
+Every call returns a `GroundedDecision`. Its label is always in the declared `DecisionSpace`, or `None` when the model abstains. See [`docs/ARCANE_5_ARCHITECTURE.md`](docs/ARCANE_5_ARCHITECTURE.md) for the contract and migration guide.
 
 ### Advanced Usage with Resonance
 
@@ -147,24 +165,29 @@ print(model.count_params())  # ~100M trainable + bioplastic kernels
 
 ### ARC 1 — Automation Foundation Model
 
-ARC 1 is an ultra-compact, non-autoregressive "System 1" decision model. In a single forward pass
+ARC 1 is an ultra-compact, non-autoregressive "System 1" decision model. In one bounded inference
 it turns text into calibrated, typed output (tool calls, extracted records, classification labels,
 or embeddings) in milliseconds. It never generates prose. Its architecture, **Resonant Schema
 Binding**, is built from ARCANE mechanisms:
 
-1. **Perceive once**: the utterance is read a single time by bidirectional `Arc1PerceptionBlock`s
+1. **Aligned perception**: bidirectional `Arc1PerceptionBlock`s read the utterance, then bounded RSAA
+   cycles align adjacent hierarchy states and re-evaluate the current input with fixed weights.
+   The blocks contain
    (`FieldAttention` → `ResonantChannelMixer` → `ConceptEngram` → `FieldResonance`).
 2. **Schema engrams**: every tool, argument, enum option, and label is pooled into one vector by the
    same blocks. New schema texts are perceived in the same batch as the utterance, then cached by
-   `SchemaMemory`, so a request is always exactly one forward pass.
+   `SchemaMemory`, so all examples remain independent inside one batched computation graph.
 3. **Resonant binding**: each engram is a probe that resonates with the utterance field for a few
    shared-weight cycles through a GSER spiking gate (`ResonantBinding`). All probes bind in parallel.
 4. **Readouts**: `fire` (tool applies / optional argument present / boolean), `anchor` (start/end
    pointer that copies strings and numbers from the user's words), `select` (enum option or
    classification label), embedding.
 
-A request is one forward pass. Every readout has a temperature fitted on held-out data, so
-`confidence` is calibrated. `cycles` trades accuracy for speed with the same weights.
+A request has no autoregressive decoding loop. The `arc1-tiny` and `arc1` presets use two state-only
+RSAA cycles; `rsaa_cycles`, `rsaa_factor`, and `rsaa_epsilon` bound alignment and expose convergence.
+Every readout has a temperature fitted on held-out data, so `confidence` is calibrated. Binding
+`cycles` independently trades accuracy for speed with the same weights. Pre-5.0 configs load with
+RSAA disabled for checkpoint compatibility.
 
 ```python
 from gpbacay_arcane import Arc1Agent, Arc1Config, Arc1Model, BytePairTokenizer, ToolParam, ToolSpec
@@ -398,7 +421,10 @@ The portal will be available at `http://localhost:3000`.
 
 ## Available Models
 
-ARCANE provides three main model classes for different use cases:
+ARCANE provides the `System1` composition API plus model classes for different use cases:
+
+### System1
+Deployment wrapper for any classifier or ARCANE model. It applies a closed decision schema, confidence and margin thresholds, neural-memory recall, optional bounded adaptation, and returns evidence-rich `GroundedDecision` objects.
 
 ### ArcaneSmallLanguageModel
 Causal decoder language model (~100M with `from_preset("100m")`). Uses causal linear attention, DenseGSER, bioplastic projection, token-parallel resonance, and AttentionResidual. Best for:

@@ -251,7 +251,7 @@ The test suite generates detailed visualizations showing:
 2. **Hierarchical wiring**: `set_higher_layer` / `set_lower_layer` connect projection and harmonization
 3. **Local predictive variant**: `PredictiveResonantLayer` keeps alignment per example in RNN state
 
-The closed-form step is a smoother, not an inner optimizer. Do not treat Tiny Shakespeare or MNIST deltas as evidence of System-2 reasoning.
+The closed-form step is a state smoother, not a hidden reasoning loop. Treat it as bounded System 1 refinement and evaluate whether it improves the direct task output.
 
 ### Implemented capabilities
 
@@ -284,7 +284,7 @@ The closed-form step is a smoother, not an inner optimizer. Do not treat Tiny Sh
 
 ## What this mechanism is not
 
-ResonantGSER does **not** re-run the network on the current batch inside `NeuralResonanceCallback`; that legacy callback still stages a batch-mean prototype. `predict_with_resonance` is the per-example current-input path. Claims of System-2 reasoning, multi-modal unification, or task gains are hypotheses, not results of the unit tests.
+ResonantGSER does **not** re-run the network on the current batch inside `NeuralResonanceCallback`; that legacy callback still stages a batch-mean prototype. `predict_with_resonance` is the per-example current-input path. Claims of general reasoning, multi-modal unification, or task gains are hypotheses, not results of the unit tests. The implemented claim is narrower: bounded recurrent refinement for a System 1 prediction.
 
 ## Future work
 

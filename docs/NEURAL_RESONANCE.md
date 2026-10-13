@@ -26,7 +26,7 @@ To understand Hierarchical Neural Resonance, it is essential to define the key t
 **Prospective Configuration** is the principle where neural activities (activations) are optimized to align with hierarchical expectations *before* any synaptic weight updates (learning) occur.
 
 ### 2. Neural Resonance
-**Neural Resonance** is the iterative exchange of projected targets and recurrent states between layers. It is a mechanism for allocating additional inference computation, not evidence of human-like deliberation.
+**Neural Resonance** is the iterative exchange of projected targets and recurrent states between layers. It allocates bounded computation to a direct System 1 prediction and exposes the resulting alignment trace.
 
 ### 3. Harmonization
 **Harmonization** is the specific mechanism by which a layer adjusts its internal semantic representation to minimize divergence from top-down feedback signals.
@@ -37,7 +37,7 @@ To understand Hierarchical Neural Resonance, it is essential to define the key t
 ### 5. Prediction Divergence
 **Prediction Divergence** is the measured difference (error) between a layer's current internal semantic representation and the Feedback Projection it receives.
 
-### 6. Thinking Phase
+### 6. Adaptive Alignment Phase
 **Resonance phase** is an explicit current-input loop run by `predict_with_resonance`. The legacy `NeuralResonanceCallback` only stages a previous-batch mean prototype before a training batch and is not equivalent to this loop.
 
 ### 7. Self-Modeling
@@ -53,7 +53,7 @@ The architecture of a Resonant model is hierarchical and bi-directional. While i
 
 The systemic neural resonance is organized into a multi-layered hierarchy where every feed-forward connection is paired with a feedback connection, ensuring that information processing is always contextualized by higher-level semantic goals.
 
-### The Resonance Cycle (The Thinking Phase)
+### The Resonance Cycle (Adaptive Alignment Phase)
 
 During explicit resonance prediction, ARCANE initializes states from the current input, constructs per-example top-down targets, and re-runs that same input for a configured number of cycles. Early stopping can occur when summed divergence falls below the configured threshold.
 
@@ -118,7 +118,7 @@ ARCANE includes exploratory comparisons and a controlled same-checkpoint ablatio
 
 ### Tiny Shakespeare Benchmark (15,000 chars, 10 epochs)
 
-These numbers are from a small exploratory run with **unequal parameter counts**. They are not a Transformer comparison and should not be cited as evidence of deliberative reasoning.
+These numbers are from a small exploratory run with **unequal parameter counts**. They are not a Transformer comparison and should only be treated as historical System 1 smoke-test results.
 
 | Metric | Traditional LSTM | Neuromimetic (Standard) | **Hierarchical Resonance** |
 | :--- | :--- | :--- | :--- |

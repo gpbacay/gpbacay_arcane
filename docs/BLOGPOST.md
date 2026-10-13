@@ -37,4 +37,4 @@ This evaluation is the standard needed to determine whether additional inference
 
 ## Scope
 
-ARCANE's biological vocabulary describes sources of design inspiration. The implementation does not establish biological equivalence, human-like deliberation, reduced energy use, resistance to catastrophic forgetting, or improved reasoning. Those remain empirical questions.
+ARCANE's biological vocabulary describes sources of design inspiration. The implementation does not establish biological equivalence, human-like cognition, reduced energy use, resistance to catastrophic forgetting, or improved task quality. Those remain empirical questions.

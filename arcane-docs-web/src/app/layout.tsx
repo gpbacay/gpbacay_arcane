@@ -11,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ARCANE: Adaptive System 1 AI",
-  description: "The library for building adaptive System 1 models with grounded decisions, neural memory, inference-time adaptation, and biologically inspired components.",
+  title: "ARCANE 5.0: System 1 AI",
+  description: "The first library for making true System 1 AI models through adaptive inference, grounded decisions, neural memory, and biologically inspired components.",
 };
 
 export default function RootLayout({

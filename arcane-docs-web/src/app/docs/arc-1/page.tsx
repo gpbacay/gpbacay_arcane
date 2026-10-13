@@ -138,9 +138,10 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           What it does
         </h2>
         <p className={p}>
-          The input is read once. Every tool, argument, option, and label then listens to it in {m.cycles} short
-          cycles, and the ones that match open a spiking gate. Readouts return typed results directly, with no decoding
-          loop.
+          The input crosses a bounded RSAA perception loop before a decision is committed. Higher perception states
+          align lower states, then every tool, argument, option, and label listens to the resulting field in {m.cycles}{" "}
+          short binding cycles. Matching probes open a spiking gate and readouts return typed results directly, with no
+          decoding loop.
         </p>
         <ul className="not-prose mt-6 grid gap-px border border-zinc-800 bg-zinc-800 sm:grid-cols-2 lg:grid-cols-4">
           {CAPABILITIES.map(({ icon: Icon, title, body }) => (
@@ -171,15 +172,16 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           Architecture
         </h2>
         <p className={p}>
-          ARC 1 uses Resonant Schema Binding. The request and every schema element go through the same perception
-          blocks once. Each schema element becomes a probe that binds to the request in {m.cycles} shared-weight cycles,
-          and four readouts are taken from the settled probes. Nothing is decoded token by token.
+          ARC 1 uses RSAA-aligned Resonant Schema Binding. The request and every schema element go through the same
+          perception hierarchy; bounded, state-only alignment uses higher layers as feedback and re-evaluates the current
+          input with fixed weights. Each schema element becomes a probe that binds to the request in {m.cycles}{" "}
+          shared-weight cycles, and four readouts are taken from the settled probes. Nothing is decoded token by token.
         </p>
         <Mermaid
           chart={`flowchart TD
   REQ["Request text"] --> PER
   SCH["Schema<br/>tools, parameters, options, labels"] --> PER
-  PER["Perception blocks (bidirectional, read once)<br/>FieldAttention, ResonantChannelMixer,<br/>ConceptEngram memory, FieldResonance"]
+  PER["RSAA-aligned perception blocks (bidirectional)<br/>top-down state alignment + current-input re-evaluation<br/>FieldAttention, ResonantChannelMixer,<br/>ConceptEngram memory, FieldResonance"]
   PER --> FIELD["Utterance field"]
   PER --> ENG["Schema engrams<br/>(cached after first use)"]
   ENG --> PROBE["Probes<br/>engram + context engram + role"]
@@ -193,7 +195,9 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
         />
         <p className={`${p} text-sm text-zinc-400`}>
           Fire, anchor and select each have a temperature fitted on held-out data, which is what makes the reported
-          confidence meaningful. Changing the number of cycles trades accuracy for compute without new weights.
+          confidence meaningful. RSAA reports initial divergence, final divergence, and per-example steps; the default
+          presets cap alignment at two cycles. Changing binding or alignment cycles trades accuracy for compute without
+          new weights.
         </p>
 
         <h2 id="accuracy" className={h2}>

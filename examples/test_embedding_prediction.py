@@ -65,8 +65,8 @@ def prove_embedding_prediction():
     
     if final_div < initial_div:
         print("\nSUCCESS: The ResonantGSER performs Latent-Space Alignment.")
-        print("This proves the model optimizes 'Meanings' (Embeddings) via deliberation,")
-        print("moving the internal representation toward a predicted target BEFORE generating tokens.")
+        print("This confirms that the configured resonance step reduces embedding divergence,")
+        print("moving state toward a predicted target before the direct output is read.")
     else:
         print("\nFAILURE: State did not converge.")
 

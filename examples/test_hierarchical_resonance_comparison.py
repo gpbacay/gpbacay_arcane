@@ -395,8 +395,8 @@ def run_comparison_test():
    Key Observations:
    
    1. Hierarchical Resonance Foundation Model:
-      - Multi-level ResonantGSER hierarchy enables deliberative processing
-      - Neural Resonance cycles act as "Thinking Phase" before weight updates
+      - Multi-level ResonantGSER hierarchy enables bounded state refinement
+      - Neural Resonance cycles align recurrent state before weight updates
       - Cross-level skip connections enable multi-scale feature extraction
       - Temporal coherence distillation captures sequential dynamics
       - Higher parameter count due to attention fusion and bioplastic layers
@@ -411,9 +411,9 @@ def run_comparison_test():
       - Faster per-epoch training
       - May struggle with very deep configurations
    
-   The Hierarchical Resonance model implements "System 2" reasoning through
-   bi-directional feedback and prospective configuration, which can lead to
-   better generalization on complex sequential patterns.
+   The Hierarchical Resonance model is an adaptive System 1 architecture:
+   bi-directional feedback refines state before a direct prediction. Any
+   generalization gain must be established by controlled same-checkpoint tests.
     """)
     
     print("=" * 80)

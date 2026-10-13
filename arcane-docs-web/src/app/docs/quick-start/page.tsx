@@ -16,25 +16,37 @@ export default function QuickStartPage() {
       <div className="space-y-8 text-zinc-300 leading-7">
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
-          Basic Usage
+          Build the System 1 contract
         </h2>
         <p>
-          Create a simple neuromimetic model for semantic tasks.
+          Wrap ARC 1, a trained classifier, or any score-producing callable in a grounded decision space.
         </p>
-        <CodeSnippet filename="quick-start.py" language="python" code={`from gpbacay_arcane import NeuromimeticSemanticModel
+        <CodeSnippet filename="system1.py" language="python" code={`from gpbacay_arcane import DecisionSpace, System1
 
-# Create a simple neuromimetic model
-model = NeuromimeticSemanticModel(vocab_size=1000)
-model.build_model()
-model.compile_model()
+def route(text, labels):
+    return {
+        "billing": 0.72 if "charged" in text.lower() else 0.10,
+        "shipping": 0.18,
+        "other": 0.10,
+    }
 
-# Generate text (requires a trained tokenizer)
-generated = model.generate_text(
-    seed_text="artificial intelligence",
-    tokenizer=your_tokenizer,
-    max_length=50,
-    temperature=0.8
-)`} />
+model = System1(
+    predictor=route,
+    decisions=DecisionSpace(
+        ["billing", "shipping", "other"],
+        min_confidence=0.60,
+        min_margin=0.15,
+    ),
+    memory_weight=0.65,
+)
+
+# Learn a decided example immediately, without fine-tuning.
+model.remember("my card was charged twice", "billing")
+
+decision = model.decide("why was I charged again?")
+print(decision.label)       # billing, or None when ARCANE abstains
+print(decision.source)      # model+memory
+print(decision.evidence)    # recalled examples behind the decision`} />
 
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 mt-10 mb-4 border-b border-zinc-800 pb-2">
           Advanced Usage with Resonance

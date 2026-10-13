@@ -1,8 +1,9 @@
 """
 Example: Inference-Time Resonance in ARCANE
 
-This example demonstrates how to use inference-time resonance for deliberative
-reasoning at inference time, enabling "System 2" thinking without training.
+This example demonstrates bounded recurrent state alignment for adaptive
+System 1 inference. It measures how additional resonance cycles affect the
+current direct prediction without treating them as a separate reasoning mode.
 """
 
 import numpy as np
@@ -131,7 +132,7 @@ if __name__ == "__main__":
         print("All examples completed successfully!")
         print("=" * 60)
         print("\nKey Takeaways:")
-        print("  1. Inference-time resonance enables deliberative reasoning")
+        print("  1. Inference-time resonance refines state before a direct System 1 prediction")
         print("  2. Use predict_with_resonance() for automatic resonance")
         print("  3. Use run_resonance_cycle() for manual control")
         print("  4. Resonance cycles align hierarchical states before prediction")

@@ -1,5 +1,5 @@
 """
-ARCANE - Neuromimetic Semantic Foundation Model
+ARCANE 5.0 - System 1 AI model library
 
 Augmented Reconstruction of Consciousness through Artificial Neural Evolution
 
@@ -13,10 +13,10 @@ with open('README.md', encoding='utf-8') as f:
 
 setup(
     name='gpbacay-arcane',
-    version='4.1.0',
+    version='5.0.0',
     author='Gianne P. Bacay',
     author_email='giannebacay2004@gmail.com',
-    description='A neuromimetic semantic foundation model library with biologically-inspired neural mechanisms including spiking neural networks, Hebbian learning, and homeostatic plasticity',
+    description='Build System 1 AI with adaptive inference, grounded decisions, neural memory, and biologically inspired model components',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/gpbacay/gpbacay_arcane',
@@ -65,6 +65,10 @@ setup(
     ],
     keywords=[
         'neuromimetic',
+        'system-1-ai',
+        'adaptive-inference',
+        'grounded-decisions',
+        'neural-memory',
         'neural-network',
         'semantic-model',
         'spiking-neural-network',

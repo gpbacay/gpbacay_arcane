@@ -92,7 +92,11 @@ def main():
     model.build_model()
     print("=== ARC 1 ===")
     print(f"preset: {args.preset}  parameters: {model.count_params():,}")
-    print(f"architecture: Resonant Schema Binding  layers={config.num_layers}  cycles={config.binding_cycles}")
+    print(
+        "architecture: RSAA-Aligned Resonant Schema Binding  "
+        f"layers={config.num_layers}  binding_cycles={config.binding_cycles}  "
+        f"rsaa_cycles={config.rsaa_cycles}"
+    )
     if args.build_only:
         return
 
@@ -136,7 +140,7 @@ def main():
 
     metrics = {
         "preset": args.preset,
-        "architecture": "Resonant Schema Binding",
+        "architecture": "RSAA-Aligned Resonant Schema Binding",
         "parameters": int(model.count_params()),
         "calibration": calibration,
         "evaluation": evaluation,

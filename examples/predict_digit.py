@@ -62,8 +62,7 @@ def predict_digit(image_path):
         
     batch_data = np.expand_dims(img_data, axis=0)
     
-    # 5. Perform Resonant Inference
-    # The model deliberates across hierarchical levels to resolve the digit identity.
+    # 5. Perform direct System 1 inference after hierarchical state alignment.
     preds = model.predict(batch_data, verbose=0)
     digit = np.argmax(preds[0])
     confidence = preds[0][digit]

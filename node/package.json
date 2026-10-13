@@ -1,7 +1,7 @@
 {
   "name": "gpbacay-arcane",
-  "version": "4.1.0",
-  "description": "ARC 1 structured decisions (tool calling, extraction, classification, embeddings) and Hippocampus memory for Node.js and the browser",
+  "version": "5.0.0",
+  "description": "ARCANE 5.0 System 1 AI: grounded ARC 1 decisions and neural memory for Node.js and the browser",
   "main": "index.js",
   "exports": {
     ".": "./index.js",
@@ -32,7 +32,9 @@
     "onnx",
     "browser",
     "hippocampus",
-    "memory"
+    "memory",
+    "system-1-ai",
+    "grounded-decisions"
   ],
   "author": "Gianne P. Bacay",
   "license": "MIT",

@@ -12,7 +12,7 @@ from gpbacay_arcane.callbacks import NeuralResonanceCallback
 def build_arcane_model(hidden_dim=256, resonance_factor=0.2, num_resonance_levels=3):
     """
     Builds a neuromimetic MNIST classifier using ResonantGSER and Bioplastic layers.
-    Emphasizes Hierarchical Neural Resonance for Latent Space Reasoning.
+    Evaluates hierarchical neural resonance as bounded System 1 state refinement.
     Treats MNIST images (28x28) as a sequence of 28 rows.
     """
     inputs = Input(shape=(28, 28), name='mnist_input')
@@ -42,7 +42,7 @@ def build_arcane_model(hidden_dim=256, resonance_factor=0.2, num_resonance_level
         if i < num_resonance_levels - 1:
             current_output = LayerNormalization()(current_output)
 
-    # Establish Hierarchical Feedback for Latent Space Reasoning
+    # Establish hierarchical feedback for bounded state refinement.
     for i in range(num_resonance_levels):
         if i > 0:
             resonant_layers[i].set_lower_layer(resonant_layers[i-1])
@@ -177,20 +177,20 @@ def analyze_results(arcane_history, baseline_history, arcane_acc, baseline_acc):
     print(f"ARCANE Average Train/Val Loss Gap: {arcane_train_val_gap:.6f}")
     print(f"Baseline Average Train/Val Loss Gap: {baseline_train_val_gap:.6f}")
 
-    print("\n--- Interpretation of Latent Space Reasoning ---")
+    print("\n--- Interpretation of System 1 State Refinement ---")
     if arcane_acc > baseline_acc and arcane_loss_variance < baseline_loss_variance and arcane_train_val_gap < baseline_train_val_gap:
         print("The ARCANE model demonstrates superior generalization and more stable training dynamics.")
-        print("This supports the hypothesis that ARCANE's Hierarchical Neural Resonance facilitates Latent Space Reasoning.")
-        print("The iterative 'Thinking Phase' (semantic alignment, conceptual gating) allows the model to refine")
-        print("its internal semantic representations before weight updates, leading to a more robust and")
-        print("coherent understanding, which translates to better performance and stability on complex semantic tasks.")
+        print("This supports testing ARCANE resonance as bounded System 1 state refinement.")
+        print("The adaptive alignment phase changes internal representations before weight updates.")
+        print("This run supports testing whether that bounded System 1 refinement improves stability;")
+        print("it does not by itself establish semantic understanding or general reasoning.")
     elif arcane_acc > baseline_acc:
-        print("The ARCANE model achieved higher accuracy, indicating improved semantic understanding.")
-        print("Further analysis of stability metrics is needed to fully support Latent Space Reasoning.")
+        print("The ARCANE model achieved higher accuracy on this run.")
+        print("Further controlled analysis is needed to attribute the gain to state refinement.")
     else:
         print("The results do not conclusively demonstrate superior performance for the ARCANE model in this test.")
         print("Factors to consider: longer training epochs, different hyperparameters, or increased model complexity.")
-        print("However, the unique architectural elements of ARCANE are still foundational for Latent Space Reasoning.")
+        print("The result does not establish a benefit from ARCANE's adaptive components.")
 
 def main():
     # 1. Load MNIST
@@ -205,7 +205,7 @@ def main():
     arcane_callbacks = [NeuralResonanceCallback(resonance_cycles=5, resonant_layers=arcane_resonant_layers)]
     arcane_history, arcane_acc, arcane_loss = train_and_evaluate_model(
         arcane_model, x_train, y_train, x_test, y_test, 
-        "ARCANE Latent Reasoning Model", callbacks=arcane_callbacks
+        "ARCANE Adaptive System 1 Model", callbacks=arcane_callbacks
     )
     
     # 3. Build Baseline Model

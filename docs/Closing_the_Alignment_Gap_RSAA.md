@@ -2,13 +2,21 @@
 
 Gianne P. Bacay [ARCANE Research. Email: giannebacay2004@gmail.com]
 
+> **ARCANE 5.0 revision.** This Markdown document is the maintained System 1 specification. The bundled PDF is the historical paper and predates ARC 1's formal RSAA integration.
+
 ## Abstract
 
 The **Resonant State Alignment Algorithm (RSAA)** is ARCANE's formulation for aligning hierarchical state before a System 1 decision is committed. Higher levels project per-example targets downward, lower states move toward those targets, and the current input is evaluated again. The core inference path keeps learned weights fixed; a separate objective-driven adapter provides bounded weight updates, rollback, and reset semantics. The result is a controlled interface for measuring state divergence, adaptation cost, and task quality independently.
 
 ## What ARCANE implements
 
-ARCANE 4.1 provides per-example resonance state, differentiable feedback projections, optional objective-driven test-time adaptation, and a same-checkpoint ablation harness. The explicit current-input path is `predict_with_resonance`; the legacy training callback stages a previous-batch mean prototype and serves a different role.
+ARCANE 5.0 provides two concrete RSAA paths. General ARCANE models use per-example resonance state and differentiable feedback projections through `predict_with_resonance`. ARC 1 now performs state-only RSAA inside `Arc1Model.perceive`: equal-width perception blocks use identity feedback projections, bounded cycles, per-example convergence, and current-input re-evaluation. The legacy training callback stages a previous-batch mean prototype and serves a different role.
+
+### Relationship to ARC 1
+
+Earlier ARC 1 releases were **resonance-inspired, not an implementation of this algorithm**. `FieldResonance` mixed token fields and `ResonantBinding` iteratively settled schema probes, but neither projected a higher perception-layer state to the layer below, measured global hierarchy divergence, or stopped per example at an RSAA threshold.
+
+ARCANE 5.0 adds those missing operations to ARC 1. New `arc1-tiny` and `arc1` presets use two RSAA cycles by default. Configurations saved before 5.0 omit `rsaa_cycles`; they load with zero cycles so their tensor layout and inference behavior remain compatible. RSAA changes activations only and adds no trainable parameters.
 
 ---
 
@@ -61,6 +69,12 @@ $$ P_{i \to i-1} = f_{proj}^{(i)}(S_i; W_{i, proj}) $$
 In the ARCANE implementation, hidden-space feedback uses a trainable projection kernel; an additional feedback matrix can reconstruct the cell input space:
 
 $$ P_{i \to i-1} = S_i \cdot W_{proj} $$
+
+ARC 1 is a useful special case because every perception block has width $D$. It therefore uses the parameter-free identity projection
+
+$$ f_{proj}^{(i)}(S_i) = S_i $$
+
+which preserves old checkpoint tensor layouts. This is an architectural choice, not a claim that identity feedback is optimal.
 
 **Definition 2.3 (Prediction Divergence).** The Prediction Divergence at layer $i-1$ is the signed difference between its current state and the expectation projected from above:
 
@@ -127,6 +141,12 @@ Output: Aligned states {S_1, ..., S_L}
     Return output Y = f_output(S_L)
 ```
 
+### 3.4 ARC 1 execution
+
+The paper's state update alone changes lower states but leaves an already-computed top state unchanged. ARC 1 therefore re-evaluates the current input after each harmonization step, feeding aligned lower state into the next perception block. This makes the final field and its grounded readouts depend on alignment while keeping the learned weights fixed.
+
+ARC 1 exposes three per-example measurements: `rsaa_initial_divergence`, `rsaa_divergence`, and `rsaa_steps`. Its operational divergence is the sum of adjacent-layer mean squared errors over real (non-padding) token coordinates, a length- and width-normalized version of $\mathcal{D}$. `rsaa_epsilon` stops updates independently for examples that have converged; `rsaa_factor` is $\gamma$; and `rsaa_cycles` is the hard latency bound. Since re-evaluation changes the states used as projections, Theorem 3.2's fixed-projection guarantee does not apply to the full ARC 1 loop. Its convergence and task benefit must be measured empirically.
+
 ---
 
 ## 4. Substrate Agnosticism
@@ -148,7 +168,7 @@ Possible research directions include:
 
 ## 5. Conclusion
 
-RSAA gives ARCANE System 1 models a concrete state-alignment rule and a measurable divergence signal. Per-example targets prevent co-batched requests from sharing alignment state; trained feedback maps carry top-down context; reversible adaptation keeps changes bounded; and same-checkpoint ablations expose the accuracy and latency tradeoff for each task.
+RSAA gives ARCANE System 1 models a concrete state-alignment rule and a measurable divergence signal. Per-example targets prevent co-batched requests from sharing alignment state; feedback maps carry top-down context; and same-checkpoint ablations expose the accuracy and latency tradeoff for each task. ARC 1's identity-projection path is state-only, bounded, and checkpoint-compatible; usefulness is an empirical question rather than a consequence of the fixed-projection theorem.
 
 ---
 

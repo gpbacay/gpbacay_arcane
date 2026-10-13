@@ -25,8 +25,9 @@ class HierarchicalResonanceFoundationModel:
     """
     Hierarchical Neural Resonance Foundation Model
     
-    A deep neuromimetic architecture for experimental hierarchical latent-state
-    refinement. Task-level reasoning benefits require empirical validation.
+    A deep neuromimetic System 1 architecture for experimental hierarchical
+    latent-state refinement before a direct prediction. Task benefits require
+    controlled evaluation.
     """
     
     def __init__(
@@ -85,7 +86,7 @@ class HierarchicalResonanceFoundationModel:
             
             for level in range(self.num_resonance_levels):
                 # Calculate level-specific parameters
-                # Higher levels have higher resonance for deeper deliberation
+                # Higher levels receive stronger bounded feedback alignment.
                 resonance_factor = self.resonance_factor + (level * 0.05)
                 spike_threshold = 0.4 - (level * 0.05)
                 level_units = self.hidden_dim

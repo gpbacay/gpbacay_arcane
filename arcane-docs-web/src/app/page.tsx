@@ -99,14 +99,13 @@ export default function Home() {
             <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center px-5 py-20 text-center sm:px-8 lg:px-10">
               <div className="flex w-full flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-1000">
                 <p className="mb-5 text-xs font-semibold uppercase tracking-[0.22em] text-[#C785F2]">
-                  Augmented Reconstruction of Consciousness through Artificial Neural Evolution
+                  ARCANE 5.0 · Adaptive intelligence for direct decisions
                 </p>
                 <h1 className="max-w-5xl text-balance text-4xl font-extrabold leading-[1.02] tracking-[-0.045em] text-white sm:text-6xl lg:text-7xl">
-                  The first library for adaptive System 1 AI models.
+                  The first library for making true System 1 AI models.
                 </h1>
                 <p className="mt-6 max-w-2xl text-base leading-relaxed text-zinc-300 sm:text-lg">
-                  Build fast, grounded models that adapt during inference, remember experience, and act without
-                  token-by-token generation.
+                  Adaptive inference. Grounded decisions. Neural memory. Biologically inspired components.
                 </p>
 
                 <div className="mt-8 w-full">
@@ -136,7 +135,7 @@ export default function Home() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#C785F2]">The System 1 stack</p>
                 <h2 className="mt-4 text-balance text-3xl font-bold tracking-tight text-zinc-100 sm:text-4xl">
-                  Four capabilities. One adaptive architecture.
+                  Four capabilities. One System 1 contract.
                 </h2>
                 <p className="mt-5 max-w-xl leading-relaxed text-zinc-400">
                   ARCANE combines the parts a System 1 model needs to perceive, adapt, recall experience, and produce

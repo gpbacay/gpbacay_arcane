@@ -35,7 +35,7 @@ def build_mnist_arcane_model(
     x = tf.keras.layers.Rescaling(1./255)(inputs)
     
     # Predictive Resonant Levels
-    # We use two PredictiveResonantLayer blocks stacked for deeper reasoning.
+    # Two PredictiveResonantLayer blocks provide deeper bounded state refinement.
     pred_layer_1 = PredictiveResonantLayer(
         units=hidden_dim,
         resonance_cycles=resonance_cycles,
