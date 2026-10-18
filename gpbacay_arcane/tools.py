@@ -212,6 +212,45 @@ def execute_tools(
     return results
 
 
+def commit_tools(
+    calls: Sequence[Dict[str, Any]],
+    tools: Sequence[ToolSpec],
+    confidence: Optional[float],
+    *,
+    min_confidence: float = 0.5,
+    min_margin: float = 0.0,
+    distribution: Optional[Dict[str, float]] = None,
+    execute: bool = True,
+) -> Dict[str, Any]:
+    """Hold handlers until a tool call clears the same bar as ``DecisionSpace``.
+
+    Held when ``confidence`` is missing, below ``min_confidence``, or the top two
+    numeric tool scores in ``distribution`` differ by less than ``min_margin``.
+    No call plus a missing score abstains. A score at or above ``min_confidence``
+    with no call is a refusal: nothing runs, and the result is not an abstention.
+    """
+    # ponytail: margin needs a numeric tool distribution; without one only confidence is checked
+    ranked = sorted(
+        (
+            (str(name), float(score))
+            for name, score in (distribution or {}).items()
+            if isinstance(score, (int, float)) and not isinstance(score, bool) and np.isfinite(score)
+        ),
+        key=lambda item: -item[1],
+    )
+    if confidence is None:
+        reason = "uncalibrated" if calls else "no_supported_decision"
+    elif confidence < min_confidence:
+        reason = "low_confidence"
+    elif calls and len(ranked) > 1 and ranked[0][1] - ranked[1][1] < min_margin:
+        reason = "ambiguous_decision"
+    else:
+        reason = None
+    abstained = reason is not None
+    results = execute_tools(list(calls), tools) if execute and not abstained and calls else []
+    return {"results": results, "abstained": abstained, "reason": reason}
+
+
 def heuristic_tool_match(prompt: str, tools: Sequence[ToolSpec]) -> List[Dict[str, Any]]:
     """Keyword / slot filler for demos when the LM returns empty calls.
 

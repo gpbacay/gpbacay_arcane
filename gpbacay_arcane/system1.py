@@ -3,7 +3,8 @@
 The lower-level ARCANE modules remain independently useful.  This module gives
 them one deployment contract: perceive an input, optionally adapt on it, recall
 similar decided examples, and return a bounded decision instead of unconstrained
-generated text.
+generated text. Tool calls use the same confidence and margin bar before a
+handler runs.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import numpy as np
 
 from .hippocampus import Hippocampus
 from .test_time_adaptation import TestTimeAdapter
+from .tools import commit_tools
 
 
 @dataclass(frozen=True)
@@ -152,6 +154,26 @@ class DecisionSpace:
         )
 
 
+class _SilentTools:
+    """Memory-only tool pass: propose nothing, and let remembered patterns fill calls."""
+
+    def run(self, prompt, tools=None, tool_prior=None, execute=False, **kwargs):
+        del prompt, tools, execute, kwargs
+        return {"function_calls": [], "confidence": None, "source": "memory", "tool_prior": tool_prior}
+
+
+def _tool_distribution(out: Mapping[str, Any]) -> Optional[Dict[str, float]]:
+    decisions = out.get("decisions")
+    scores = decisions.get("tools") if isinstance(decisions, dict) else None
+    if not isinstance(scores, dict):
+        return None
+    return {
+        str(name): float(score)
+        for name, score in scores.items()
+        if isinstance(score, (int, float)) and not isinstance(score, bool) and np.isfinite(score)
+    } or None
+
+
 class AdaptiveInference(TestTimeAdapter):
     """ARCANE 5.0 name for bounded, measurable, reversible test-time adaptation."""
 
@@ -167,6 +189,7 @@ class System1:
         predictor: A callable ``(input, labels, **kwargs) -> scores``; an object
             with ``classify(input, labels, **kwargs)``; or an object with
             ``predict(input, **kwargs)``. It may be ``None`` for memory-only use.
+            ``act`` requires ``run(prompt, tools=, tool_prior=, execute=)``.
         decisions: The model's closed output space and abstention policy.
         memory: Optional ``NeuralMemory``/``Hippocampus``. A new memory is
             created when omitted.
@@ -316,6 +339,45 @@ class System1:
     def forget(self, cue: str) -> bool:
         """Remove a previously remembered example."""
         return self.memory.forget(cue)
+
+    def act(
+        self,
+        prompt: str,
+        tools: Sequence[Any],
+        *,
+        execute: bool = True,
+        model_kwargs: Optional[Mapping[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Choose tool calls, then run a handler only when the call clears ``decisions``.
+
+        The predictor implements ``run(prompt, tools=, tool_prior=, execute=)`` and returns
+        ``function_calls`` and ``confidence``. ``None`` uses memory alone: a remembered
+        pattern can still propose a call, and a missing score holds it. A predictor with
+        no ``run`` method cannot take this path.
+        """
+        started = perf_counter()
+        if self.predictor is not None and not hasattr(self.predictor, "run"):
+            raise TypeError(
+                "act() needs a predictor with run(prompt, tools=, tool_prior=, execute=); "
+                "use decide() for labels"
+            )
+        runner = self.predictor if self.predictor is not None else _SilentTools()
+        out = dict(self.memory.run(
+            prompt, tools=list(tools), execute=False, model=runner, **dict(model_kwargs or {}),
+        ))
+        if self.predictor is None and out.get("source") == "model+memory":
+            out["source"] = "memory"
+        decision = commit_tools(
+            out.get("function_calls") or [],
+            list(tools),
+            out.get("confidence"),
+            min_confidence=self.decisions.min_confidence,
+            min_margin=self.decisions.min_margin,
+            distribution=_tool_distribution(out),
+            execute=execute,
+        )
+        out.update(decision, latency_ms=(perf_counter() - started) * 1000.0)
+        return out
 
     def reset_adaptation(self) -> None:
         """Restore the adapter's initial snapshot."""

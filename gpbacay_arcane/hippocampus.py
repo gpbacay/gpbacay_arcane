@@ -233,23 +233,25 @@ class Hippocampus:
         return out
 
     def run(self, prompt: str, tools: Optional[Sequence[Any]] = None, execute: bool = True,
-            **model_kwargs) -> Dict[str, Any]:
+            model: Any = None, **model_kwargs) -> Dict[str, Any]:
         """Tool calling: memory votes fire tools and remembered requests fill their arguments.
 
-        The votes go to ``model.run`` as ``tool_prior``. Every example votes, including ones for tools not
-        offered and ``None`` (no tool), so a request that resembles something else does not fire an offered
-        tool. Then, for each offered tool, a remembered request whose pattern matches supplies the arguments
-        it covers (over the model's) and adds the call if the model held it back; ``confidence`` is then
-        ``None``, since the model's calibrated probability no longer describes the call. Words a pattern
-        matched belong to that call, so another model call whose argument copies them is dropped (ARC 1's own
-        rule: a word belongs to one argument). ``memory_arguments`` names the tools whose arguments came from
-        memory. For memory-only routing use ``react``.
+        The votes go to ``model.run`` as ``tool_prior``. ``model`` defaults to this memory's model, so a
+        caller such as ``System1`` can supply the predictor without storing it here. Every example votes,
+        including ones for tools not offered and ``None`` (no tool), so a request that resembles something
+        else does not fire an offered tool. Then, for each offered tool, a remembered request whose pattern
+        matches supplies the arguments it covers (over the model's) and adds the call if the model held it
+        back; ``confidence`` is then ``None``, since the model's calibrated probability no longer describes
+        the call. Words a pattern matched belong to that call, so another model call whose argument copies
+        them is dropped (ARC 1's own rule: a word belongs to one argument). ``memory_arguments`` names the
+        tools whose arguments came from memory. For memory-only routing use ``react``.
         """
-        if not hasattr(self.model, "run"):
+        model = self.model if model is None else model
+        if not hasattr(model, "run"):
             raise TypeError("run() needs a model with run(prompt, tools=, tool_prior=); use react() for memory-only routing")
         memory = self.react(prompt)
         prior = {lab: p for lab, p in memory["votes"].items() if lab}
-        out = dict(self.model.run(prompt, tools=tools, tool_prior=prior or None, execute=False, **model_kwargs))
+        out = dict(model.run(prompt, tools=tools, tool_prior=prior or None, execute=False, **model_kwargs))
         offered = list(tools if tools is not None else getattr(self.model, "tools", []))
         calls = {c["name"]: {"name": c["name"], "arguments": dict(c["arguments"])} for c in out["function_calls"]}
         filled, claimed = [], []
