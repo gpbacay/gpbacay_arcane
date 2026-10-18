@@ -71,6 +71,7 @@ type Stats = {
   tokens: number;
   probes: number;
   cycles: number;
+  binding_steps?: number;
   forward_passes?: number;
   perception_evaluations?: number;
   rsaa_budget?: number;
@@ -833,10 +834,10 @@ export function Arc1Demo() {
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight + 2}px`;
   }, [input, sceneId]);
+  const bindingAuto = cycles == null;
+  const rsaaAuto = rsaaCycles == null;
   const maxCycles = health?.binding_cycles ?? 3;
-  const activeCycles = cycles ?? health?.active_cycles ?? maxCycles;
   const maxRsaaCycles = health?.rsaa_cycles ?? 0;
-  const activeRsaaCycles = rsaaCycles ?? health?.active_rsaa_cycles ?? 0;
 
   const refreshHealth = useCallback(async () => {
     try {
@@ -925,11 +926,15 @@ export function Arc1Demo() {
     try {
       const isRun = scene.mode === "run";
       const withMemory = hippocampusOn ? { memory } : {};
+      const cycleOpts = {
+        ...(cycles == null ? {} : { cycles }),
+        ...(rsaaCycles == null ? {} : { rsaa_cycles: rsaaCycles }),
+      };
       const [url, body] =
         scene.mode === "run"
-          ? ["/api/arc1-run", { prompt: text, tools: scene.tools, execute: true, cycles: activeCycles, rsaa_cycles: activeRsaaCycles, ...withMemory }]
+          ? ["/api/arc1-run", { prompt: text, tools: scene.tools, execute: true, ...cycleOpts, ...withMemory }]
           : scene.mode === "extract"
-            ? ["/api/arc1-extract", { text, schema: scene.extractSchema, cycles: activeCycles, rsaa_cycles: activeRsaaCycles }]
+            ? ["/api/arc1-extract", { text, schema: scene.extractSchema, ...cycleOpts }]
             : [
                 "/api/arc1-classify",
                 {
@@ -937,8 +942,7 @@ export function Arc1Demo() {
                   labels: labels.map((l) => splitLabel(l)[0]),
                   descriptions: Object.fromEntries(labels.map(splitLabel).filter(([, d]) => d)),
                   task: scene.task,
-                  cycles: activeCycles,
-                  rsaa_cycles: activeRsaaCycles,
+                  ...cycleOpts,
                   ...withMemory,
                 },
               ];
@@ -957,7 +961,7 @@ export function Arc1Demo() {
     } finally {
       setSending(false);
     }
-  }, [input, sending, health, scene, labels, activeCycles, activeRsaaCycles, applyEffects, hippocampusOn, memory]);
+  }, [input, sending, health, scene, labels, cycles, rsaaCycles, applyEffects, hippocampusOn, memory]);
 
   const decisions = useMemo(() => (result ? argumentDecisions(result) : []), [result]);
   const calls = result?.function_calls || [];
@@ -1342,20 +1346,31 @@ export function Arc1Demo() {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="max-w-56 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
-                  Fewer cycles answer faster. More cycles give each probe time to settle on the right words.
+                  Auto stops each probe once its update settles, up to the trained maximum. A number runs exactly that many cycles.
                 </TooltipContent>
               </Tooltip>
             </legend>
-            <div className="grid grid-flow-col gap-px bg-zinc-800" role="radiogroup">
+            <div className="grid grid-flow-col gap-px bg-zinc-800" role="radiogroup" aria-label="Binding cycles">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={bindingAuto}
+                onClick={() => setCycles(null)}
+                className={`py-1.5 text-sm transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2] ${
+                  bindingAuto ? "bg-[#835BD9] text-white" : "bg-zinc-950 text-zinc-400 hover:text-zinc-100"
+                }`}
+              >
+                Auto
+              </button>
               {Array.from({ length: maxCycles }, (_, i) => i + 1).map((c) => (
                 <button
                   key={c}
                   type="button"
                   role="radio"
-                  aria-checked={activeCycles === c}
+                  aria-checked={cycles === c}
                   onClick={() => setCycles(c)}
                   className={`py-1.5 text-sm tabular-nums transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2] ${
-                    activeCycles === c ? "bg-[#835BD9] text-white" : "bg-zinc-950 text-zinc-400 hover:text-zinc-100"
+                    cycles === c ? "bg-[#835BD9] text-white" : "bg-zinc-950 text-zinc-400 hover:text-zinc-100"
                   }`}
                 >
                   {c}
@@ -1379,22 +1394,31 @@ export function Arc1Demo() {
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="right" className="max-w-64 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
-                    Higher perception states align lower states before the grounded decision. Zero runs the legacy ARC
-                    1 path; additional cycles cost latency and should only be preferred when the measured evaluation
-                    supports them.
+                    Auto uses the checkpoint budget. A step is kept only when it reduces divergence between layers, and a harmful step is rolled back. A number forces that budget.
                   </TooltipContent>
                 </Tooltip>
               </legend>
               <div className="grid grid-flow-col gap-px bg-zinc-800" role="radiogroup" aria-label="RSAA cycles">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={rsaaAuto}
+                  onClick={() => setRsaaCycles(null)}
+                  className={`py-1.5 text-sm transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2] ${
+                    rsaaAuto ? "bg-[#835BD9] text-white" : "bg-zinc-950 text-zinc-400 hover:text-zinc-100"
+                  }`}
+                >
+                  Auto
+                </button>
                 {Array.from({ length: maxRsaaCycles + 1 }, (_, i) => i).map((c) => (
                   <button
                     key={c}
                     type="button"
                     role="radio"
-                    aria-checked={activeRsaaCycles === c}
+                    aria-checked={rsaaCycles === c}
                     onClick={() => setRsaaCycles(c)}
                     className={`py-1.5 text-sm tabular-nums transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2] ${
-                      activeRsaaCycles === c
+                      rsaaCycles === c
                         ? "bg-[#835BD9] text-white"
                         : "bg-zinc-950 text-zinc-400 hover:text-zinc-100"
                     }`}
@@ -1433,8 +1457,10 @@ export function Arc1Demo() {
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-zinc-500">Probes bound</dt>
-                <dd className="tabular-nums text-zinc-100">{result.stats.probes}</dd>
+                <dt className="text-xs text-zinc-500">Binding</dt>
+                <dd className="tabular-nums text-zinc-100">
+                  {result.stats.binding_steps ?? result.stats.cycles} of {result.stats.cycles} cycles
+                </dd>
               </div>
               {typeof result.stats.rsaa_divergence === "number" && (
                 <div>

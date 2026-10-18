@@ -469,7 +469,7 @@ class Arc1Agent:
         cfg = model.arc1_config
         self.codec = Arc1Codec(tokenizer, cfg.seq_len, cfg.schema_len)
         self.memory = SchemaMemory()
-        self._joint_fns: Dict[Tuple[int, int], Callable] = {}
+        self._joint_fns: Dict[Tuple[int, int, bool], Callable] = {}
         self._embed_fns: Dict[int, Callable] = {}
         d = cfg.d_model
         self._embed_signature = [tf.TensorSpec([None, None], tf.int32)]
@@ -485,8 +485,8 @@ class Arc1Agent:
     def _temp(self, readout: str, rsaa_cycles: Optional[int] = None) -> float:
         return self.model.arc1_config.temperature(readout, rsaa_cycles)
 
-    def _joint_fn(self, cycles: int, rsaa_cycles: int) -> Callable:
-        key = (cycles, rsaa_cycles)
+    def _joint_fn(self, cycles: int, rsaa_cycles: int, dynamic: bool) -> Callable:
+        key = (cycles, rsaa_cycles, bool(dynamic))
         fn = self._joint_fns.get(key)
         if fn is None:
             import tensorflow as tf
@@ -497,7 +497,7 @@ class Arc1Agent:
             def fn(ids, bank, probe_a, probe_b, roles):
                 return model.decide_joint(
                     ids, bank, probe_a, probe_b, roles, cycles=cycles,
-                    rsaa_cycles=rsaa_cycles, training=False,
+                    rsaa_cycles=rsaa_cycles, training=False, dynamic_binding=dynamic,
                 )
 
             self._joint_fns[key] = fn
@@ -542,7 +542,10 @@ class Arc1Agent:
         from .arc1_codec import pad_batch
 
         cfg = self.model.arc1_config
+        dynamic = cycles is None
         cycles = cfg.resolve_cycles(cycles)
+        # Omitted RSAA uses the checkpoint budget. arc1-tiny pins that at 0; a raised
+        # budget already stops per example when divergence no longer falls.
         rsaa_cycles = cfg.resolve_rsaa_cycles(rsaa_cycles)
         utt = self.codec.utterance(text)
         needed = list(dict.fromkeys([p.text_a for p in probes] + [p.text_b for p in probes if p.text_b]))
@@ -560,7 +563,7 @@ class Arc1Agent:
         probe_a = np.asarray([index[p.text_a] for p in probes], dtype=np.int32)
         probe_b = np.asarray([index[p.text_b] if p.text_b else -1 for p in probes], dtype=np.int32)
         roles = np.asarray([p.role for p in probes], dtype=np.int32)
-        out = self._joint_fn(cycles, rsaa_cycles)(
+        out = self._joint_fn(cycles, rsaa_cycles, dynamic)(
             tf.constant(ids), tf.constant(bank, tf.float32), tf.constant(probe_a), tf.constant(probe_b),
             tf.constant(roles),
         )
@@ -574,7 +577,9 @@ class Arc1Agent:
         rsaa_mean_factor = float(out.pop("rsaa_mean_factor")[0])
         self.memory.hits += len(cached)
         self.memory.misses += len(missing)
+        binding_steps = out.pop("binding_steps", None)
         stats = {"tokens": len(utt.ids), "probes": len(probes), "cycles": cycles, "forward_passes": 1,
+                 "binding_steps": int(np.max(binding_steps)) if binding_steps is not None and np.size(binding_steps) else cycles,
                  "rsaa_budget": rsaa_cycles, "perception_evaluations": 1 + rsaa_steps,
                  "rsaa_steps": rsaa_steps,
                  "rsaa_accepted_steps": rsaa_accepted,

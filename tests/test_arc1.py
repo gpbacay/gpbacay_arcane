@@ -92,10 +92,33 @@ def test_resonant_binding_shapes_and_cycles_change_state():
     keys, values = bind.field_memory(field)
     probes = tf.random.normal((5, 16), seed=4)
     example = tf.constant([0, 0, 1, 1, 1])
-    p3, heard, peak = bind(probes, keys, values, mask, example, cycles=3)
-    p1, _, _ = bind(probes, keys, values, mask, example, cycles=1)
+    p3, heard, peak, steps = bind(probes, keys, values, mask, example, cycles=3)
+    p1, _, _, _ = bind(probes, keys, values, mask, example, cycles=1)
     assert p3.shape == (5, 16) and heard.shape == (5, 16) and peak.shape == (5, 2)
+    assert steps.shape == (5,) and int(tf.reduce_min(steps)) == 3
     assert not np.allclose(p1.numpy(), p3.numpy())
+
+
+def test_dynamic_binding_stops_a_settled_probe_and_runs_a_live_one():
+    bind = ResonantBinding(d_model=16, num_heads=2, cycles=3)
+    field = tf.random.normal((2, 7, 16), seed=3)
+    mask = tf.constant([[True] * 7, [True] * 4 + [False] * 3])
+    keys, values = bind.field_memory(field)
+    probes = tf.random.normal((5, 16), seed=4)
+    example = tf.constant([0, 0, 1, 1, 1])
+    stopped, _, _, stopped_steps = bind(
+        probes, keys, values, mask, example, cycles=3, dynamic=True, settle_epsilon=1e9,
+    )
+    once, _, _, _ = bind(probes, keys, values, mask, example, cycles=1)
+    np.testing.assert_allclose(stopped.numpy(), once.numpy(), atol=1e-5)
+    assert int(tf.reduce_max(stopped_steps)) == 1
+
+    full, _, _, full_steps = bind(
+        probes, keys, values, mask, example, cycles=3, dynamic=True, settle_epsilon=0.0,
+    )
+    exact, _, _, _ = bind(probes, keys, values, mask, example, cycles=3)
+    np.testing.assert_allclose(full.numpy(), exact.numpy(), atol=1e-5)
+    assert int(tf.reduce_min(full_steps)) == 3
 
 
 def test_resonant_binding_never_hears_padding():
@@ -235,7 +258,7 @@ def test_cycles_are_per_call_and_stateless():
     model = _small_model()
     utter = tf.constant([[3, 5, 6, 7]])
     a, b, roles = _probe_inputs(model)
-    full = model.decide(utter, tf.zeros((3,), tf.int32), a, b, roles)["fire"].numpy()
+    full = model.decide(utter, tf.zeros((3,), tf.int32), a, b, roles, cycles=model.arc1_config.binding_cycles)["fire"].numpy()
     fast = model.decide(utter, tf.zeros((3,), tf.int32), a, b, roles, cycles=1)["fire"].numpy()
     assert not np.allclose(full, fast)
     assert model.arc1_config.resolve_cycles() == model.arc1_config.binding_cycles

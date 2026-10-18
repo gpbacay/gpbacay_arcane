@@ -2103,8 +2103,10 @@ class ResonantBinding(Layer):
     so binding P probes costs O(P * T * d) on top of a single encoder pass.
     Fewer cycles means less compute, and every cycle count is trained.
 
-    Returns the settled probe state, the last heard signal, and the peak
-    per-head resonance score (a direct "something here matches me" signal).
+    Returns the settled probe state, the last heard signal, the peak
+    per-head resonance score (a direct "something here matches me" signal),
+    and how many cycles each probe actually applied. With ``dynamic=True`` a
+    probe stops after an update smaller than ``settle_epsilon`` times its size.
     """
 
     def __init__(self, d_model, num_heads=4, cycles=3, leak_rate=0.1, spike_threshold=0.4,
@@ -2154,9 +2156,14 @@ class ResonantBinding(Layer):
 
         return heads(self.key(field)), heads(self.value(field))
 
-    def call(self, probes, keys, values, token_mask, probe_example, cycles=None, training=False):
+    def call(self, probes, keys, values, token_mask, probe_example, cycles=None, training=False,
+             dynamic=False, settle_epsilon=1e-3):
         """``probes`` (P, D); ``keys``/``values`` (B, H, T, dh); ``token_mask`` (B, T);
-        ``probe_example`` (P,) int, the utterance each probe binds to."""
+        ``probe_example`` (P,) int, the utterance each probe binds to.
+
+        ``dynamic`` keeps the first update, then skips a probe whose last step
+        was smaller than ``settle_epsilon`` times the probe's magnitude.
+        """
         cycles = self.cycles if cycles is None else int(max(1, min(int(cycles), self.cycles)))
         dtype = probes.dtype
         k = tf.gather(keys, probe_example)      # (P, H, T, dh)
@@ -2165,23 +2172,36 @@ class ResonantBinding(Layer):
         n_probe = tf.shape(probes)[0]
         scale = tf.sqrt(tf.cast(self.depth, dtype))
         sharp = 1.0 / tf.maximum(tf.cast(self.leak_rate, dtype), 1e-3)
+        # ponytail: one relative threshold for every probe; per-readout epsilons if calibration drifts
+        eps = tf.cast(settle_epsilon, dtype)
         p = probes
         heard = tf.zeros_like(probes)
         peak = tf.zeros((n_probe, self.num_heads), dtype=dtype)
+        live = tf.ones((n_probe,), tf.bool)
+        applied = tf.zeros((n_probe,), tf.int32)
         for _ in range(cycles):
             q = tf.reshape(self.query(self.q_norm(p)), (n_probe, self.num_heads, 1, self.depth))
             scores = tf.squeeze(tf.matmul(q, k, transpose_b=True), axis=2) / scale  # (P, H, T)
             scores = tf.where(mask, scores, tf.cast(_MASK_NEG, dtype))
-            peak = tf.reduce_max(scores, axis=-1)
+            new_peak = tf.reduce_max(scores, axis=-1)
             attn = self.dropout(tf.nn.softmax(scores, axis=-1), training=training)
             ctx = tf.reshape(tf.matmul(tf.expand_dims(attn, 2), v), (n_probe, self.d_model))
-            heard = self.listen(ctx)
-            g = self.gate(tf.concat([p, heard], axis=-1))
+            new_heard = self.listen(ctx)
+            g = self.gate(tf.concat([p, new_heard], axis=-1))
             g_scale = tf.sqrt(tf.reduce_mean(tf.square(g), axis=-1, keepdims=True) + 1e-6)
             g = tf.sigmoid(sharp * (g / g_scale - self.gate_threshold))
-            p = p + g * heard
-            p = p + self.dropout(self.mix_up(self.mix_down(self.mix_norm(p))), training=training)
-        return p, heard, peak
+            new_p = p + g * new_heard
+            new_p = new_p + self.dropout(self.mix_up(self.mix_down(self.mix_norm(new_p))), training=training)
+            step = tf.sqrt(tf.reduce_mean(tf.square(new_p - p), axis=-1))
+            size = tf.sqrt(tf.reduce_mean(tf.square(p), axis=-1)) + tf.cast(1e-6, dtype)
+            keep = tf.expand_dims(live, -1)
+            p = tf.where(keep, new_p, p)
+            heard = tf.where(keep, new_heard, heard)
+            peak = tf.where(keep, new_peak, peak)
+            applied += tf.cast(live, tf.int32)
+            if dynamic and not training:
+                live = tf.logical_and(live, step > eps * size)
+        return p, heard, peak, applied
 
     def get_config(self):
         config = super().get_config()

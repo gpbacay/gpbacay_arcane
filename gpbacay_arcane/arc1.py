@@ -539,16 +539,21 @@ class Arc1Model(tf.keras.Model):
         p = self.compose(tf.concat([engram_a, engram_b], axis=-1)) + self.role_embedding(roles)
         return self.compose_norm(p)
 
-    def bind(self, field, mask, probes, probe_example, cycles=None, training=False):
+    def bind(self, field, mask, probes, probe_example, cycles=None, training=False, dynamic=None):
         """Resonate every probe with its utterance field and read out all heads.
 
         Returns raw (uncalibrated) logits: ``fire`` (P,), ``anchor_start`` /
         ``anchor_end`` (P, T), plus ``select_q`` / ``select_k`` (P, D).
+        ``binding_steps`` is how many cycles each probe applied. Omitting
+        ``cycles`` at inference stops a probe once its update settles.
         """
+        if dynamic is None:
+            dynamic = cycles is None and not training
         cycles = self.arc1_config.resolve_cycles(cycles)
         keys, values = self.binding.field_memory(field)
-        settled, heard, peak = self.binding(
-            probes, keys, values, mask, probe_example, cycles=cycles, training=training
+        settled, heard, peak, binding_steps = self.binding(
+            probes, keys, values, mask, probe_example, cycles=cycles, training=training,
+            dynamic=bool(dynamic) and not training,
         )
         settled = self.settle_norm(settled)
         fire = self.fire_out(self.fire_hidden(tf.concat([settled, probes * heard, peak], axis=-1)))
@@ -569,23 +574,26 @@ class Arc1Model(tf.keras.Model):
             "anchor_end": tf.where(anchor_mask, end, _NEG),
             "select_q": self.select_query(settled),
             "select_k": self.select_key(settled),
+            "binding_steps": binding_steps,
         }
 
     def decide(self, utter_ids, probe_example, engram_a, engram_b, roles, cycles=None, training=False,
-               with_embedding=False, rsaa_cycles=None):
+               with_embedding=False, rsaa_cycles=None, dynamic_binding=None):
         """Align perception, compose probes, bind, and read out without decoding."""
         field, mask, trace = self.perceive(
             utter_ids, training=training, rsaa_cycles=rsaa_cycles, return_rsaa=True
         )
         probes = self.compose_probes(engram_a, engram_b, roles)
-        out = self.bind(field, mask, probes, probe_example, cycles=cycles, training=training)
+        out = self.bind(
+            field, mask, probes, probe_example, cycles=cycles, training=training, dynamic=dynamic_binding,
+        )
         out.update(trace)
         if with_embedding:
             out["embedding"] = self.pooled_embedding(field, mask)
         return out
 
     def decide_joint(self, token_ids, engram_bank, probe_a, probe_b, roles, cycles=None, training=False,
-                     rsaa_cycles=None):
+                     rsaa_cycles=None, dynamic_binding=None):
         """A whole request in one bounded, non-autoregressive computation graph.
 
         ``token_ids`` row 0 is the utterance; rows 1.. are schema texts not yet
@@ -604,7 +612,10 @@ class Arc1Model(tf.keras.Model):
         has_b = tf.expand_dims(probe_b >= 0, -1)
         engram_b = tf.where(has_b, tf.gather(bank, tf.maximum(probe_b, 0)), tf.zeros_like(engram_a))
         probes = self.compose_probes(engram_a, engram_b, roles)
-        out = self.bind(field[:1], mask[:1], probes, tf.zeros_like(roles), cycles=cycles, training=training)
+        out = self.bind(
+            field[:1], mask[:1], probes, tf.zeros_like(roles), cycles=cycles, training=training,
+            dynamic=dynamic_binding,
+        )
         out["new_engrams"] = new
         out.update(trace)
         return out
