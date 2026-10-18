@@ -15,7 +15,15 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { docsConfig } from "@/config/docs";
+import { cn } from "@/lib/utils";
 import { Search, FileText, Zap, Brain, Layers, Cpu, BarChart3, Terminal, Bug, MessageSquare } from "lucide-react";
+
+const topNav = [
+  { href: "/docs", label: "Docs", mobileLabel: "Documentation" },
+  { href: "/docs/chat", label: "Chat" },
+  { href: "/docs/arc-1", label: "ARC 1" },
+  { href: "/docs/blog", label: "Blog" },
+];
 
 export function SiteHeader() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -24,6 +32,11 @@ export function SiteHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const isDocsPage = pathname?.startsWith("/docs");
+  const navActive = (href: string) => {
+    if (!pathname) return false;
+    if (href === "/docs") return pathname === "/docs";
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -82,31 +95,22 @@ export function SiteHeader() {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center ml-8 space-x-8 text-sm font-medium">
-            <Link
-              href="/docs"
-              className="text-zinc-200 transition-colors hover:text-[#C785F2]"
-            >
-              Docs
-            </Link>
-            <Link
-              href="/docs/chat"
-              className="text-zinc-400 transition-colors hover:text-zinc-100"
-            >
-              Chat
-            </Link>
-            <Link
-              href="/docs/arc-1"
-              className="text-zinc-400 transition-colors hover:text-zinc-100"
-            >
-              ARC 1
-            </Link>
-            <Link
-              href="/docs/blog"
-              className="text-zinc-400 transition-colors hover:text-zinc-100"
-            >
-              Blog
-            </Link>
+          <nav className="hidden md:flex items-center ml-6 gap-1 text-sm font-medium">
+            {topNav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={navActive(item.href) ? "page" : undefined}
+                className={cn(
+                  "whitespace-nowrap rounded-none px-3 py-2 transition-all duration-200",
+                  navActive(item.href)
+                    ? "bg-[#C785F2]/5 text-[#C785F2] font-semibold"
+                    : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900"
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
           </nav>
         </div>
 
@@ -141,35 +145,23 @@ export function SiteHeader() {
             transition={{ duration: 0.3, ease: "easeInOut" }}
             className="md:hidden border-t border-zinc-800 bg-black/95 backdrop-blur overflow-hidden"
           >
-            <nav className="px-6 py-8 space-y-6">
-              <Link
-                href="/docs"
-                className="flex items-center text-lg font-bold text-zinc-200 hover:text-[#C785F2] transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Documentation
-              </Link>
-              <Link
-                href="/docs/chat"
-                className="flex items-center text-lg font-bold text-zinc-400 hover:text-zinc-100 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Chat
-              </Link>
-              <Link
-                href="/docs/arc-1"
-                className="flex items-center text-lg font-bold text-zinc-400 hover:text-zinc-100 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                ARC 1
-              </Link>
-              <Link
-                href="/docs/blog"
-                className="flex items-center text-lg font-bold text-zinc-400 hover:text-zinc-100 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Blog
-              </Link>
+            <nav className="px-6 py-8 space-y-2">
+              {topNav.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={navActive(item.href) ? "page" : undefined}
+                  className={cn(
+                    "flex items-center rounded-none px-3 py-2 text-lg font-bold transition-all duration-200",
+                    navActive(item.href)
+                      ? "bg-[#C785F2]/5 text-[#C785F2]"
+                      : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900"
+                  )}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {item.mobileLabel ?? item.label}
+                </Link>
+              ))}
               <div className="border-t border-zinc-800 pt-6 mt-6">
                 <Link
                   href="/"

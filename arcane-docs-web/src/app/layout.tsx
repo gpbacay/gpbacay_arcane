@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { ArcaneChat } from "@/components/ArcaneChat";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 
@@ -27,6 +28,7 @@ export default function RootLayout({
         className={`${inter.variable} font-sans antialiased flex flex-col min-h-screen`}
       >
         {children}
+        <ArcaneChat />
       </body>
     </html>
   );

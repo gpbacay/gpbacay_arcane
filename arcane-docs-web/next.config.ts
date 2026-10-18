@@ -24,7 +24,10 @@ const nextConfig: NextConfig = {
     ];
   },
   // The model file lives outside public/ so the download route can gate it; make sure deploys ship it.
-  outputFileTracingIncludes: { "/api/arc1-download": ["./private/models/**"] },
+  outputFileTracingIncludes: {
+    "/api/arc1-download": ["./private/models/**"],
+    "/api/arc1-web": ["../node/web/arc1.onnx", "../node/web/arc1.json"],
+  },
   turbopack: {
     root: path.join(__dirname, '..'),
   },
