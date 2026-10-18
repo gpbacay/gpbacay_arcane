@@ -7,6 +7,10 @@ import { ExternalLink, Calendar, User, ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import posts from "@/config/blog.json";
 
+export function generateStaticParams() {
+  return posts.map((post) => ({ slug: post.slug }));
+}
+
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 

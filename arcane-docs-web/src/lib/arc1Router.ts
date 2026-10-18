@@ -1,14 +1,15 @@
 /**
- * Browser ARC 1 router. One on-device classify, mixed with Hippocampus examples in docsChat.ts.
- * Null until the model has loaded: the chat still answers from the docs.
+ * Browser ARC 1 router. Hippocampus holds the docs and mixes them with ARC 1 once the model has loaded.
+ * Until then, retrieval is memory only.
  */
 import { Hippocampus } from "gpbacay-arcane/hippocampus";
 import { EXAMPLES, decide, type ChatRoute, type Classifier } from "./docsChat";
 
 type Arc1 = Classifier;
 
-let hippo: Classifier | null = null;
+let hippo: Hippocampus = new Hippocampus(null, { k: 8, weight: 0.7, memory: EXAMPLES });
 let loading: Promise<void> | null = null;
+let modelReady = false;
 let status: "idle" | "loading" | "ready" | "error" = "idle";
 const listeners = new Set<(next: typeof status) => void>();
 
@@ -24,7 +25,7 @@ export function onArc1Status(listener: (next: typeof status) => void): () => voi
 }
 
 export function warmArc1(): void {
-  if (loading || hippo) return;
+  if (loading || modelReady) return;
   setStatus("loading");
   loading = (async () => {
     const { load } = await import("gpbacay-arcane/web");
@@ -39,7 +40,8 @@ export function warmArc1(): void {
       }),
     ]);
     const agent: Arc1 = await load({ model: new Uint8Array(model), config });
-    hippo = new Hippocampus(agent, { k: 8, weight: 0.7, memory: EXAMPLES });
+    hippo = new Hippocampus(agent, { k: 8, weight: 0.7, memory: hippo.toJSON() });
+    modelReady = true;
     setStatus("ready");
   })().catch((error) => {
     console.warn("[ARC 1] unavailable, answering from the docs:", error);
@@ -48,8 +50,12 @@ export function warmArc1(): void {
   });
 }
 
+export function rememberTurn(text: string, label: string): void {
+  if (!text.trim()) return;
+  hippo.remember(text, label);
+}
+
 export async function routeWithArc1(text: string): Promise<ChatRoute | null> {
-  if (!hippo) return null;
   try {
     return await decide(hippo, text);
   } catch (error) {

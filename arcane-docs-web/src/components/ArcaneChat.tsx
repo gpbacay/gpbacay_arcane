@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUp, Check, Copy, MessageSquare, Mic, MicOff, MoreVertical, Pencil, Plus, Reply, Trash2, X } from "lucide-react";
-import { onArc1Status, routeWithArc1, warmArc1 } from "@/lib/arc1Router";
+import { onArc1Status, rememberTurn, routeWithArc1, warmArc1 } from "@/lib/arc1Router";
 import { appendTranscript, blankThread, removeThread, titleFrom, truncateBefore, type Thread, type ThreadMsg } from "@/lib/chatThreads";
-import { answerDocs, navigationOnly, pageById, routeTrace, type ChatRoute } from "@/lib/docsChat";
+import { answerDocs, navigationOnly, pageById, routeTrace, withContext, type ChatRoute } from "@/lib/docsChat";
 
 const STORAGE_KEY = "arcane_docs_chat_v2";
 const LEGACY_KEY = "arcane_docs_chat_v1";
@@ -162,7 +162,8 @@ export function ArcaneChat() {
   };
 
   const answer = async (chatId: string, text: string, quote: string | undefined, history: ThreadMsg[]) => {
-    const route: ChatRoute | null = await routeWithArc1(text);
+    const asked = withContext(quote ? `Replying to: ${quote}. ${text}` : text, history);
+    const route: ChatRoute | null = await routeWithArc1(asked);
     const jump = navigationOnly(text) ?? (route?.intent === "none" ? route.pageId : null);
     const page = pageById(jump);
     const modelId = store?.modelId ?? DOCS_MODEL;
@@ -189,6 +190,7 @@ export function ArcaneChat() {
       }
     } else {
       const docs = answerDocs(text, route);
+      if (docs.pageId) rememberTurn(asked, docs.pageId);
       const offline = modelId !== DOCS_MODEL ? `${model?.label ?? "That model"} is offline, so this reply comes from the docs. ` : "";
       message = { id: crypto.randomUUID(), role: "assistant", text: docs.text, pageId: docs.pageId, trace: `${offline}${routeTrace(route)}` };
     }

@@ -118,6 +118,8 @@ node_modules/
 
 # Exported ONNX models (regenerate with examples/export_arc1_onnx.py)
 *.onnx
+# The browser model has to be in git or the Vercel build has nothing to copy into public/arc1.
+!node/web/arc1.onnx
 
 # ARC 1 distillation: downloaded datasets, teacher vectors, and experiment runs
 data/external/

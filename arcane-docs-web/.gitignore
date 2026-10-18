@@ -42,3 +42,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Copied from ../node/web by scripts/copy-arc1-web.mjs
+/public/arc1/

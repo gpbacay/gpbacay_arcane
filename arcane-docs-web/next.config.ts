@@ -23,10 +23,17 @@ const nextConfig: NextConfig = {
       { source: "/docs/mnist-demo", destination: "/docs/arc-1", permanent: true },
     ];
   },
-  // The model file lives outside public/ so the download route can gate it; make sure deploys ship it.
+  // Parent of this app, so the docs markdown outside it can be traced into the functions.
+  outputFileTracingRoot: path.join(__dirname, ".."),
   outputFileTracingIncludes: {
     "/api/arc1-download": ["./private/models/**"],
-    "/api/arc1-web": ["../node/web/arc1.onnx", "../node/web/arc1.json"],
+    "/docs/blog/[slug]": ["../docs/**/*.md"],
+    "/docs/research": ["../docs/Closing_the_Alignment_Gap_RSAA.md"],
+    "/docs/resonant-gser": ["../docs/RESONANT_GSER.md"],
+    "/docs/predictive-resonant-layer": ["../docs/PREDICTIVE_RESONANT_LAYER.md"],
+    "/docs/inference-time-learning": ["../docs/INFERENCE_TIME_RESONANCE.md"],
+    "/docs/neural-resonance": ["../docs/NEURAL_RESONANCE.md"],
+    "/docs/homeostatic-plasticity": ["../docs/HOMEOSTATIC_PLASTICITY.md"],
   },
   turbopack: {
     root: path.join(__dirname, '..'),

@@ -1,26 +1,11 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { NextResponse } from "next/server";
 
-const FILES = {
-  model: { name: "arc1.onnx", type: "application/octet-stream" },
-  config: { name: "arc1.json", type: "application/json" },
-} as const;
+const FILES = { model: "arc1.onnx", config: "arc1.json" } as const;
 
-/** Serves the stock ARC 1 web model that ships in node/web. No other files. */
-export async function GET(req: Request) {
+/** Static file in public/arc1. A function response cannot carry the 5.5MB model on Vercel. */
+export function GET(req: Request) {
   const which = new URL(req.url).searchParams.get("file");
-  const file = which === "model" || which === "config" ? FILES[which] : null;
-  if (!file) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  try {
-    const bytes = await readFile(path.join(process.cwd(), "..", "node", "web", file.name));
-    return new NextResponse(bytes, {
-      headers: {
-        "content-type": file.type,
-        "cache-control": "public, max-age=31536000, immutable",
-      },
-    });
-  } catch {
-    return NextResponse.json({ error: "ARC 1 model is not on this server." }, { status: 404 });
-  }
+  const name = which === "model" || which === "config" ? FILES[which] : null;
+  if (!name) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.redirect(new URL(`/arc1/${name}`, req.url));
 }

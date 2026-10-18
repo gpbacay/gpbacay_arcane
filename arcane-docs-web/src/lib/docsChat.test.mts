@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { Hippocampus } from "gpbacay-arcane/hippocampus";
 import { appendTranscript, blankThread, removeThread, titleFrom, truncateBefore } from "./chatThreads.ts";
-import { EXAMPLES, answerDocs, decide, navigationOnly } from "./docsChat.ts";
+import { EXAMPLES, answerDocs, decide, navigationOnly, withContext } from "./docsChat.ts";
 
 const hippo = new Hippocampus(null, { k: 8, weight: 0.7, memory: EXAMPLES });
 
@@ -26,7 +26,19 @@ assert.equal(navigationOnly("show me the fruit fly demo"), "fruitfly");
 assert.equal(navigationOnly("what is hippocampus?"), null);
 assert.match(answerDocs("how do I install arcane").text, /pip install gpbacay-arcane/);
 assert.match(answerDocs("who are you").text, /ARC 1/);
-assert.match(answerDocs("what is the weather in paris", { intent: "none", pageId: null, confidence: 1, latencyMs: 1, calls: ["none"] }).text, /only answer/);
+assert.match(answerDocs("what is the weather in paris", { intent: "none", pageId: null, recallId: null, source: "memory", confidence: 1, latencyMs: 1, calls: ["none"] }).text, /only answer/);
+assert.match(answerDocs("who made arcane").text, /Gianne P\. Bacay/);
+assert.doesNotMatch(answerDocs("who made arcane").text, /September/);
+assert.match(answerDocs("when was arcane made").text, /3 September 2025/);
+assert.match(answerDocs("when was arcane made").text, /13 October 2026/);
+assert.doesNotMatch(answerDocs("when was arcane made").text, /Gianne/);
+assert.match(answerDocs("when?", { intent: "docs", pageId: null, recallId: "about", source: "memory", confidence: 1, latencyMs: 1, calls: [] }).text, /13 October 2026/);
+const about = await decide(hippo, "who is the creator of this project");
+assert.equal(about.recallId, "about", `recalled ${about.recallId}`);
+assert.equal(about.source, "memory");
+assert.match(answerDocs("the person behind it", about).text, /Gianne P\. Bacay/);
+assert.equal(withContext("when?", [{ role: "user", text: "who made arcane" }]), "who made arcane. when?");
+assert.equal(withContext("how do I install the package from a source checkout", []), "how do I install the package from a source checkout");
 
 const older = { id: "a", role: "user" as const, text: "first" };
 const newer = { id: "b", role: "assistant" as const, text: "second" };

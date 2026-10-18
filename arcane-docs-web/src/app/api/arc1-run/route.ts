@@ -7,7 +7,7 @@ function arc1ApiBase() {
   );
 }
 
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const base = arc1ApiBase();
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(55_000),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {

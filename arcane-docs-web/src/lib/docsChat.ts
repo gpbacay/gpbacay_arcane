@@ -13,6 +13,8 @@ export type DocPage = {
   keys: RegExp[];
   /** Imperative examples that teach ARC 1 this page. Not used as replies. */
   nav: string[];
+  /** One sentence per question. The first match on the last clause wins. */
+  facts?: { key: RegExp; text: string }[];
 };
 
 export type ChatIntent = "docs" | "none";
@@ -20,16 +22,19 @@ export type ChatIntent = "docs" | "none";
 export type ChatRoute = {
   intent: ChatIntent;
   pageId: string | null;
+  /** Page Hippocampus retrieved for this message. Not a navigation target. */
+  recallId: string | null;
+  /** model, memory, or model+memory. */
+  source: string | null;
   confidence: number;
   latencyMs: number;
   calls: string[];
 };
 
 export type Classifier = {
-  classify(text: string, labels: string[]): Promise<{ distribution: Record<string, number> }>;
+  classify(text: string, labels: string[]): Promise<{ distribution: Record<string, number>; source?: string }>;
+  neighbors?(text: string): { text: string; label: string | null; score: number }[];
 };
-
-const HINT = "Ask about installation, ARC 1, Hippocampus, System 1, or say “open the quick start”.";
 
 export const PAGES: DocPage[] = [
   {
@@ -62,7 +67,7 @@ export const PAGES: DocPage[] = [
     title: "ARC 1",
     href: "/docs/arc-1",
     answer:
-      "ARC 1 is the 1.3M-parameter System 1 model. It turns a request and a schema into tool calls, extracted fields, and labels in about 2.5 ms on CPU. Values are copied from the input, and it abstains when nothing fits.",
+      "ARC 1 (1.3M params) maps a request and schema to tool calls, fields, and labels in about 2.5 ms, and abstains when nothing fits.",
     aliases: ["arc 1", "arc1", "arc-1"],
     keys: [/\barc\s*-?\s*1\b/, /\btool calls?\b/, /\b(extract|classification|abstain)\b/],
     nav: ["go to the arc 1 page", "open arc 1", "take me to the arc1 docs", "show the grounded decisions page"],
@@ -142,7 +147,7 @@ export const PAGES: DocPage[] = [
     title: "Neural Resonance",
     href: "/docs/neural-resonance",
     answer:
-      "The Neural Resonance page covers prospective configuration, bidirectional feedback, and alignment. Open it for the write-up.",
+      "Neural resonance covers prospective configuration, bidirectional feedback, and alignment.",
     aliases: ["neural resonance", "resonance"],
     keys: [/\bneural resonance\b/, /\bprospective configuration\b/, /\bbidirectional\b/],
     nav: ["go to neural resonance", "open the resonance page", "take me to neural resonance", "show the alignment docs"],
@@ -161,7 +166,7 @@ export const PAGES: DocPage[] = [
     id: "homeostatic",
     title: "Homeostatic Plasticity",
     href: "/docs/homeostatic-plasticity",
-    answer: "The Homeostatic Plasticity page covers activity control, including BCM-style targets and attention-guided homeostasis.",
+    answer: "Homeostatic plasticity keeps activity near a target, including BCM-style and attention-guided control.",
     aliases: ["homeostatic", "homeostasis", "plasticity"],
     keys: [/\bhomeostat\w*\b/, /\bbcm\b/],
     nav: ["go to homeostatic plasticity", "open homeostasis", "take me to the plasticity page", "show homeostatic docs"],
@@ -246,10 +251,30 @@ export const PAGES: DocPage[] = [
     id: "blog",
     title: "Blog",
     href: "/docs/blog",
-    answer: "The blog is where project updates and articles are posted.",
+    answer:
+      "The blog is where project updates and articles are posted. The public ARCANE 4.1 article by Gianne Bacay is dated 3 September 2025.",
     aliases: ["blog", "articles", "news"],
     keys: [/\bblog\b/, /\b(articles|announcements|news)\b/],
     nav: ["go to the blog", "open the articles", "take me to the news page", "show the blog"],
+  },
+  {
+    id: "about",
+    title: "About ARCANE",
+    href: "/docs",
+    answer: "Gianne P. Bacay (giannebacay2004@gmail.com). MIT, copyright 2026, v5.0.0.",
+    facts: [
+      { key: /\b(when|date|dated|release)\b/i, text: "ARCANE 4.1 article: 3 September 2025. This repo's 5.0 release: 13 October 2026." },
+      { key: /\b(version|copyright|license|mit)\b/i, text: "v5.0.0. MIT license, copyright 2026." },
+      { key: /\b(github|repo)\b/i, text: "github.com/gpbacay/gpbacay_arcane." },
+      { key: /\b(who|creator|author|gianne|bacay|person|email)\b/i, text: "Gianne P. Bacay (giannebacay2004@gmail.com)." },
+    ],
+    aliases: ["creator", "author", "license", "version", "copyright"],
+    keys: [
+      /\b(who (made|created|built|wrote)|creator|author|gianne|bacay)\b/,
+      /\b(when|release date|copyright|what version|mit license)\b/,
+      /\b(github\.com\/gpbacay|giannebacay2004)\b/,
+    ],
+    nav: ["go to the about section", "open the project credits", "show who made arcane"],
   },
 ];
 
@@ -258,8 +283,7 @@ const SELF = {
     /\b(are you|who are you|this (chat|bot)|how (do|does) (you|this) work|what can you (do|answer))\b/,
     /\b(chatgpt|openai|gpt-?\d|third[- ]party)\b/,
   ],
-  answer:
-    "This chat runs in your browser. ARC 1 routes each message on-device, and the reply is taken from these docs. There is no third-party model writing the answer.",
+  answer: "ARC 1, in your browser. Answers come from these docs.",
 };
 
 export const MEMORY: Record<string, string[]> = {
@@ -289,6 +313,9 @@ export const MEMORY: Record<string, string[]> = {
     "where is the research paper",
     "what is on the blog",
     "who made this library",
+    "who created arcane",
+    "when was arcane made",
+    "what version is arcane",
     "what can you tell me about this site",
   ],
   none: [
@@ -309,7 +336,28 @@ export const MEMORY: Record<string, string[]> = {
 
 export const LABELS = Object.keys(MEMORY);
 
-export const EXAMPLES = Object.entries(MEMORY).flatMap(([label, texts]) => texts.map((text) => ({ text, label })));
+/** Routing examples, plus every docs page so Hippocampus can retrieve the passage itself. */
+export const KNOWLEDGE = PAGES.flatMap((page) => [
+  { text: `${page.title}. ${page.answer}`, label: page.id },
+  ...(page.facts ?? []).map((fact) => ({ text: fact.text, label: page.id })),
+  ...page.aliases.map((alias) => ({ text: `${page.title} ${alias}`, label: page.id })),
+]);
+
+export const EXAMPLES = [
+  ...Object.entries(MEMORY).flatMap(([label, texts]) => texts.map((text) => ({ text, label }))),
+  ...KNOWLEDGE,
+];
+
+const FOLLOW =
+  /\b(it|its|that|this|those|they|them|he|his|her|one|else|also|more)\b|^(and|but|what about|how about|why|how|when|where|who|which)\b/i;
+
+/** Short or pronoun follow-ups keep the previous user turn. A full question stands alone. */
+export function withContext(text: string, history: { role: string; text: string }[]): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (!words.length || (words.length > 8 && !FOLLOW.test(text))) return text;
+  const prior = [...history].reverse().find((message) => message.role === "user" && message.text.trim())?.text.trim();
+  return prior ? `${prior}. ${text.trim()}` : text.trim();
+}
 
 export function pageById(id: string | null): DocPage | null {
   return PAGES.find((page) => page.id === id) ?? null;
@@ -343,6 +391,13 @@ export function navigationOnly(text: string): string | null {
 const GREETING = /^\s*(hi|hello|hey|yo|good (morning|afternoon|evening))\b/i;
 const THANKS = /^\s*(thanks|thank you|thx|ty)\b/i;
 
+/** The sentence that answers this question, not the whole page. */
+function brief(page: DocPage, message: string): { text: string; pageId: string } {
+  const clause = message.split(/[.?!]\s+/).pop()?.trim() || message;
+  const hits = (page.facts ?? []).filter((fact) => fact.key.test(clause));
+  return { text: hits.length ? hits.map((fact) => fact.text).join(" ") : page.answer, pageId: page.id };
+}
+
 export function answerDocs(message: string, route: ChatRoute | null = null): { text: string; pageId: string | null } {
   const text = message.toLowerCase();
   if (SELF.keys.some((key) => key.test(text))) return { text: SELF.answer, pageId: null };
@@ -353,25 +408,28 @@ export function answerDocs(message: string, route: ChatRoute | null = null): { t
     const next = page.keys.filter((key) => key.test(text)).length;
     if (next > score) [best, score] = [page, next];
   }
-  if (best) return { text: best.answer, pageId: best.id };
+  if (best) return brief(best, message);
 
-  if (THANKS.test(message)) return { text: `You're welcome. ${HINT}`, pageId: null };
-  if (GREETING.test(message)) return { text: `Hi. I answer from the ARCANE docs. ${HINT}`, pageId: null };
-  if (route?.intent === "none") return { text: `I only answer questions about ARCANE and these docs. ${HINT}`, pageId: null };
+  if (THANKS.test(message)) return { text: "You're welcome.", pageId: null };
+  if (GREETING.test(message)) return { text: "Hi. Ask me about the ARCANE docs.", pageId: null };
+  if (route?.intent === "none") return { text: "I only answer questions about ARCANE.", pageId: null };
+  const recalled = pageById(route?.recallId ?? null);
+  if (recalled) return brief(recalled, message);
   const routed = pageById(route?.pageId ?? null);
-  if (routed && route?.intent === "docs") return { text: routed.answer, pageId: routed.id };
-  return { text: `I don't have that in the docs yet. ${HINT}`, pageId: null };
+  if (routed && route?.intent === "docs") return brief(routed, message);
+  return { text: "Not in the docs.", pageId: null };
 }
 
 export function routeTrace(route: ChatRoute | null): string {
   if (!route) return "ARC 1 is still loading, so this reply comes straight from the docs.";
+  const via = route.source === "memory" ? "Hippocampus" : route.source === "model+memory" ? "ARC 1 + Hippocampus" : "ARC 1";
   const names = route.calls.map((call) => {
     if (call === "answer") return "answer";
     if (call === "none") return "no tool";
     return `open ${pageById(call.slice(3))?.title ?? call}`;
   });
   const head = names.length ? names.join(", ") : "unsure, answering from the docs";
-  return `ARC 1 · ${head} · ${Math.round(route.confidence * 100)}% · ${Math.round(route.latencyMs)} ms`;
+  return `${via} · ${head} · ${Math.round(route.confidence * 100)}% · ${Math.round(route.latencyMs)} ms`;
 }
 
 // ponytail: one margin for every label; split per label if a real log shows a systematic miss.
@@ -385,8 +443,11 @@ export async function decide(hippo: Classifier, text: string): Promise<ChatRoute
   const started = performance.now();
   const clauses = text.split(CLAUSES).filter((clause) => /\w/.test(clause));
   const decided = [];
+  let source: string | null = null;
   for (const clause of clauses.length > 1 ? clauses : [text]) {
-    const ranked = Object.entries((await hippo.classify(clause, LABELS)).distribution).sort((a, b) => b[1] - a[1]);
+    const result = await hippo.classify(clause, LABELS);
+    if (!source && result.source) source = result.source;
+    const ranked = Object.entries(result.distribution).sort((a, b) => b[1] - a[1]);
     const confidence = ranked[0]?.[1] ?? 0;
     decided.push({
       label: ranked[0]?.[0] ?? "none",
@@ -394,6 +455,7 @@ export async function decide(hippo: Classifier, text: string): Promise<ChatRoute
       margin: confidence - (ranked[1]?.[1] ?? 0),
     });
   }
+  const recallId = (hippo.neighbors?.(text) ?? []).slice(0, 3).find((hit) => pageById(hit.label))?.label ?? null;
   const sure = decided.filter((item) => item.margin >= INTENT_MIN_MARGIN);
   const has = (label: string) => sure.some((item) => item.label === label);
   const nav = sure.find((item) => item.label.startsWith("go_") && item.margin >= NAV_MIN_MARGIN);
@@ -403,6 +465,8 @@ export async function decide(hippo: Classifier, text: string): Promise<ChatRoute
   return {
     intent: asking || sure.length < decided.length || has("answer") ? "docs" : "none",
     pageId: asking ? null : pageId,
+    recallId,
+    source,
     confidence: Math.min(...decided.map((item) => item.confidence)),
     latencyMs: Math.round(performance.now() - started),
     calls: sure.map((item) => item.label),
