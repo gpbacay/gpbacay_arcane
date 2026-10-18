@@ -36,7 +36,7 @@ const nextConfig: NextConfig = {
     "/docs/homeostatic-plasticity": ["../docs/HOMEOSTATIC_PLASTICITY.md"],
   },
   turbopack: {
-    root: path.join(__dirname, '..'),
+    root: path.join(__dirname, ".."),
   },
 };
 
