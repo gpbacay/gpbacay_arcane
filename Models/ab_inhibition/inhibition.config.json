@@ -1,0 +1,61 @@
+{
+  "vocab_size": 512,
+  "d_model": 128,
+  "num_layers": 3,
+  "num_heads": 4,
+  "seq_len": 160,
+  "schema_len": 64,
+  "dropout_rate": 0.05,
+  "resonance_factor": 0.15,
+  "resonance_cycles": 3,
+  "spike_threshold": 0.4,
+  "leak_rate": 0.1,
+  "pad_id": 0,
+  "use_rope": true,
+  "gate_normalize": true,
+  "mixer_rank_div": 2,
+  "engram_table_size": 4096,
+  "engram_rows": 4,
+  "ngram_sizes": [
+    2,
+    3
+  ],
+  "binding_heads": 4,
+  "binding_cycles": 3,
+  "active_cycles": null,
+  "rsaa_cycles": 2,
+  "active_rsaa_cycles": 0,
+  "rsaa_factor": 0.15,
+  "rsaa_epsilon": 0.0001,
+  "rsaa_mode": "identity",
+  "rsaa_max_factor": 0.35,
+  "rsaa_min_improvement": 0.0,
+  "rsaa_rollback": true,
+  "lateral_inhibition": true,
+  "calibration": {
+    "fire": 1.0741938211263535,
+    "anchor": 1.4894891113061028,
+    "select": 2.6084842420339847,
+    "select:3-5": 2.7331751147788563
+  },
+  "rsaa_calibration": {
+    "0": {
+      "fire": 1.0741938211263535,
+      "anchor": 1.4894891113061028,
+      "select": 2.6084842420339847,
+      "select:3-5": 2.7331751147788563
+    }
+  },
+  "lm_architecture": "legacy",
+  "lm_block_pattern": [],
+  "num_kv_heads": 2,
+  "ffn_mult": 1.5,
+  "conv_kernel_size": 3,
+  "resonance_decays": [
+    0.5,
+    0.9,
+    0.99
+  ],
+  "rope_base": 10000.0,
+  "residual_scale": 1.0
+}

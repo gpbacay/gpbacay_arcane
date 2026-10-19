@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import tensorflow as tf
 
-from .arc1 import Arc1Model
+from .arc1 import Arc1Model, option_bucket
 from .arc1_codec import (
     ROLE_BOOL,
     ROLE_OPTION,
@@ -407,6 +407,14 @@ def calibrate(model: Arc1Model, codec: Arc1Codec, lib, n_batches: int = 12, seed
         "anchor": _fit_temperature(lambda t: _nll_softmax(anchor_rows, anchor_y, t), len(anchor_y) // 2),
         "select": _fit_temperature(lambda t: _nll_softmax(select_rows, select_y, t), len(select_y)),
     }
+    # Per option-count bucket; thin buckets fall back to the global select temperature.
+    buckets: Dict[str, List[int]] = {}
+    for i, row in enumerate(select_rows):
+        buckets.setdefault(option_bucket(len(row)), []).append(i)
+    for bucket, idx in sorted(buckets.items()):
+        if len(idx) >= MIN_CALIBRATION_SAMPLES:
+            rows, ys = [select_rows[i] for i in idx], [select_y[i] for i in idx]
+            temps[f"select:{bucket}"] = _fit_temperature(lambda t: _nll_softmax(rows, ys, t), len(ys))
     raw_p = 1 / (1 + np.exp(-fire_l))
     cal_p = 1 / (1 + np.exp(-fire_l / temps["fire"]))
     report = {

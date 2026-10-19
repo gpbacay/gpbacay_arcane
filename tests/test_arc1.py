@@ -289,6 +289,16 @@ def test_config_roundtrip_keeps_calibration():
     assert Arc1Config.from_dict({"d_model": 32, "unknown_key": 1}).d_model == 32
 
 
+def test_select_temperature_is_bucketed_by_option_count():
+    cfg = Arc1Config(**SMALL)
+    cfg.calibration = {"fire": 1.0, "select": 2.0, "anchor": 1.0, "select:2": 1.5, "bogus:2": 9.0}
+    again = Arc1Config.from_dict(cfg.to_dict())
+    assert "bogus:2" not in again.calibration
+    assert again.temperature("select", options=2) == 1.5
+    assert again.temperature("select", options=4) == 2.0  # unfitted bucket -> global
+    assert again.temperature("select") == 2.0
+
+
 def test_model_is_lightweight():
     model = Arc1Model.from_preset("arc1-tiny").build_model()
     assert model.count_params() < 2_000_000

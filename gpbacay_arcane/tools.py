@@ -482,8 +482,8 @@ class Arc1Agent:
         ]
 
     # ------------------------------------------------------------ primitives
-    def _temp(self, readout: str, rsaa_cycles: Optional[int] = None) -> float:
-        return self.model.arc1_config.temperature(readout, rsaa_cycles)
+    def _temp(self, readout: str, rsaa_cycles: Optional[int] = None, options: Optional[int] = None) -> float:
+        return self.model.arc1_config.temperature(readout, rsaa_cycles, options)
 
     def _joint_fn(self, cycles: int, rsaa_cycles: int, dynamic: bool) -> Callable:
         key = (cycles, rsaa_cycles, bool(dynamic))
@@ -633,7 +633,7 @@ class Arc1Agent:
             elif pr.role == ROLE_ENUM:
                 idx = options.get((pr.tool, param.name), [])
                 logits = out["select_k"][idx] @ out["select_q"][i] / np.sqrt(d)
-                probs = _softmax(logits, self._temp("select", rsaa_cycles))
+                probs = _softmax(logits, self._temp("select", rsaa_cycles, len(idx)))
                 best = int(np.argmax(probs))
                 decision.update(
                     kind="select",

@@ -1,0 +1,195 @@
+{
+  "preset": "arc1-tiny",
+  "architecture": "RSAA-Aligned Resonant Schema Binding",
+  "parameters": 1320963,
+  "calibration": {
+    "temperatures": {
+      "fire": 1.0741938211263535,
+      "anchor": 1.4894891113061028,
+      "select": 2.6084842420339847,
+      "select:3-5": 2.7331751147788563
+    },
+    "fire_ece_before": 0.002873687462257201,
+    "fire_ece_after": 0.003389992164399158,
+    "n_fire": 749,
+    "n_anchor": 411,
+    "n_select": 141
+  },
+  "rsaa_profile": {
+    "mode": "identity",
+    "cycles": 0,
+    "alignment_weight": 0.05,
+    "consistency_weight": 0.05
+  },
+  "evaluation": {
+    "cycles_1": {
+      "tools_heldout_values": {
+        "n": 300,
+        "tool_selection_acc": 0.9933333333333333,
+        "exact_call_acc": 0.8733333333333333,
+        "argument_acc": 0.8694516971279374,
+        "no_tool_acc": 1.0,
+        "latency_ms_p50": 6.48,
+        "latency_ms_p90": 20.648000000000017
+      },
+      "tools_unseen_tools": {
+        "n": 150,
+        "tool_selection_acc": 0.38666666666666666,
+        "exact_call_acc": 0.31333333333333335,
+        "argument_acc": 0.0913978494623656,
+        "no_tool_acc": 1.0,
+        "latency_ms_p50": 4.77,
+        "latency_ms_p90": 6.096
+      },
+      "extraction_heldout_values": {
+        "n": 150,
+        "field_precision": 0.9731051344743277,
+        "field_recall": 0.9498806682577565,
+        "field_f1": 0.9613526570048311,
+        "exact_record_acc": 0.8733333333333333
+      },
+      "classify_heldout": {
+        "n": 150,
+        "accuracy": 0.74,
+        "accuracy_intent_domain": 1.0,
+        "accuracy_intent_tool": 1.0,
+        "accuracy_keyword": 0.5882352941176471,
+        "accuracy_request": 1.0,
+        "accuracy_sentiment": 0.6896551724137931,
+        "accuracy_support": 0.5925925925925926,
+        "accuracy_topic_feed": 0.625,
+        "accuracy_topic_products": 0.6363636363636364,
+        "accuracy_topic_search": 0.5833333333333334,
+        "latency_ms_p50": 8.12
+      },
+      "classify_unseen_tools": {
+        "n": 75,
+        "accuracy": 0.5733333333333334,
+        "accuracy_intent_tool": 0.5733333333333334,
+        "latency_ms_p50": 5.27
+      }
+    },
+    "cycles_3": {
+      "tools_heldout_values": {
+        "n": 300,
+        "tool_selection_acc": 0.9966666666666667,
+        "exact_call_acc": 0.8666666666666667,
+        "argument_acc": 0.8720626631853786,
+        "no_tool_acc": 1.0,
+        "latency_ms_p50": 6.12,
+        "latency_ms_p90": 7.936
+      },
+      "tools_unseen_tools": {
+        "n": 150,
+        "tool_selection_acc": 0.4666666666666667,
+        "exact_call_acc": 0.36666666666666664,
+        "argument_acc": 0.14516129032258066,
+        "no_tool_acc": 1.0,
+        "latency_ms_p50": 5.17,
+        "latency_ms_p90": 6.68
+      },
+      "extraction_heldout_values": {
+        "n": 150,
+        "field_precision": 0.9707317073170731,
+        "field_recall": 0.9498806682577565,
+        "field_f1": 0.9601930036188179,
+        "exact_record_acc": 0.8733333333333333
+      },
+      "classify_heldout": {
+        "n": 150,
+        "accuracy": 0.74,
+        "accuracy_intent_domain": 0.9,
+        "accuracy_intent_tool": 1.0,
+        "accuracy_keyword": 0.5882352941176471,
+        "accuracy_request": 1.0,
+        "accuracy_sentiment": 0.6206896551724138,
+        "accuracy_support": 0.6666666666666666,
+        "accuracy_topic_feed": 0.625,
+        "accuracy_topic_products": 0.7272727272727273,
+        "accuracy_topic_search": 0.5833333333333334,
+        "latency_ms_p50": 4.97
+      },
+      "classify_unseen_tools": {
+        "n": 75,
+        "accuracy": 0.5733333333333334,
+        "accuracy_intent_tool": 0.5733333333333334,
+        "latency_ms_p50": 4.955
+      }
+    },
+    "embeddings": {
+      "n": 60,
+      "intent_retrieval_at_1": 0.9833333333333333
+    },
+    "real_intents": {
+      "cycles_1": {
+        "n": 600,
+        "n_labels": 5,
+        "n_intents": 29,
+        "accuracy": 0.5583333333333333,
+        "chance": 0.2
+      },
+      "cycles_3": {
+        "n": 600,
+        "n_labels": 5,
+        "n_intents": 29,
+        "accuracy": 0.5266666666666666,
+        "chance": 0.2
+      }
+    }
+  },
+  "train": {
+    "train_seconds": 2009.6845817565918
+  },
+  "history_tail": [
+    {
+      "step": 800,
+      "fire": 0.015961418977822175,
+      "anchor": 0.06367307156790047,
+      "select": 0.08471278397584683,
+      "embed": 0.00038713137386366727,
+      "rsaa_alignment": 0.8790550315380097,
+      "rsaa_consistency": 0.021188253760337828,
+      "total": 0.1985530186444521
+    },
+    {
+      "step": 850,
+      "fire": 0.014827635906403885,
+      "anchor": 0.04508210256928578,
+      "select": 0.07869909976783675,
+      "embed": 0.00041563701292034237,
+      "rsaa_alignment": 0.8639932727813721,
+      "rsaa_consistency": 0.023788790926337244,
+      "total": 0.17720576792955398
+    },
+    {
+      "step": 900,
+      "fire": 0.011624806836189237,
+      "anchor": 0.04045583804603666,
+      "select": 0.07035078793604044,
+      "embed": 0.0005325055550565594,
+      "rsaa_alignment": 0.9007613956928253,
+      "rsaa_consistency": 0.01745762411504984,
+      "total": 0.15060865480452776
+    },
+    {
+      "step": 950,
+      "fire": 0.01454753701982554,
+      "anchor": 0.04869361132732593,
+      "select": 0.07134479652705522,
+      "embed": 0.0003535716719670745,
+      "rsaa_alignment": 0.8715633451938629,
+      "rsaa_consistency": 0.02293704129755497,
+      "total": 0.1704877608269453
+    },
+    {
+      "step": 1000,
+      "fire": 0.012991498461924494,
+      "anchor": 0.061640963085228574,
+      "select": 0.04257843359529943,
+      "embed": 0.0009905742097180337,
+      "rsaa_alignment": 0.8920345175266265,
+      "rsaa_consistency": 0.018356275744736195,
+      "total": 0.14822573810815812
+    }
+  ]
+}

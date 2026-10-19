@@ -140,6 +140,17 @@ def _default_calibration() -> Dict[str, float]:
     return {name: 1.0 for name in READOUTS}
 
 
+def option_bucket(n: int) -> str:
+    """Option-count bucket for a softmax readout's temperature: a 2-way and a
+    12-way choice are miscalibrated differently, so each gets its own."""
+    return "2" if n <= 2 else "3-5" if n <= 5 else "6-10" if n <= 10 else "11+"
+
+
+def _calibration_key(key: str) -> bool:
+    """``fire`` / ``select`` and bucketed ``select:3-5`` style keys."""
+    return key.split(":", 1)[0] in READOUTS
+
+
 @dataclass
 class Arc1Config:
     """Geometry, binding, and readout calibration for ``Arc1Model``."""
@@ -204,9 +215,14 @@ class Arc1Config:
             return self.rsaa_cycles
         return int(max(0, min(int(cycles), self.rsaa_cycles)))
 
-    def temperature(self, readout: str, rsaa_cycles: Optional[int] = None) -> float:
+    def temperature(self, readout: str, rsaa_cycles: Optional[int] = None, options: Optional[int] = None) -> float:
+        """Readout temperature; with ``options``, the bucketed key wins when it was fitted."""
         profile = (self.rsaa_calibration or {}).get(str(self.resolve_rsaa_cycles(rsaa_cycles)), {})
-        value = profile.get(readout, (self.calibration or {}).get(readout, 1.0))
+        calibration = self.calibration or {}
+        value = profile.get(readout, calibration.get(readout, 1.0))
+        if options is not None:
+            key = f"{readout}:{option_bucket(options)}"
+            value = profile.get(key, calibration.get(key, value))
         return float(max(value, 1e-3))
 
     @classmethod
@@ -231,13 +247,13 @@ class Arc1Config:
             data["resonance_decays"] = tuple(data["resonance_decays"])
         if "calibration" in data:
             merged = _default_calibration()
-            merged.update({k: float(v) for k, v in (data["calibration"] or {}).items() if k in merged})
+            merged.update({k: float(v) for k, v in (data["calibration"] or {}).items() if _calibration_key(k)})
             data["calibration"] = merged
         if "rsaa_calibration" in data:
             profiles = {}
             for profile, values in (data["rsaa_calibration"] or {}).items():
                 merged = _default_calibration()
-                merged.update({k: float(v) for k, v in (values or {}).items() if k in merged})
+                merged.update({k: float(v) for k, v in (values or {}).items() if _calibration_key(k)})
                 profiles[str(profile)] = merged
             data["rsaa_calibration"] = profiles
         return cls(**data)

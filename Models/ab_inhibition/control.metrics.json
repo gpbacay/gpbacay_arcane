@@ -1,0 +1,195 @@
+{
+  "preset": "arc1-tiny",
+  "architecture": "RSAA-Aligned Resonant Schema Binding",
+  "parameters": 1320835,
+  "calibration": {
+    "temperatures": {
+      "fire": 1.1793457076733715,
+      "anchor": 1.4215367520780082,
+      "select": 2.4894819231112977,
+      "select:3-5": 2.4894819231112977
+    },
+    "fire_ece_before": 0.0037293366262429635,
+    "fire_ece_after": 0.005134187639151099,
+    "n_fire": 749,
+    "n_anchor": 411,
+    "n_select": 141
+  },
+  "rsaa_profile": {
+    "mode": "identity",
+    "cycles": 0,
+    "alignment_weight": 0.05,
+    "consistency_weight": 0.05
+  },
+  "evaluation": {
+    "cycles_1": {
+      "tools_heldout_values": {
+        "n": 300,
+        "tool_selection_acc": 0.99,
+        "exact_call_acc": 0.8666666666666667,
+        "argument_acc": 0.8746736292428199,
+        "no_tool_acc": 1.0,
+        "latency_ms_p50": 7.01,
+        "latency_ms_p90": 15.688000000000017
+      },
+      "tools_unseen_tools": {
+        "n": 150,
+        "tool_selection_acc": 0.3933333333333333,
+        "exact_call_acc": 0.32666666666666666,
+        "argument_acc": 0.0967741935483871,
+        "no_tool_acc": 0.9722222222222222,
+        "latency_ms_p50": 4.73,
+        "latency_ms_p90": 6.006
+      },
+      "extraction_heldout_values": {
+        "n": 150,
+        "field_precision": 0.9780487804878049,
+        "field_recall": 0.9570405727923628,
+        "field_f1": 0.9674306393244874,
+        "exact_record_acc": 0.8866666666666667
+      },
+      "classify_heldout": {
+        "n": 150,
+        "accuracy": 0.7266666666666667,
+        "accuracy_intent_domain": 0.9,
+        "accuracy_intent_tool": 1.0,
+        "accuracy_keyword": 0.5882352941176471,
+        "accuracy_request": 1.0,
+        "accuracy_sentiment": 0.6551724137931034,
+        "accuracy_support": 0.6296296296296297,
+        "accuracy_topic_feed": 0.625,
+        "accuracy_topic_products": 0.5454545454545454,
+        "accuracy_topic_search": 0.5833333333333334,
+        "latency_ms_p50": 8.28
+      },
+      "classify_unseen_tools": {
+        "n": 75,
+        "accuracy": 0.6,
+        "accuracy_intent_tool": 0.6,
+        "latency_ms_p50": 5.324999999999999
+      }
+    },
+    "cycles_3": {
+      "tools_heldout_values": {
+        "n": 300,
+        "tool_selection_acc": 0.99,
+        "exact_call_acc": 0.8766666666666667,
+        "argument_acc": 0.8746736292428199,
+        "no_tool_acc": 1.0,
+        "latency_ms_p50": 5.75,
+        "latency_ms_p90": 7.478000000000001
+      },
+      "tools_unseen_tools": {
+        "n": 150,
+        "tool_selection_acc": 0.4533333333333333,
+        "exact_call_acc": 0.38666666666666666,
+        "argument_acc": 0.16129032258064516,
+        "no_tool_acc": 1.0,
+        "latency_ms_p50": 4.96,
+        "latency_ms_p90": 6.154
+      },
+      "extraction_heldout_values": {
+        "n": 150,
+        "field_precision": 0.9781553398058253,
+        "field_recall": 0.9618138424821002,
+        "field_f1": 0.9699157641395909,
+        "exact_record_acc": 0.9
+      },
+      "classify_heldout": {
+        "n": 150,
+        "accuracy": 0.7266666666666667,
+        "accuracy_intent_domain": 0.9,
+        "accuracy_intent_tool": 1.0,
+        "accuracy_keyword": 0.5882352941176471,
+        "accuracy_request": 1.0,
+        "accuracy_sentiment": 0.6206896551724138,
+        "accuracy_support": 0.6666666666666666,
+        "accuracy_topic_feed": 0.75,
+        "accuracy_topic_products": 0.5454545454545454,
+        "accuracy_topic_search": 0.5,
+        "latency_ms_p50": 4.87
+      },
+      "classify_unseen_tools": {
+        "n": 75,
+        "accuracy": 0.6133333333333333,
+        "accuracy_intent_tool": 0.6133333333333333,
+        "latency_ms_p50": 4.93
+      }
+    },
+    "embeddings": {
+      "n": 60,
+      "intent_retrieval_at_1": 0.9833333333333333
+    },
+    "real_intents": {
+      "cycles_1": {
+        "n": 600,
+        "n_labels": 5,
+        "n_intents": 29,
+        "accuracy": 0.58,
+        "chance": 0.2
+      },
+      "cycles_3": {
+        "n": 600,
+        "n_labels": 5,
+        "n_intents": 29,
+        "accuracy": 0.5583333333333333,
+        "chance": 0.2
+      }
+    }
+  },
+  "train": {
+    "train_seconds": 2120.4308025836945
+  },
+  "history_tail": [
+    {
+      "step": 800,
+      "fire": 0.01866862252820283,
+      "anchor": 0.056560203763656315,
+      "select": 0.08021286035764205,
+      "embed": 0.0004055931816401426,
+      "rsaa_alignment": 0.8799374949932098,
+      "rsaa_consistency": 0.02117231663316488,
+      "total": 0.18969998523592949
+    },
+    {
+      "step": 850,
+      "fire": 0.01492119270726107,
+      "anchor": 0.04316176204243675,
+      "select": 0.08761943941812206,
+      "embed": 0.0012540754963629296,
+      "rsaa_alignment": 0.8645320200920105,
+      "rsaa_consistency": 0.02278264954686165,
+      "total": 0.18469517379999162
+    },
+    {
+      "step": 900,
+      "fire": 0.01494932746165432,
+      "anchor": 0.03702367564896122,
+      "select": 0.0496033109453856,
+      "embed": 0.0004532345529514714,
+      "rsaa_alignment": 0.9021513080596923,
+      "rsaa_consistency": 0.0175452920794487,
+      "total": 0.12978778164833785
+    },
+    {
+      "step": 950,
+      "fire": 0.018108180644921958,
+      "anchor": 0.052096068039536474,
+      "select": 0.06567155287743845,
+      "embed": 0.0004972761592580355,
+      "rsaa_alignment": 0.8735888814926147,
+      "rsaa_consistency": 0.02256328284740448,
+      "total": 0.17193206019699572
+    },
+    {
+      "step": 1000,
+      "fire": 0.012491682223626413,
+      "anchor": 0.055082958536222575,
+      "select": 0.042652831801424325,
+      "embed": 0.0010711479335623153,
+      "rsaa_alignment": 0.892777453660965,
+      "rsaa_consistency": 0.018321669101715087,
+      "total": 0.14131801936775445
+    }
+  ]
+}
