@@ -25,6 +25,8 @@ assert.equal(navigationOnly("open the installation page"), "installation");
 assert.equal(navigationOnly("show me the fruit fly demo"), "fruitfly");
 assert.equal(navigationOnly("what is hippocampus?"), null);
 assert.match(answerDocs("how do I install arcane").text, /pip install gpbacay-arcane/);
+assert.match(answerDocs("is ARC 1 a system 1 decision model").text, /System 1 decision model/);
+assert.match(answerDocs("why should I use hippocampus").text, /fast memory of decided examples/);
 assert.match(answerDocs("who are you").text, /ARC 1/);
 assert.match(answerDocs("what is the weather in paris", { intent: "none", pageId: null, recallId: null, source: "memory", confidence: 1, latencyMs: 1, calls: ["none"] }).text, /only answer/);
 assert.match(answerDocs("who made arcane").text, /Gianne P\. Bacay/);

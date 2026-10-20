@@ -14,7 +14,7 @@ const paths = [
   {
     icon: Route,
     title: "Automate decisions",
-    body: "Use ARC 1 for tool selection, typed extraction, classification, and fast request routing.",
+    body: "ARC 1 is the System 1 decision model: a typed tool call, copied fields, or a label in one pass, on your own CPU.",
     href: "/docs/arc-1",
     action: "Explore ARC 1",
   },

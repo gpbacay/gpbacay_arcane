@@ -18,7 +18,7 @@ const CAPABILITIES = [
   {
     icon: Layers,
     title: "Schema as input",
-    body: "Tools, fields, and labels are passed with each request. Changing them needs no retraining.",
+    body: "Tools, fields, and labels are passed with each request. A new schema still needs fine-tuning or Hippocampus examples before you rely on it.",
   },
   {
     icon: Crosshair,
@@ -92,13 +92,13 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           ARC 1: Grounded Decisions Without Generation
         </h1>
         <p className="mt-6 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          ARCANE&apos;s {(m.parameters / 1e6).toFixed(1)}M-parameter System 1 model turns a request and schema into typed
-          tool calls, extracted fields, and classifications in {full.latencyP50Ms.toFixed(1)} milliseconds on a standard CPU.
+          ARC 1 is ARCANE&apos;s System 1 decision model. {(m.parameters / 1e6).toFixed(1)} million parameters turn a
+          request and a schema into a typed tool call, extracted fields, or a label in {full.latencyP50Ms.toFixed(1)}{" "}
+          milliseconds on a CPU.
         </p>
         <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          Learned probes resonate with the input, then return a bounded decision with calibrated confidence and
-          abstention. Extracted values are copied from evidence instead of invented through generation. ARC 1 ships as
-          one {mb(m.rcn.bytes)} .rcn file under the MIT license.
+          It does not write the answer. Probes settle in one pass, copy values from the request, and return a calibrated
+          confidence or no call. The weights ship as one {mb(m.rcn.bytes)} .rcn file under the MIT license.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -121,7 +121,77 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
       </header>
 
       <div className="text-zinc-300">
-        <h2 id="try-it" className={h2Base}>
+        <h2 id="why-use-arc-1" className={h2Base}>
+          Why use ARC 1
+        </h2>
+        <p className={p}>
+          ARC 1 is a System 1 decision model. In ARCANE that means a fast, automatic choice inside a decision space
+          you declare: which tool, which fields, which label, or no action. It is an engineering profile, not a claim
+          that the model thinks like a person. Use it when the product needs the choice itself. Keep a language model
+          for the reply.
+        </p>
+
+        <h3 id="what-separates-it" className={h3}>
+          What separates it from other decision models
+        </h3>
+        <ul className="not-prose mt-4 max-w-2xl divide-y divide-zinc-900 border-y border-zinc-800">
+          {[
+            [
+              "Language models used as routers",
+              "A chat model decides by generating tokens, and a parser then hopes the tool call is real. It can name a city, an amount, or a tool that was never in the request. ARC 1 has no decoding loop. A firing signal says whether a tool or field applies, an anchor copies the span from the request, and a selection signal picks from the list you passed in.",
+            ],
+            [
+              "Fixed-head classifiers",
+              "An ordinary intent or routing model is one label set baked into one head. A new queue or a new tool means a new model, and it still only returns a class. ARC 1 takes tools, fields, options, and labels with the request, so one checkpoint can route, extract, and classify. New tools still need fine-tuning or a few Hippocampus examples before you rely on them.",
+            ],
+            [
+              "Large encoders and hosted decision APIs",
+              `Laya publishes a ${(LAYA.params / 1e6).toFixed(0)}-million-parameter encoder with no tool calling and no structured extraction, at ${LAYA.gpuLatencyMs} ms on a GPU. Jev is a hosted System 1 service: typed decisions and calibrated probabilities, priced per token, with the request leaving your network. ARC 1 is ${(m.parameters / 1e6).toFixed(1)} million parameters in a file you run yourself. Those accuracy numbers are not on one shared benchmark. The split is the job, the footprint, and who keeps the weights.`,
+            ],
+          ].map(([title, body]) => (
+            <li key={title} className="py-4">
+              <p className="font-medium text-zinc-100">{title}</p>
+              <p className="mt-1 text-sm leading-relaxed text-zinc-400">{body}</p>
+            </li>
+          ))}
+        </ul>
+
+        <h3 id="when-to-choose-it" className={h3}>
+          When it is the right model
+        </h3>
+        <ul className="mt-3 max-w-2xl list-disc space-y-2 pl-5 text-sm leading-relaxed text-zinc-300">
+          <li>
+            The next step is a route, a tool call, a copied field, or a label, and a wrong invented value costs more than
+            a missed one.
+          </li>
+          <li>
+            The result has to be usable as data. Strings and numbers are spans of the input, labels come from your list,
+            and a weak match returns no call.
+          </li>
+          <li>
+            Low confidence should go to a person. The firing score is temperature-fitted on held-out data, so a threshold
+            means something.
+          </li>
+          <li>
+            The decision has to run on your hardware: a laptop CPU, a browser, or a phone, with no GPU and no per-call fee.
+            One MIT-licensed file, inspectable and fine-tunable.
+          </li>
+        </ul>
+        <p className={`${p} mt-4 text-sm text-zinc-400`}>
+          The download is a base checkpoint. Fine-tune it on your tools, or teach new ones with Hippocampus, and test it
+          on your own requests. The{" "}
+          <a href="#limitations" className={link}>
+            limits
+          </a>{" "}
+          and the{" "}
+          <a href="#comparison" className={link}>
+            size comparison
+          </a>{" "}
+          are below. Laya&apos;s figures are from its public page (September 2026). Jev&apos;s are from published early-access
+          accounts of the same month, and they can change.
+        </p>
+
+        <h2 id="try-it" className={h2}>
           Try it live
         </h2>
         <p className={`${p} mb-5`}>

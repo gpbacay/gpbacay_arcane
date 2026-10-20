@@ -183,6 +183,33 @@ export default function SystemOnePage() {
         </div>
       </section>
 
+      <section className="mb-16" aria-labelledby="arc-1-decision">
+        <h2 id="arc-1-decision" className="text-2xl font-bold text-white">ARC 1 is the System 1 decision model</h2>
+        <p className="mt-4 max-w-2xl leading-relaxed text-zinc-400">
+          The contract above is the library. ARC 1 is the model that ships it for routing, extraction, and classification:
+          a request and a schema in, a typed outcome out, in one pass on a CPU.
+        </p>
+        <ul className="mt-6 max-w-2xl divide-y divide-zinc-900 border-y border-zinc-900">
+          {[
+            ["A prompted language model", "Generates the decision, then something else has to parse it. Values can be invented."],
+            ["A fixed-head classifier", "Returns one label from a head trained for one task. It does not copy arguments or refuse a tool."],
+            ["A large encoder or a hosted decision API", "Can score a label, then you still rent their size, their GPU, or their network. You do not keep the weights."],
+          ].map(([title, body]) => (
+            <li key={title} className="py-4">
+              <h3 className="font-semibold text-zinc-100">{title}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-zinc-400">{body}</p>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-zinc-400">
+          ARC 1 returns the tool, the copied span, or the label, and it abstains when nothing fits. Run it where the data
+          already is. Fine-tune it, or give it examples through Hippocampus, before you trust a new schema.
+        </p>
+        <Link href="/docs/arc-1#why-use-arc-1" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#C785F2] hover:text-[#d49cf5]">
+          Why use ARC 1 <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </section>
+
       <section className="border border-zinc-800 bg-zinc-950 p-6 sm:p-8" aria-labelledby="start">
         <h2 id="start" className="text-xl font-bold text-white">Build the model, then prove the behavior</h2>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-400">

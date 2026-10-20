@@ -67,9 +67,9 @@ export const PAGES: DocPage[] = [
     title: "ARC 1",
     href: "/docs/arc-1",
     answer:
-      "ARC 1 (1.3M params) maps a request and schema to tool calls, fields, and labels in about 2.5 ms, and abstains when nothing fits.",
-    aliases: ["arc 1", "arc1", "arc-1"],
-    keys: [/\barc\s*-?\s*1\b/, /\btool calls?\b/, /\b(extract|classification|abstain)\b/],
+      "ARC 1 is ARCANE's System 1 decision model. It returns a typed tool call, copied fields, or a label in one pass, and abstains when nothing fits. Unlike a language model used as a router, it does not generate the decision. Unlike a fixed classifier, the schema arrives with the request. Unlike a large encoder or a hosted decision API, you run the 1.3M-parameter file yourself.",
+    aliases: ["arc 1", "arc1", "arc-1", "why arc 1", "decision model"],
+    keys: [/\barc\s*-?\s*1\b/, /\btool calls?\b/, /\b(extract|classification|abstain)\b/, /\bdecision models?\b/],
     nav: ["go to the arc 1 page", "open arc 1", "take me to the arc1 docs", "show the grounded decisions page"],
   },
   {
@@ -77,7 +77,7 @@ export const PAGES: DocPage[] = [
     title: "System 1 Architecture",
     href: "/docs/system-1",
     answer:
-      "In ARCANE, System 1 means fast, automatic inference that returns a bounded outcome with measurable uncertainty. It is an engineering profile, not a claim about consciousness.",
+      "In ARCANE, System 1 means fast, automatic inference that returns a bounded outcome with measurable uncertainty. It is an engineering profile, not a claim about consciousness. ARC 1 is the System 1 decision model: one pass from a request and schema to a tool call, copied fields, a label, or no call.",
     aliases: ["system 1", "system one", "architecture"],
     keys: [/\bsystem\s*1\b/, /\barchitecture\b/, /\boperational definition\b/],
     nav: ["go to system 1", "open the architecture page", "take me to the system 1 docs", "show the system one page"],
