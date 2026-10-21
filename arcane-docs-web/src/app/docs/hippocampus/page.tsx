@@ -68,6 +68,13 @@ const CLINC: [string, string, string, string][] = [
   ["10", "–", "92.0%", "93.3%"],
 ];
 
+// python examples/benchmark_hippocampus.py --policy: CLINC150 150-way, memory only, mean of 3 seeds.
+const POLICY: [string, string, string][] = [
+  ["Clean labels", "3,000 examples, 74.0%", "2,513 examples, 74.2%"],
+  ["Clean, budget of 1,500 examples", "random subset: 68.3%", "max_size=1500: 69.2%"],
+  ["20% wrong labels, each text seen 3 times", "3,000 examples, 71.0%", "1,977 examples, 70.9% (trust=0.5, threshold=0.9)"],
+];
+
 const TOOLS: [string, string, string, string, string][] = [
   ["none (model alone)", "55.7%", "42.3%", "–", "18.6%"],
   ["1", "77.0%", "50.3%", "64.0%", "53.3%"],
@@ -243,7 +250,8 @@ hippocampus.forget("thanks, that's all")`}
             browser build
           </Link>
           , with no server and no Python. It has the same API and returns the same decisions; only{" "}
-          <code className={code}>classify</code> and <code className={code}>run</code> are async. For memory-only
+          <code className={code}>classify</code>, <code className={code}>run</code> and{" "}
+          <code className={code}>observe</code> are async. For memory-only
           decisions, import it from <code className={code}>gpbacay-arcane/hippocampus</code>, which doesn&apos;t need
           onnxruntime-web.
         </p>
@@ -330,6 +338,84 @@ new Hippocampus(agent, { memory: JSON.parse(localStorage.memory) });`}
           For tool calling, every example votes, including examples for tools that aren&apos;t offered and examples
           labeled <code className={code}>None</code>. A request that looks like something else therefore takes votes
           away from the offered tools instead of firing one.
+        </p>
+
+        <h2 id="auto-memory" className={h2}>
+          Deciding what to keep
+        </h2>
+        <p className={p}>
+          <code className={code}>remember</code> and <code className={code}>forget</code> are manual. Give Hippocampus
+          the outcome of a decision instead, such as a user correction, a tool that ran or a ground-truth label, and{" "}
+          <code className={code}>observe</code> decides whether the example is worth keeping.
+        </p>
+        <CodeSnippet
+          filename="observe.py"
+          language="python"
+          code={`hippocampus = Hippocampus(model, max_size=5000)     # max_size is optional (so is labels=[...] on observe)
+
+hippocampus.observe("I was charged twice", "billing")            # surprising: stored
+hippocampus.observe("i was charged  twice", "billing")           # already decided confidently: skipped (None)
+hippocampus.observe("I was charged twice", "fraud")              # the outcome disagrees: corrected
+
+# A weak signal must repeat before it counts: evidence adds up and commits at threshold=1.0
+hippocampus.observe("refund my invoice", "billing", trust=0.6)   # None: 0.6 so far
+hippocampus.observe("refund my invoice", "billing", trust=0.6)   # stored: 0.6 + 0.6 >= 1.0`}
+        />
+        <ul className="mt-4 max-w-2xl list-disc space-y-2 pl-5 text-sm leading-relaxed text-zinc-300">
+          <li>
+            <strong className="text-zinc-100">Remember on surprise.</strong> An example is stored only when the memory
+            and model together give its label less than <code className={code}>confident=0.8</code>. Duplicates and
+            things the model already gets right are skipped, so memory grows where the model is weak. The judgment is
+            made over <code className={code}>labels=</code> when you pass it (default: every label in the memory), which
+            matters when the memory holds examples for other decisions. An example you{" "}
+            <code className={code}>remember</code>ed is never overwritten by <code className={code}>observe</code>.
+          </li>
+          <li>
+            <strong className="text-zinc-100">Evidence has to build.</strong> Each call adds{" "}
+            <code className={code}>trust</code> to a pending candidate for that text and label. Evidence for a
+            different label cancels it, and the example is stored once the total reaches{" "}
+            <code className={code}>threshold</code>. This is an integrate-and-fire rule. The defaults (
+            <code className={code}>trust=1.0</code>, <code className={code}>threshold=1.0</code>) store at once. Set{" "}
+            <code className={code}>leak</code> to make old evidence fade by that share per call; it is off because
+            it has to match the gap between repeats of a text (<code className={code}>leak=0.01</code> stored 32
+            examples at 10.5% accuracy on the benchmark stream). <code className={code}>max_pending=10000</code> bounds
+            the candidates waiting for more evidence.
+          </li>
+          <li>
+            <strong className="text-zinc-100">Forget the oldest.</strong> Past{" "}
+            <code className={code}>max_size</code> the oldest <code className={code}>observe</code>d example is dropped.
+            Examples you <code className={code}>remember</code> are never dropped.
+          </li>
+        </ul>
+        <div className="not-prose mt-6 overflow-x-auto">
+          <table className="w-full min-w-[520px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-zinc-500">
+                <th className={th}>Training stream</th>
+                <th className={th}>remember</th>
+                <th className="py-2 font-medium">observe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {POLICY.map(([stream, remember, observe]) => (
+                <tr key={stream} className="border-b border-zinc-900 align-top">
+                  <td className="py-2.5 pr-4 text-zinc-100">{stream}</td>
+                  <td className={td}>{remember}</td>
+                  <td className="py-2.5 tabular-nums text-zinc-300">{observe}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={`${p} mt-4 text-sm text-zinc-400`}>
+          Memory only, CLINC150 150-way, 3,000 training examples in a shuffled stream, mean of 3 seeds, 1,000 test
+          utterances. Run <code className={code}>python examples/benchmark_hippocampus.py --policy</code> to reproduce.
+          <code className={code}> observe</code> keeps accuracy with about 16% fewer examples on clean labels and beats a
+          random subset by about a point at a fixed budget (ahead in all 3 seeds). On noisy labels it matches{" "}
+          <code className={code}>remember</code> with 34% fewer examples, with{" "}
+          <strong className="text-zinc-200">no accuracy advantage</strong>, so it does not filter bad feedback. Ranking
+          examples by how often lookups agreed with the outcome did no better than dropping the oldest, so eviction is
+          plain FIFO.
         </p>
 
         <h2 id="any-model" className={h2}>
@@ -532,6 +618,7 @@ hippocampus.labels()   # {"memory-3f2a...": "billing", ...}`}
             ["Uncalibrated mix", "Even if the model's probabilities are calibrated, the combined confidence has not been re-fitted, so treat it as a ranking."],
             ["Tested up to 15,000 examples", "Lookups slow down when common words match many examples. Expect that somewhere past about 100,000; it has not been measured."],
             ["Shared graphs", "If the graph also holds documents, each lookup filters across all stored examples. The default graph holds only examples."],
+            ["observe needs an outcome signal", "Without a user correction, a tool result or a true label, observe can only skip duplicates and cap size. Evidence builds only when the same text comes back; a rephrased request starts over. Wrong signals are stored as readily as right ones, so it matches but does not beat remember on noisy labels (see the table above)."],
             ["Tool calling needs tool_prior", "Any model can classify, but run() needs a model that accepts tool_prior. Arc1Agent does; other tool-calling models need that one argument."],
           ].map(([title, body]) => (
             <li key={title} className="py-3.5">

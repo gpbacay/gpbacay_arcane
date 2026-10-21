@@ -63,6 +63,78 @@ def test_memory_is_dynamic():
     assert r.react("charged twice")["votes"] == {} and not r.forget("I was charged twice")
 
 
+def test_observe_stores_only_what_is_surprising():
+    r = Hippocampus()
+    assert r.observe("I was charged twice", "billing")  # nothing known: stored
+    assert r.observe("  I WAS charged   twice ", "billing") is None  # same text, already decided: skipped
+    assert r.observe("track my delivery", "shipping") and len(r.labels()) == 2
+    assert r.observe("I was charged twice", "fraud")  # the outcome disagrees: corrected, not duplicated
+    assert len(r.labels()) == 2 and r.classify("charged twice", ["billing", "fraud"])["label"] == "fraud"
+    assert Hippocampus(StubArc1()).observe("my parcel never arrived", "shipping")  # model unsure (0.7) and no memory
+
+
+def test_observe_judges_over_the_given_decision_space_and_spares_remembered_examples():
+    def build():
+        r = Hippocampus()
+        r.remember("alpha beta", "x")
+        r.remember("alpha beta gamma delta epsilon", "o")
+        r.remember("alpha beta gamma zeta", "o")
+        return r
+
+    assert build().observe("alpha beta gamma", "x")  # among x and o, memory leans o: surprising
+    assert build().observe("alpha beta gamma", "x", labels=["x", "z"]) is None  # o is another decision: x is decided
+    r = build()
+    assert r.observe("alpha beta", "z") is None and r.react("alpha beta", ["x"])["votes"] == {"x": 1.0}  # remembered: untouched
+    r.forget("alpha beta")
+    assert r.observe("alpha beta", "z")  # forgotten first, then observe may write
+
+
+def test_observe_needs_repeated_trusted_evidence_to_commit():
+    r = Hippocampus(threshold=1.0, leak=0.5)
+    assert r.observe("refund my invoice", "billing", trust=0.6) is None  # 0.6
+    assert r.observe("refund my invoice", "shipping", trust=0.6) is None  # billing decays to 0.3, then is cancelled
+    assert r.observe("refund my invoice", "billing", trust=0.6) is None  # shipping cancelled, billing starts over
+    assert r.observe("refund my invoice", "billing", trust=0.6) is None  # 0.3 + 0.6 = 0.9 < 1.0
+    assert r.labels() == {}
+    assert r.observe("refund my invoice", "billing", trust=0.6)  # 0.45 + 0.6 >= 1.0: committed
+    assert list(r.labels().values()) == ["billing"]
+
+
+def test_pending_evidence_does_not_decay_by_default_and_is_bounded():
+    r = Hippocampus(threshold=1.0, max_pending=2)
+    assert r.observe("refund my invoice", "billing", trust=0.6) is None
+    for i in range(50):
+        r.observe(f"unrelated filler number {i} zzz{i}", "other", trust=0.1)  # no decay, so these never push it out...
+    assert r.observe("refund my invoice", "billing", trust=0.6) is None  # ...but max_pending=2 did: starts over at 0.6
+    assert r.observe("refund my invoice", "billing", trust=0.6)  # 0.6 + 0.6: committed
+    r = Hippocampus(threshold=1.0)
+    r.observe("refund my invoice", "billing", trust=0.6)
+    for i in range(50):
+        r.observe(f"unrelated filler number {i} zzz{i}", "other", trust=0.1)
+    assert r.observe("refund my invoice", "billing", trust=0.6)  # leak=0: the old evidence still counts
+
+
+def test_eviction_spares_manual_and_drops_the_oldest_observed():
+    r = Hippocampus(max_size=3)
+    r.remember("pinned example one", "a")
+    r.observe("alpha beta gamma", "a")
+    r.observe("delta epsilon zeta", "b")
+    r.observe("eta theta iota", "c")  # over the cap: the oldest unused auto example goes
+    assert len(r.labels()) == 3 and r.react("alpha beta gamma")["votes"] == {}
+    assert r.react("delta epsilon zeta")["votes"] == {"b": 1.0}
+    assert "a" in r.labels().values() and r.react("pinned example one")["votes"] == {"a": 1.0}
+    manual = Hippocampus(max_size=1)
+    manual.remember("one", "a"), manual.remember("two", "b")
+    assert len(manual.labels()) == 2  # remember is never capped
+
+
+def test_observe_state_persists_with_the_graph():
+    r = Hippocampus(max_size=5)
+    r.observe("I was charged twice", "billing")
+    restored = Hippocampus(graph=DocumentGraph.from_json(json.loads(json.dumps(r.graph.to_json()))))
+    assert restored.graph.docs[next(iter(restored.labels()))]["source"] == "auto"
+
+
 def test_tool_prior_counts_votes_for_other_tools_and_no_tool():
     g = DocumentGraph()
     g.add_document("# Guide\n\n## Deploy\nPush the build to the server.", "Guide")  # shared graph: documents never vote

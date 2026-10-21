@@ -87,7 +87,7 @@ export default function Arc1Demo() {
 
 ## Hippocampus: teach ARC 1 with examples (browser and Node, no Python)
 
-`Hippocampus` stores decided examples and mixes their vote into ARC 1's decisions. New labels and new tools work from a few examples, with no fine-tuning. It is a port of the Python `Hippocampus`: same API and same decisions, but `classify` and `run` are async.
+`Hippocampus` stores decided examples and mixes their vote into ARC 1's decisions. New labels and new tools work from a few examples, with no fine-tuning. It is a port of the Python `Hippocampus`: same API and same decisions, but `classify`, `run` and `observe` are async.
 
 ```js
 import { load, Hippocampus } from "gpbacay-arcane/web";
@@ -104,7 +104,14 @@ await hippocampus.run("rate spirited away 5 stars", tools);
 hippocampus.react("charged again?"); // the memory's vote alone, no model call
 hippocampus.forget("thanks, that's all");
 
-const saved = JSON.stringify(hippocampus); // [{ text, label, arguments }]
+// Let it decide what to keep: give it an outcome (a correction, a tool that ran) and it stores only what is surprising
+await hippocampus.observe("my card was declined", "billing");              // stored, or null if already decided confidently
+await hippocampus.observe("refund my invoice", "billing", null, 0.6);     // trust 0.6: stored once evidence reaches threshold (1)
+// observe(text, label, args, trust, decisionLabels): the 5th argument is the decision space it judges over (default: every label)
+// new Hippocampus(model, { maxSize: 5000 }) forgets the oldest observed example past the cap; remembered ones stay,
+// and observe never overwrites an example you remember()ed
+
+const saved = JSON.stringify(hippocampus); // [{ text, label, arguments, source }] (source: "auto" for observed examples)
 new Hippocampus(agent, { memory: JSON.parse(saved) }); // also accepts Python's hippocampus.graph.to_json()
 ```
 

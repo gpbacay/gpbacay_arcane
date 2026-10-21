@@ -46,7 +46,7 @@ _NUMBER = r"-?\d+(?:[.,]\d+)*|" + "|".join(sorted(_WORD_NUMBERS, key=len, revers
 
 
 def _doc_id(text: str) -> str:
-    return MEMORY_PREFIX + hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+    return MEMORY_PREFIX + hashlib.sha1(" ".join(text.lower().split()).encode("utf-8")).hexdigest()[:12]
 
 
 def _template(text: str, arguments: Dict[str, Any], params: Dict[str, Any]):
@@ -105,13 +105,26 @@ class Hippocampus:
         graph: where examples live; a new lexical ``DocumentGraph`` by default.
         k: neighbors that vote.
         weight: share of a ``classify`` distribution given to the vote when any neighbor is found.
+        max_size: cap on remembered examples; ``observe`` evicts its own oldest writes past it
+            (``remember``ed examples are never evicted). ``None`` = unbounded.
+        confident: ``observe`` skips an example the memory and model already decide this confidently.
+        threshold: ``observe`` commits a candidate once its accumulated trust reaches ``threshold``.
+        leak: share of every pending candidate's evidence lost per ``observe`` call (leaky integrate-and-fire).
+            ``0`` keeps evidence until it is cancelled or pushed out; set it to about 1 / the calls between
+            repeats of a text to make old evidence count for less.
+        max_pending: candidates kept while they gather evidence; the stalest is dropped past it.
     """
 
-    def __init__(self, model: Any = None, graph: Optional[DocumentGraph] = None, k: int = 8, weight: float = 0.5):
+    def __init__(self, model: Any = None, graph: Optional[DocumentGraph] = None, k: int = 8, weight: float = 0.5,
+                 max_size: Optional[int] = None, confident: float = 0.8, threshold: float = 1.0, leak: float = 0.0,
+                 max_pending: int = 10000):
         self.model, self.k, self.weight = model, k, weight
+        self.max_size, self.confident, self.threshold, self.leak = max_size, confident, threshold, leak
+        self.max_pending = max_pending
         self.graph = graph if graph is not None else DocumentGraph(semantic_neighbors=0)
         self._label: Dict[str, Optional[str]] = {}
         self._by_label: Dict[Optional[str], Set[str]] = {}
+        self._pending: Dict[str, Dict[Optional[str], float]] = {}  # doc_id -> label -> potential
         for d, doc in self.graph.docs.items():  # a loaded graph brings its memory with it
             if d.startswith(MEMORY_PREFIX):
                 self._index(d, doc["description"] or None)
@@ -124,18 +137,84 @@ class Hippocampus:
         each argument sits in a request. Remembering the same text again replaces it, so corrections
         overwrite mistakes.
         """
+        return self._store(text, label, arguments, "manual")
+
+    def _store(self, text: str, label: Optional[str], arguments: Optional[Dict[str, Any]], source: str) -> str:
         if not text.strip():
             raise ValueError("remember() needs non-empty text")  # an empty node would index the label instead
         doc_id = _doc_id(text)
         self.forget(text)
         self.graph.add_document(text, "", doc_id=doc_id, description=label or "")
+        doc = self.graph.docs[doc_id]
+        doc["source"] = source  # saved by to_json with the document
         if arguments:
-            self.graph.docs[doc_id]["arguments"] = dict(arguments)  # saved by to_json with the document
+            doc["arguments"] = dict(arguments)
         self._index(doc_id, label or None)
         return doc_id
 
+    def observe(self, text: str, label: Optional[str], arguments: Optional[Dict[str, Any]] = None,
+                trust: float = 1.0, labels: Optional[Sequence[str]] = None, **model_kwargs) -> Optional[str]:
+        """Learn from an outcome: ``label`` is what turned out right for ``text`` (a user correction, a tool
+        that ran, a ground truth). Returns the new example's id, or ``None`` when nothing was stored.
+
+        Stores only what the memory (with its model) does not already decide confidently, so it grows
+        where the model is weak. ``labels`` is the decision space that judgment is made over (default: every
+        label in the memory); give it when the memory holds examples for other decisions. ``trust`` (0..1+)
+        is the outcome's reliability; evidence for the same text and label accumulates, decays by ``leak``
+        per call, is cancelled by evidence for another label, and commits at ``threshold``, so a noisy
+        signal must repeat before it becomes memory. The default ``trust=1.0`` commits at once. Past
+        ``max_size`` the oldest ``observe``d example is forgotten. An example you ``remember``ed is never
+        overwritten here (``None`` is returned); change it with ``remember`` or ``forget``. Extra keyword
+        arguments go to the model, as in ``classify``.
+        """
+        existing = self.graph.docs.get(_doc_id(text))
+        if existing and existing.get("source", "manual") == "manual":
+            return None
+        space = None if labels is None else [str(x) for x in dict.fromkeys(labels)]
+        if space is None:
+            space = [lab for lab in self._by_label if lab]
+        if label and label not in space:
+            space.append(label)
+        if label is None or len(space) < 2:  # a model's choice among fewer than two labels says nothing
+            seen = self.react(text, None if labels is None else space)["votes"].get(label or None, 0.0)
+        else:
+            seen = self.classify(text, space, **model_kwargs)["distribution"].get(label, 0.0)
+        if self.leak:  # ponytail: O(pending) per call; only paid when a leak is asked for
+            decayed = {d: {lab: v * (1 - self.leak) for lab, v in c.items() if v * (1 - self.leak) > 0.01}
+                       for d, c in self._pending.items()}
+            self._pending = {d: c for d, c in decayed.items() if c}
+        if seen >= self.confident:
+            return None
+        doc_id = _doc_id(text)
+        if doc_id not in self._pending and len(self._pending) >= self.max_pending:
+            del self._pending[next(iter(self._pending))]  # the stalest candidate
+        cands = self._pending.setdefault(doc_id, {})
+        for lab in list(cands):
+            if lab != (label or None):
+                cands[lab] -= trust  # contradicting evidence
+                if cands[lab] <= 0.01:
+                    del cands[lab]
+        cands[label or None] = cands.get(label or None, 0.0) + trust
+        if cands[label or None] < self.threshold:
+            return None
+        self._store(text, label, arguments, "auto")  # also clears the pending candidates for this text
+        self._evict(keep=doc_id)
+        return doc_id
+
+    def _evict(self, keep: str) -> None:
+        """Drop the oldest ``observe``d examples past ``max_size``. Tried and dropped: scoring examples by how
+        often a neighbor lookup agreed with the outcome; it did no better than FIFO or random eviction."""
+        # ponytail: O(memory) scan per eviction; keep a queue of auto ids if max_size gets large
+        while self.max_size and len(self._label) > self.max_size:
+            victim = next((d for d in self._label if d != keep and self.graph.docs[d].get("source") == "auto"), None)
+            if victim is None:
+                return  # only manual examples left: they are never evicted
+            self._by_label[self._label.pop(victim)].discard(victim)
+            self.graph.remove_document(victim)
+
     def forget(self, text: str) -> bool:
         doc_id = _doc_id(text)
+        self._pending.pop(doc_id, None)
         if doc_id in self._label:
             self._by_label[self._label.pop(doc_id)].discard(doc_id)
         return self.graph.remove_document(doc_id)

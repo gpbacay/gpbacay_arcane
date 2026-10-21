@@ -340,6 +340,17 @@ hippocampus.forget("thanks, that's all")                             # re-rememb
 - **Dynamic.** `remember` / `forget` take effect immediately. Labels and tools are given per request, and
   `to_json` / `from_json` save the memory, arguments included, with the graph (examples are documents with
   ids starting `memory-`).
+- **Decides what to remember (Python).** `observe(text, label, trust=1.0)` is the automatic alternative to
+  `remember`: give it the outcome (a user correction, a tool that ran, a ground truth) and it stores the
+  example only if the memory and model don't already decide it confidently, judged over `labels=` (default:
+  every label in the memory; `System1.observe` uses its decision space). `observe` never overwrites an
+  example you `remember`ed. `trust` weighs the signal;
+  evidence for the same text and label accumulates, is cancelled by evidence for another label, and commits
+  at `threshold` (integrate-and-fire), so a weak or noisy signal has to repeat before it becomes memory.
+  With the defaults it commits at once. `leak` (off by default) makes old evidence fade by that share per
+  call; `max_pending` bounds the candidates waiting for more evidence. `max_size` caps the memory by
+  forgetting the oldest `observe`d example; examples you `remember` are never evicted. `remember` and `forget` stay as
+  the manual override. It needs an outcome signal. The JavaScript port has it too (`await hippocampus.observe(...)`).
 - **Scalable.** Inserts don't scan the memory. The default graph skips semantic links, which on CLINC150
   lowered accuracy and cost 15 ms per insert at 15k examples. Lookups touch only examples that share words
   with the request.
@@ -373,6 +384,23 @@ more, and a phrasing no example covers falls back to ARC 1's own argument copyin
 Memory only, all 150 CLINC150 intents with 15,000 examples: 80.6% (150-way), 0.13 ms per insert, 3.4 ms
 median / 11 ms p90 per decision on a busy laptop CPU. Retrieval is lexical; ARC 1's embeddings as
 `DocumentGraph(embed=...)` did not meaningfully help on CLINC150.
+
+`python examples/benchmark_hippocampus.py --policy` compares `remember` alone with `observe` (memory only,
+CLINC150 150-way, 3,000 training examples in a shuffled stream, mean of 3 seeds, 1,000 test utterances):
+
+| Training stream | `remember` | `observe` |
+|---|---|---|
+| Clean labels | 3,000 examples, 74.0% | 2,513 examples, 74.2% |
+| Clean, budget of 1,500 examples | random subset: 68.3% | `max_size=1500`: 69.2% |
+| 20% wrong labels, each text seen 3 times | 3,000 examples, 71.0% | 1,977 examples, 70.9% (`trust=0.5`, `threshold=0.9`) |
+
+`observe` keeps accuracy with about 16% fewer examples on clean labels, and does a little better than a random
+subset under a memory budget (ahead in all 3 seeds, by about a point). On noisy labels it matches `remember`
+with 34% fewer examples; it has no accuracy advantage there, so don't expect it to filter bad feedback.
+Scoring examples by how often a lookup agreed with the outcome did no better than evicting the oldest, so
+eviction is plain FIFO. `leak` is off because it has to match the gap between repeats of a text: on this
+stream `leak=0.01` stored 32 examples at 10.5% accuracy and a tuned `5e-5` scored 70.2%, below no leak at all.
+The old `remember` path scores the same as before this change (74.0% vs 74.5% on the clean stream).
 
 ### Distilling Qwen2.5-0.5B into ARCANE
 

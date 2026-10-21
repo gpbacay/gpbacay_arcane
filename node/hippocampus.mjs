@@ -41,6 +41,7 @@ const OPEN_VALUE = `(?=${W})(?:(?!${WB}${JOINER})[^.,;!?\\n])+?`; // a value at 
 const NUMBER = "-?\\d+(?:[.,]\\d+)*|" + Object.keys(WORD_NUMBERS).sort((a, b) => b.length - a.length).join("|");
 const NUMERIC = ["integer", "int", "number", "float"];
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+const norm = (text) => text.toLowerCase().split(/\s+/).filter(Boolean).join(" "); // an example's id: case and spacing don't matter
 
 /** { re, keys, fixed } for a remembered request, or null if it has no words. Argument values found in the text
  *  become slots typed by their parameter; values not in it (booleans, presets) are fixed by the pattern's words. */
@@ -81,23 +82,32 @@ function template(text, args, params) {
 export class Hippocampus {
   /**
    * @param {object|function|null} model see the header; null decides from memory alone.
-   * @param {{ k?: number, weight?: number, memory?: object[]|object }} [options]
+   * @param {{ k?: number, weight?: number, memory?: object[]|object, maxSize?: number|null, confident?: number,
+   *   threshold?: number, leak?: number, maxPending?: number }} [options]
    *   k: neighbors that vote. weight: share of a classify distribution given to the vote when any neighbor is found.
+   *   maxSize: cap on remembered examples; observe() evicts its own oldest writes past it (remembered ones never go).
+   *   confident: observe() skips an example the memory and model already decide this confidently.
+   *   threshold, leak, maxPending: observe() commits a candidate once its accumulated trust reaches threshold; leak is
+   *   the share of every pending candidate's evidence lost per observe() call (0 = kept until cancelled or pushed
+   *   out; about 1 / the calls between repeats of a text makes old evidence count for less); the stalest of
+   *   maxPending candidates is dropped past it.
    *   memory: examples to start with: toJSON() output ([{ text, label, arguments }], the same shape as the ARC 1
    *   server's `memory` field) or a Python graph.to_json() (graph-of-thought v2).
    */
-  constructor(model = null, { k = 8, weight = 0.5, memory = [] } = {}) {
-    Object.assign(this, { model, k, weight });
-    this._examples = new Map(); // remembered text -> { text, label, arguments, tf, len }
-    this._postings = new Map(); // term -> Map(remembered text -> term count)
+  constructor(model = null, { k = 8, weight = 0.5, memory = [], maxSize = null, confident = 0.8, threshold = 1, leak = 0, maxPending = 10000 } = {}) {
+    Object.assign(this, { model, k, weight, maxSize, confident, threshold, leak, maxPending });
+    this._examples = new Map(); // norm(text) -> { text, label, arguments, source, tf, len }
+    this._postings = new Map(); // term -> Map(norm(text) -> term count)
+    this._labels = new Map(); // label -> number of examples
+    this._pending = new Map(); // norm(text) -> Map(label -> accumulated trust)
     let examples = memory;
     if (!Array.isArray(memory)) {
       if (memory.format !== "graph-of-thought" || memory.version !== 2) throw new Error("memory must be an array of examples or a graph-of-thought v2 graph");
       const content = new Map(memory.nodes.map((n) => [n.nodeId, n.content]));
       examples = memory.documents.filter((d) => d.docId.startsWith("memory-"))
-        .map((d) => ({ text: content.get(d.rootId), label: d.description || null, arguments: d.arguments }));
+        .map((d) => ({ text: content.get(d.rootId), label: d.description || null, arguments: d.arguments, source: d.source }));
     }
-    for (const ex of examples) this.remember(ex.text, ex.label, ex.arguments);
+    for (const ex of examples) this._store(ex.text, ex.label, ex.arguments, ex.source ?? "manual");
   }
 
   // ----------------------------------------------------------------- memory
@@ -105,32 +115,100 @@ export class Hippocampus {
    *  call's arguments; values that appear in `text` teach where each argument sits. Remembering the same text
    *  again replaces it, so corrections overwrite mistakes. */
   remember(text, label, args = null) {
+    return this._store(text, label, args, "manual");
+  }
+
+  _store(text, label, args, source) {
     if (!String(text ?? "").trim()) throw new Error("remember() needs non-empty text");
-    this.forget(text);
+    const id = norm(text);
+    this._remove(id);
     // ponytail: one node per example; Python splits markdown headings and >2000-char texts into sections
     const tf = new Map();
     for (const t of tokenize(text.trim())) tf.set(t, (tf.get(t) || 0) + 1);
-    this._examples.set(text, { text: text.trim(), label: label || null, arguments: args ? { ...args } : undefined, tf, len: [...tf.values()].reduce((a, b) => a + b, 0) });
+    this._examples.set(id, { text: text.trim(), label: label || null, arguments: args ? { ...args } : undefined, source, tf, len: [...tf.values()].reduce((a, b) => a + b, 0) });
+    this._labels.set(label || null, (this._labels.get(label || null) || 0) + 1);
     for (const [t, c] of tf) {
       if (!this._postings.has(t)) this._postings.set(t, new Map());
-      this._postings.get(t).set(text, c);
+      this._postings.get(t).set(id, c);
+    }
+    return id;
+  }
+
+  /** Learn from an outcome: `label` is what turned out right for `text` (a user correction, a tool that ran, a
+   *  ground truth). Returns the new example's id, or null when nothing was stored.
+   *
+   *  Stores only what the memory (with its model) does not already decide confidently, so it grows where the model
+   *  is weak. `trust` (0..1+) is the outcome's reliability; evidence for the same text and label accumulates, decays
+   *  by `leak` per call, is cancelled by evidence for another label, and commits at `threshold`, so a noisy signal
+   *  must repeat before it becomes memory. The default trust of 1 commits at once. Past `maxSize` the oldest
+   *  observed example is forgotten. An example you remember()ed is never overwritten here (null is returned).
+   *  `decisionLabels` is the decision space the "already decided" judgment is made
+   *  over (default: every label in the memory); give it when the memory holds examples for other decisions.
+   *  `opts` go to the model, as in classify(). */
+  async observe(text, label, args = null, trust = 1, decisionLabels = null, opts = {}) {
+    label = label || null;
+    if (this._examples.get(norm(text))?.source === "manual") return null; // only remember()/forget() change a remembered example
+    const space = decisionLabels ? [...new Set(decisionLabels.map(String))] : [...this._labels.keys()].filter(Boolean);
+    if (label && !space.includes(label)) space.push(label);
+    const seen = label === null || space.length < 2 // a model's choice among fewer than two labels says nothing
+      ? this._vote(text, decisionLabels ? space : null).votes.get(label) ?? 0
+      : (await this.classify(text, space, opts)).distribution[label] ?? 0;
+    if (this.leak) {
+      for (const [id, cands] of this._pending) {
+        for (const [lab, v] of cands) v * (1 - this.leak) > 0.01 ? cands.set(lab, v * (1 - this.leak)) : cands.delete(lab);
+        if (!cands.size) this._pending.delete(id);
+      }
+    }
+    if (seen >= this.confident) return null;
+    const id = norm(text);
+    if (!this._pending.has(id) && this._pending.size >= this.maxPending) this._pending.delete(this._pending.keys().next().value); // the stalest
+    if (!this._pending.has(id)) this._pending.set(id, new Map());
+    const cands = this._pending.get(id);
+    for (const [lab, v] of [...cands]) {
+      if (lab === label) continue;
+      if (v - trust <= 0.01) cands.delete(lab); // contradicting evidence
+      else cands.set(lab, v - trust);
+    }
+    cands.set(label, (cands.get(label) ?? 0) + trust);
+    if (cands.get(label) < this.threshold) return null;
+    this._store(text, label, args, "auto"); // also clears the pending candidates for this text
+    this._evict(id);
+    return id;
+  }
+
+  _evict(keep) {
+    // ponytail: O(memory) scan per eviction; keep a queue of auto ids if maxSize gets large
+    while (this.maxSize && this._examples.size > this.maxSize) {
+      const victim = [...this._examples].find(([id, ex]) => id !== keep && ex.source === "auto")?.[0];
+      if (victim === undefined) return; // only remembered examples left: they are never evicted
+      this._remove(victim);
     }
   }
 
   forget(text) {
-    const ex = this._examples.get(text);
+    return this._remove(norm(text));
+  }
+
+  _remove(id) {
+    this._pending.delete(id);
+    const ex = this._examples.get(id);
     if (!ex) return false;
     for (const t of ex.tf.keys()) {
       const post = this._postings.get(t);
-      post.delete(text);
+      post.delete(id);
       if (!post.size) this._postings.delete(t);
     }
-    return this._examples.delete(text);
+    const n = this._labels.get(ex.label) - 1;
+    if (n) this._labels.set(ex.label, n);
+    else this._labels.delete(ex.label);
+    return this._examples.delete(id);
   }
 
-  /** Every remembered example as [{ text, label, arguments }]; JSON.stringify(hippocampus) saves the memory. */
+  /** Every remembered example as [{ text, label, arguments, source }] (arguments only for tools, source only for
+   *  observed examples); JSON.stringify(hippocampus) saves the memory. */
   toJSON() {
-    return [...this._examples.values()].map(({ text, label, arguments: a }) => (a ? { text, label, arguments: a } : { text, label }));
+    return [...this._examples.values()].map(({ text, label, arguments: a, source }) =>
+      ({ text, label, ...(a && { arguments: a }), ...(source === "auto" && { source }) }));
   }
 
   // -------------------------------------------------------------- retrieval

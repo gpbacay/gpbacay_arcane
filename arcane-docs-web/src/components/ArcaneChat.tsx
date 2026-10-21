@@ -190,7 +190,9 @@ export function ArcaneChat() {
       }
     } else {
       const docs = answerDocs(text, route);
-      if (docs.pageId) rememberTurn(asked, docs.pageId);
+      // The keyword rules alone are the outcome. The page from `route` came out of the memory, so learning it would reinforce itself.
+      const byRules = answerDocs(text).pageId;
+      if (byRules) rememberTurn(asked, byRules);
       const offline = modelId !== DOCS_MODEL ? `${model?.label ?? "That model"} is offline, so this reply comes from the docs. ` : "";
       message = { id: crypto.randomUUID(), role: "assistant", text: docs.text, pageId: docs.pageId, trace: `${offline}${routeTrace(route)}` };
     }

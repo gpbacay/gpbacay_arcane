@@ -88,6 +88,76 @@ h.remember("Inception deserves 3 stars", "rate_movie", { title: "Inception", sta
 out = await h.run("Parasite deserves 5 stars", [RATE, PODCAST]);
 assert.deepStrictEqual(out.function_calls, [{ name: "rate_movie", arguments: { title: "Parasite", stars: 5 } }]);
 assert.equal((await h.run("play Serial", [RATE, PODCAST])).function_calls[0].name, "play_podcast");
+// observe stores only what is surprising
+h = new Hippocampus();
+assert.ok(await h.observe("I was charged twice", "billing")); // nothing known: stored
+assert.equal(await h.observe("  I WAS charged   twice ", "billing"), null); // same text, already decided: skipped
+assert.ok(await h.observe("track my delivery", "shipping"));
+assert.equal(h.toJSON().length, 2);
+assert.ok(await h.observe("I was charged twice", "fraud")); // the outcome disagrees: corrected, not duplicated
+assert.equal(h.toJSON().length, 2);
+assert.equal((await h.classify("charged twice", ["billing", "fraud"])).label, "fraud");
+assert.ok(await new Hippocampus(stub).observe("my parcel never arrived", "shipping")); // model unsure (0.7) and no memory
+
+// observe judges over the given decision space and spares remembered examples
+const alphaBeta = () => {
+  const m = new Hippocampus();
+  m.remember("alpha beta", "x");
+  m.remember("alpha beta gamma delta epsilon", "o");
+  m.remember("alpha beta gamma zeta", "o");
+  return m;
+};
+assert.ok(await alphaBeta().observe("alpha beta gamma", "x")); // among x and o, memory leans o: surprising
+assert.equal(await alphaBeta().observe("alpha beta gamma", "x", null, 1, ["x", "z"]), null); // o is another decision
+h = alphaBeta();
+assert.equal(await h.observe("alpha beta", "z"), null); // remembered: untouched
+assert.deepStrictEqual(h.react("alpha beta", ["x"]).votes, { x: 1 });
+h.forget("alpha beta");
+assert.ok(await h.observe("alpha beta", "z")); // forgotten first, then observe may write
+
+// observe needs repeated trusted evidence to commit
+h = new Hippocampus(null, { threshold: 1, leak: 0.5 });
+const evidence = (label) => h.observe("refund my invoice", label, null, 0.6);
+assert.equal(await evidence("billing"), null); // 0.6
+assert.equal(await evidence("shipping"), null); // billing decays to 0.3, then is cancelled
+assert.equal(await evidence("billing"), null); // shipping cancelled, billing starts over
+assert.equal(await evidence("billing"), null); // 0.3 + 0.6 = 0.9 < 1
+assert.equal(h.toJSON().length, 0);
+assert.ok(await evidence("billing")); // 0.45 + 0.6 >= 1: committed
+assert.deepStrictEqual(h.toJSON().map((e) => e.label), ["billing"]);
+
+// pending evidence does not decay by default and is bounded
+for (const [options, commits] of [[{ maxPending: 2 }, false], [{}, true]]) {
+  h = new Hippocampus(null, options);
+  await h.observe("refund my invoice", "billing", null, 0.6);
+  for (let i = 0; i < 50; i++) await h.observe(`unrelated filler number ${i} zzz${i}`, "other", null, 0.1);
+  assert.equal((await h.observe("refund my invoice", "billing", null, 0.6)) !== null, commits); // maxPending=2 pushed it out
+}
+
+// eviction spares remembered examples and drops the oldest observed
+h = new Hippocampus(null, { maxSize: 3 });
+h.remember("pinned example one", "a");
+await h.observe("alpha beta gamma", "a");
+await h.observe("delta epsilon zeta", "b");
+await h.observe("eta theta iota", "c"); // over the cap: the oldest observed example goes
+assert.equal(h.toJSON().length, 3);
+assert.deepStrictEqual(h.react("alpha beta gamma").votes, {});
+assert.deepStrictEqual(h.react("delta epsilon zeta").votes, { b: 1 });
+assert.deepStrictEqual(h.react("pinned example one").votes, { a: 1 });
+const capped = new Hippocampus(null, { maxSize: 1 });
+capped.remember("one", "a");
+capped.remember("two", "b");
+assert.equal(capped.toJSON().length, 2); // remember is never capped
+
+// observed examples keep their source through save and load
+h = new Hippocampus();
+await h.observe("I was charged twice", "billing");
+h.remember("track my delivery", "shipping");
+const saved = JSON.parse(JSON.stringify(h));
+assert.deepStrictEqual(saved.map((e) => e.source), ["auto", undefined]);
+const loaded = new Hippocampus(null, { memory: saved, maxSize: 2 });
+await loaded.observe("alpha beta gamma", "c"); // over the cap: the loaded observed example is the one to go
+assert.deepStrictEqual(loaded.toJSON().map((e) => e.text), ["track my delivery", "alpha beta gamma"]);
 console.log("hippocampus ok");
 
 // on ARC 1 itself: a tool arc1-tiny was never trained on fires and gets its arguments from two examples

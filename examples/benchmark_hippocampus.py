@@ -85,11 +85,57 @@ def scale(shots=100, n=1000):
             "classify_ms_p90": round(float(np.percentile(lat, 90)), 2)}
 
 
+def policy(shots=20, n=1000, noise=0.2, repeats=3, seeds=(0, 1, 2)):
+    """Memory only, CLINC150 150-way, mean over ``seeds``: ``remember`` alone vs ``observe``.
+
+    Clean: each train utterance once, shuffled, with its true label. ``remember`` has no policy, so under a
+    memory budget it can only keep a random subset; ``observe`` decides itself and caps at the same size.
+    Noisy: every utterance is seen ``repeats`` times in a shuffled stream and each sighting's label is
+    independently wrong with probability ``noise`` (``remember`` keeps whichever sighting came last).
+    """
+    data = json.load(open(CLINC, encoding="utf-8"))
+    by = {}
+    for t, lab in data["train"]:
+        by.setdefault(lab, []).append(t)
+    labels, rows = sorted(by), {}
+
+    def run(name, memory, feed, source, test):
+        for t, lab in source:
+            feed(memory, t, lab)
+        acc = float(np.mean([memory.classify(t, labels)["label"] == lab for t, lab in test]))
+        rows.setdefault(name, []).append((len(memory.labels()), acc))
+
+    remember = lambda m, t, lab: m.remember(t, lab)
+    observe = lambda m, t, lab: m.observe(t, lab)
+    for seed in seeds:
+        rng = random.Random(seed)
+        pairs = [(t, lab) for lab, ts in by.items() for t in rng.sample(ts, min(shots, len(ts)))]
+        rng.shuffle(pairs)
+        test, budget = random.Random(seed + 100).sample(data["test"], n), len(pairs) // 2
+        wrong = lambda lab: rng.choice([x for x in labels if x != lab]) if rng.random() < noise else lab
+        stream = [(t, wrong(lab)) for t, lab in pairs for _ in range(repeats)]
+        rng.shuffle(stream)
+        run("clean: remember all", Hippocampus(), remember, pairs, test)
+        run("clean: observe", Hippocampus(), observe, pairs, test)
+        run(f"clean, budget {budget}: remember a random subset", Hippocampus(), remember, rng.sample(pairs, budget), test)
+        run(f"clean, budget {budget}: observe, max_size", Hippocampus(max_size=budget), observe, pairs, test)
+        run(f"noisy {noise}: remember all", Hippocampus(), remember, stream, test)
+        run(f"noisy {noise}: observe trust=.5", Hippocampus(threshold=0.9),
+            lambda m, t, lab: m.observe(t, lab, trust=0.5), stream, test)
+    return {k: {"examples": round(float(np.mean([r[0] for r in v]))), "accuracy": round(float(np.mean([r[1] for r in v])), 3),
+                "per_seed": [round(r[1], 3) for r in v]} for k, v in rows.items()}
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--shots", type=int, nargs="+", default=[5])
     ap.add_argument("-n", type=int, default=600)
+    ap.add_argument("--policy", action="store_true", help="only compare remember-all with observe (no ARC 1 needed)")
     a = ap.parse_args()
+    if a.policy:
+        for k, v in policy().items():
+            print(f"{k}: {json.dumps(v)}", flush=True)
+        sys.exit()
     if os.path.exists(CLINC):
         print("scale, memory only, CLINC150 150-way:", json.dumps(scale()), flush=True)
     agent = load_arc1()

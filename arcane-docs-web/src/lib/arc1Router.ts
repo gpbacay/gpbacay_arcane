@@ -3,11 +3,16 @@
  * Until then, retrieval is memory only.
  */
 import { Hippocampus } from "gpbacay-arcane/hippocampus";
-import { EXAMPLES, decide, type ChatRoute, type Classifier } from "./docsChat";
+import { EXAMPLES, PAGES, decide, type ChatRoute, type Classifier } from "./docsChat";
 
 type Arc1 = Classifier;
 
-let hippo: Hippocampus = new Hippocampus(null, { k: 8, weight: 0.7, memory: EXAMPLES });
+const PAGE_IDS = PAGES.map((page) => page.id);
+// The docs examples are remembered by hand and stay. Past this many turns learned by observe(), the oldest goes.
+const LEARNED_TURNS = 100;
+const OPTIONS = { k: 8, weight: 0.7, maxSize: EXAMPLES.length + LEARNED_TURNS };
+
+let hippo: Hippocampus = new Hippocampus(null, { ...OPTIONS, memory: EXAMPLES });
 let loading: Promise<void> | null = null;
 let modelReady = false;
 let status: "idle" | "loading" | "ready" | "error" = "idle";
@@ -40,7 +45,7 @@ export function warmArc1(): void {
       }),
     ]);
     const agent: Arc1 = await load({ model: new Uint8Array(model), config });
-    hippo = new Hippocampus(agent, { k: 8, weight: 0.7, memory: hippo.toJSON() });
+    hippo = new Hippocampus(agent, { ...OPTIONS, memory: hippo.toJSON() });
     modelReady = true;
     setStatus("ready");
   })().catch((error) => {
@@ -50,9 +55,11 @@ export function warmArc1(): void {
   });
 }
 
-export function rememberTurn(text: string, label: string): void {
+/** `pageId` is what an outcome outside the memory says this question was about. It is kept only if the memory
+ *  (with ARC 1) would not already recall that page for it. */
+export function rememberTurn(text: string, pageId: string): void {
   if (!text.trim()) return;
-  hippo.remember(text, label);
+  hippo.observe(text, pageId, null, 1, PAGE_IDS).catch((error) => console.warn("[ARC 1] could not learn this turn:", error));
 }
 
 export async function routeWithArc1(text: string): Promise<ChatRoute | null> {

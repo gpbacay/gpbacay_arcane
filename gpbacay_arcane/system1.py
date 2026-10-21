@@ -336,6 +336,13 @@ class System1:
             raise ValueError(f"{label!r} is outside the decision space")
         return self.memory.remember(cue, label, arguments)
 
+    def observe(self, cue: str, label: Optional[str], arguments: Optional[Dict[str, Any]] = None,
+                trust: float = 1.0) -> Optional[str]:
+        """Learn from an outcome: the memory keeps it only if it is surprising and trusted enough."""
+        if label is not None and label not in self.decisions.labels:
+            raise ValueError(f"{label!r} is outside the decision space")
+        return self.memory.observe(cue, label, arguments, trust, labels=self.decisions.labels)
+
     def forget(self, cue: str) -> bool:
         """Remove a previously remembered example."""
         return self.memory.forget(cue)

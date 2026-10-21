@@ -22,6 +22,8 @@ import {
   Search,
   ShoppingBag,
   Tags,
+  ThumbsDown,
+  ThumbsUp,
   X,
 } from "lucide-react";
 
@@ -45,10 +47,13 @@ type Health = {
   layers?: number;
   error?: string | null;
   hippocampus?: boolean;
+  /** The server can say whether a confirmed decision is worth remembering (thumbs up). */
+  observe?: boolean;
 };
 
-/** A decided example in Hippocampus's memory: a class label or tool name (null = no tool applies). */
-type MemoryItem = { text: string; label: string | null; arguments?: Record<string, unknown> };
+/** A decided example in Hippocampus's memory: a class label or tool name (null = no tool applies).
+ *  `source: "auto"` marks one Hippocampus chose to keep after a thumbs up. */
+type MemoryItem = { text: string; label: string | null; arguments?: Record<string, unknown>; source?: "auto" };
 
 type Neighbor = { text: string; label: string | null; score: number };
 
@@ -710,6 +715,7 @@ function MemoryPanel({
                 <span className="text-zinc-200">{m.text}</span>
                 <span className="text-zinc-600"> → </span>
                 <code className="break-words text-[#C785F2]">{describeMemory(m)}</code>
+                {m.source === "auto" && <span className="text-zinc-600"> · learned from your thumbs up</span>}
               </span>
               <button
                 type="button"
@@ -798,6 +804,9 @@ export function Arc1Demo() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [ranText, setRanText] = useState("");
+  // The reply to a thumbs up or down on the current result.
+  const [feedback, setFeedback] = useState<{ vote: "up" | "down"; note: string } | null>(null);
+  const [voting, setVoting] = useState(false);
   const [state, setState] = useState<Record<string, string>>({});
   const [labels, setLabels] = useState<string[]>([]);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -862,6 +871,8 @@ export function Arc1Demo() {
     setInput(next.prompts[0] || "");
     setLabels(next.labels || []);
     setResult(null);
+    setFeedback(null);
+    setDraft(EMPTY_DRAFT);
     setError(null);
     setState({});
   }, []);
@@ -923,6 +934,7 @@ export function Arc1Demo() {
     }
     setSending(true);
     setError(null);
+    setFeedback(null);
     try {
       const isRun = scene.mode === "run";
       const withMemory = hippocampusOn ? { memory } : {};
@@ -995,6 +1007,73 @@ export function Arc1Demo() {
 
   const offline = !checking && !health?.ready;
   const callJson = calls.length ? JSON.stringify(calls, null, 2) : "";
+
+  // Open the memory form on the call ARC 1 made, so it can be corrected and remembered.
+  const prefillCorrection = () => {
+    const call = calls[0];
+    setDraft({
+      text: ranText,
+      label: call?.name ?? "",
+      args: Object.fromEntries(Object.entries(call?.arguments ?? {}).map(([k, v]) => [k, String(v)])),
+    });
+    memoryTextRef.current?.focus();
+  };
+
+  // Thumbs up: the decision was right, so Hippocampus (asked through the server, which has ARC 1) keeps it only
+  // if it would not already decide this confidently. Thumbs down: a person supplies the right answer, which
+  // is remembered by hand, so it can replace a remembered example that was wrong.
+  const rate = async (vote: "up" | "down") => {
+    if (!result) return;
+    const isRun = scene.mode === "run";
+    if (vote === "down") {
+      if (isRun) prefillCorrection();
+      setFeedback({
+        vote,
+        note: isRun
+          ? "Fix the call in the memory form and remember it."
+          : "Pick the right label below and Hippocampus will remember it.",
+      });
+      return;
+    }
+    if (isRun && calls.length > 1) {
+      setFeedback({ vote, note: "This request made several calls. Remember each one by hand." });
+      return;
+    }
+    const call = calls[0];
+    const label = isRun ? (call?.name ?? null) : (result.label ?? null);
+    if (!isRun && !label) return;
+    const args = isRun && call && Object.keys(call.arguments).length ? call.arguments : undefined;
+    setVoting(true);
+    try {
+      const res = await fetch("/api/arc1-observe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: ranText,
+          label,
+          ...(args ? { arguments: args } : {}),
+          labels: isRun ? scene.tools.map((t) => t.name) : labelNames,
+          ...(scene.mode === "classify"
+            ? { task: scene.task, descriptions: Object.fromEntries(labels.map(splitLabel).filter(([, d]) => d)) }
+            : {}),
+          memory,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : res.statusText);
+      if (data.stored) remember({ text: ranText, label, ...(args ? { arguments: args } : {}), source: "auto" });
+      setFeedback({
+        vote,
+        note: data.stored
+          ? "Thanks. ARC 1 was not sure of this one, so Hippocampus remembered it."
+          : "Thanks. ARC 1 already decides this confidently (or you taught it), so there was nothing new to remember.",
+      });
+    } catch (e) {
+      setFeedback({ vote, note: e instanceof Error ? e.message : "The feedback could not be sent." });
+    } finally {
+      setVoting(false);
+    }
+  };
 
   return (
     <section
@@ -1240,6 +1319,38 @@ export function Arc1Demo() {
                         No remembered example shares words with this text, so ARC 1 decided alone.
                       </p>
                     )}
+                    {health?.observe && (
+                      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
+                        <span className="mr-1">Was this right?</span>
+                        {(
+                          [
+                            { vote: "up", Icon: ThumbsUp, label: "Yes, this was right" },
+                            { vote: "down", Icon: ThumbsDown, label: "No, this was wrong" },
+                          ] as const
+                        ).map(({ vote, Icon, label }) => (
+                          <button
+                            key={vote}
+                            type="button"
+                            aria-label={label}
+                            aria-pressed={feedback?.vote === vote}
+                            disabled={voting}
+                            onClick={() => void rate(vote)}
+                            className={`border p-1.5 transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2] disabled:opacity-40 ${
+                              feedback?.vote === vote
+                                ? "border-[#835BD9] bg-[#835BD9]/15 text-zinc-100"
+                                : "border-zinc-800 text-zinc-300 hover:border-[#835BD9] hover:text-white"
+                            }`}
+                          >
+                            <Icon className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                        ))}
+                        {feedback && (
+                          <span role="status" className="ml-1 text-zinc-400">
+                            {feedback.note}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
                       {scene.mode === "classify" ? (
                         <>
@@ -1258,15 +1369,7 @@ export function Arc1Demo() {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => {
-                            const call = calls[0];
-                            setDraft({
-                              text: ranText,
-                              label: call?.name ?? "",
-                              args: Object.fromEntries(Object.entries(call?.arguments ?? {}).map(([k, v]) => [k, String(v)])),
-                            });
-                            memoryTextRef.current?.focus();
-                          }}
+                          onClick={prefillCorrection}
                           className="inline-flex items-center gap-1.5 border border-zinc-800 px-2 py-1 text-zinc-300 hover:border-[#835BD9] hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
                         >
                           <Plus className="h-3.5 w-3.5" aria-hidden />
@@ -1298,7 +1401,8 @@ export function Arc1Demo() {
                 </TooltipTrigger>
                 <TooltipContent side="right" className="max-w-56 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
                   Hippocampus gives ARC 1 a memory of decided examples. Similar examples vote and show where arguments
-                  sit, so it handles new tools and labels without fine-tuning.
+                  sit, so it handles new tools and labels without fine-tuning. A thumbs up on a result lets it keep what
+                  it was unsure of.
                 </TooltipContent>
               </Tooltip>
             </legend>

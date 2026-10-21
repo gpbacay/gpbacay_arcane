@@ -403,6 +403,17 @@ class ClassifyRequest(BaseModel):
     memory: Memory = Field(default=None, max_length=MEMORY_LIMIT)
 
 
+class ObserveRequest(BaseModel):
+    """A thumbs-up: ``label`` (a class label or tool name; None = no tool) turned out right for ``text``."""
+    text: str = Field(..., min_length=1, max_length=500)
+    label: Optional[str] = Field(default=None, max_length=200)
+    arguments: Optional[Dict[str, Any]] = None
+    labels: Optional[List[str]] = Field(default=None, max_length=64)  # the decision space it is judged over
+    task: Optional[str] = Field(default=None, max_length=500)
+    descriptions: Optional[Dict[str, str]] = None
+    memory: List[MemoryExample] = Field(default_factory=list, max_length=MEMORY_LIMIT)
+
+
 class EmbedRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=2000)
     rsaa_cycles: Optional[int] = None
@@ -439,7 +450,7 @@ def health():
         "error": _state["error"],
         "model": "ARC 1",
         "hippocampus": True,  # /run and /classify accept "memory"
-
+        "observe": True,  # /observe says whether a confirmed decision is worth adding to a memory
     }
 
 
@@ -494,6 +505,19 @@ def classify(req: ClassifyRequest):
         )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"classify failed: {exc}") from exc
+
+
+@app.post("/observe")
+def observe(req: ObserveRequest):
+    """Stateless like /run: the client sends its memory, and learns the example only if ``stored`` is true."""
+    if not _state["ready"] or _agent is None:
+        raise HTTPException(status_code=503, detail=_state["error"] or "ARC 1 still loading")
+    kwargs = {k: v for k, v in (("task", req.task), ("descriptions", req.descriptions)) if v}
+    try:
+        stored = _hippocampus(req.memory).observe(req.text, req.label, req.arguments, labels=req.labels, **kwargs)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"observe failed: {exc}") from exc
+    return {"stored": stored is not None}
 
 
 @app.post("/embed")
