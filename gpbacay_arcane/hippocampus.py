@@ -25,6 +25,11 @@ Model-agnostic: ``model`` is anything below, or ``None`` for memory-only decisio
 - for tool calling, an object with ``run(prompt, tools=, tool_prior=, execute=, **kwargs)`` returning
   ``function_calls``, that combines ``tool_prior`` (tool name -> probability the tool applies) with its
   own firing decision (``Arc1Agent``).
+
+Learning without a person in the loop: give ``teacher`` a stronger, slower model (an LLM, a bigger classifier).
+When ``classify`` is not confident it asks the teacher, returns the answer and remembers it, so the next
+similar request is decided here, fast, without the teacher. Without any outside signal a memory can only echo
+its model; the teacher is that signal. ``observe`` takes outcomes from anywhere else (a rule, a tool result).
 """
 
 from __future__ import annotations
@@ -37,6 +42,7 @@ from .got import DocumentGraph
 from .tools import _WORD_NUMBERS, coerce_value, execute_tools, validate_calls_against_tools
 
 MEMORY_PREFIX = "memory-"
+AGREE = 3  # neighbors that must back a label before the memory alone counts as sure (see _decisive)
 # ponytail: English clause boundaries; a value containing "and" ("Tom and Jerry") is cut where a pattern has an open end
 _JOINER = r"(?:and|then|plus|also)\b"
 _CLAUSE_END = rf"(?=\s*(?:$|[.,;!?\n]|{_JOINER}))"
@@ -113,12 +119,15 @@ class Hippocampus:
             ``0`` keeps evidence until it is cancelled or pushed out; set it to about 1 / the calls between
             repeats of a text to make old evidence count for less.
         max_pending: candidates kept while they gather evidence; the stalest is dropped past it.
+        teacher: ``(text, labels) -> label | {label: probability} | None``, a stronger model that ``classify``
+            asks when its own decision is under ``confident`` (see the module docstring). An answer under
+            ``confident`` is not trusted. ``None`` (default) asks nobody.
     """
 
     def __init__(self, model: Any = None, graph: Optional[DocumentGraph] = None, k: int = 8, weight: float = 0.5,
                  max_size: Optional[int] = None, confident: float = 0.8, threshold: float = 1.0, leak: float = 0.0,
-                 max_pending: int = 10000):
-        self.model, self.k, self.weight = model, k, weight
+                 max_pending: int = 10000, teacher: Any = None):
+        self.model, self.k, self.weight, self.teacher = model, k, weight, teacher
         self.max_size, self.confident, self.threshold, self.leak = max_size, confident, threshold, leak
         self.max_pending = max_pending
         self.graph = graph if graph is not None else DocumentGraph(semantic_neighbors=0)
@@ -178,7 +187,7 @@ class Hippocampus:
         if label is None or len(space) < 2:  # a model's choice among fewer than two labels says nothing
             seen = self.react(text, None if labels is None else space)["votes"].get(label or None, 0.0)
         else:
-            seen = self.classify(text, space, **model_kwargs)["distribution"].get(label, 0.0)
+            seen = self._decide(text, space, **model_kwargs)["distribution"].get(label, 0.0)
         if self.leak:  # ponytail: O(pending) per call; only paid when a leak is asked for
             decayed = {d: {lab: v * (1 - self.leak) for lab, v in c.items() if v * (1 - self.leak) > 0.01}
                        for d, c in self._pending.items()}
@@ -293,8 +302,53 @@ class Hippocampus:
         Returns the model's own output fields (if any), with ``label``, ``confidence``, ``distribution``,
         ``source`` (``model``, ``memory`` or ``model+memory``) and ``neighbors`` (the evidence). With no
         model and no similar example, ``label`` is ``None``: Hippocampus abstains rather than guess.
+
+        With a ``teacher``, a decision under ``confident`` is put to it: a trusted answer becomes the result
+        (``source="teacher"``) and is remembered as an ``observe``d example, so the next similar request is
+        decided without it. If the teacher raises, the memory's own decision stands, with ``teacher_error``.
+        A text you ``remember``ed is never put to the teacher.
         """
         labels = [str(x) for x in dict.fromkeys(labels)]
+        out = self._decide(text, labels, **model_kwargs)
+        doc_id = _doc_id(text)
+        known = self.graph.docs.get(doc_id)
+        if (self.teacher is None or out["confidence"] >= self.confident or self._decisive(out)
+                or (known and known.get("source", "manual") == "manual")):
+            return out
+        try:
+            taught = self._ask_teacher(text, labels)
+        except Exception as exc:  # noqa: BLE001 - a down teacher must not take the memory down with it
+            return {**out, "teacher_error": f"{type(exc).__name__}: {exc}"}
+        if taught is None:
+            return out
+        label, dist = taught
+        self._store(text, label, None, "auto")
+        self._evict(keep=doc_id)
+        return {**out, "label": label, "confidence": dist[label], "distribution": dist, "source": "teacher"}
+
+    def _decisive(self, out: Dict[str, Any]) -> bool:
+        """The memory alone is sure: at least ``AGREE`` neighbors back the decided label and hold ``confident`` of the
+        vote. The blended confidence can't say so, since it is capped by the model's own, weak, probability."""
+        hits = out["neighbors"]
+        total = sum(h["score"] for h in hits)
+        backing = [h["score"] for h in hits if h["label"] == out["label"]]
+        return len(backing) >= AGREE and sum(backing) >= self.confident * total
+
+    def _ask_teacher(self, text: str, labels: List[str]) -> Optional[tuple]:
+        """``(label, distribution)`` from the teacher when it is confident about one of ``labels``, else ``None``."""
+        answer = self.teacher(text, labels)
+        if answer is None:
+            return None
+        dist = {str(answer): 1.0} if isinstance(answer, str) else {str(l): float(p) for l, p in dict(answer).items()}
+        dist = {lab: dist.get(lab, 0.0) for lab in labels}
+        total = sum(dist.values())
+        if total <= 0:
+            return None
+        dist = {lab: p / total for lab, p in dist.items()}
+        label = max(dist, key=dist.get)
+        return (label, dist) if dist[label] >= self.confident else None
+
+    def _decide(self, text: str, labels: List[str], **model_kwargs) -> Dict[str, Any]:
         model_dist, out = self._model_distribution(text, labels, **model_kwargs)
         memory = self.react(text, labels)
         votes = memory["votes"]

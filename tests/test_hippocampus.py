@@ -63,6 +63,67 @@ def test_memory_is_dynamic():
     assert r.react("charged twice")["votes"] == {} and not r.forget("I was charged twice")
 
 
+class Teacher:
+    """A stronger model stand-in: knows two topics, counts how often it is asked."""
+
+    def __init__(self, answers=None, fail=False):
+        self.calls, self.answers, self.fail = 0, answers or {}, fail
+
+    def __call__(self, text, labels):
+        self.calls += 1
+        if self.fail:
+            raise ConnectionError("teacher offline")
+        return next((lab for word, lab in self.answers.items() if word in text), None)
+
+
+def test_teacher_answers_when_unsure_and_the_memory_keeps_the_answer():
+    teacher = Teacher({"charged": "billing", "parcel": "shipping"})
+    r = Hippocampus(teacher=teacher)  # no model, no memory: a cold start
+    out = r.classify("I was charged twice", ["billing", "shipping"])
+    assert (out["label"], out["source"], out["confidence"], teacher.calls) == ("billing", "teacher", 1.0, 1)
+    assert list(r.labels().values()) == ["billing"] and r.graph.docs[next(iter(r.labels()))]["source"] == "auto"
+    again = r.classify("why was I charged twice this month", ["billing", "shipping"])
+    assert (again["label"], again["source"], teacher.calls) == ("billing", "memory", 1)  # decided here, teacher not asked
+    assert r.classify("my parcel never arrived", ["billing", "shipping"])["source"] == "teacher" and teacher.calls == 2
+
+
+def test_teacher_is_not_asked_when_confident_and_is_trusted_only_when_confident():
+    teacher = Teacher({"charged": "billing"})
+    r = Hippocampus(StubArc1(), teacher=teacher)  # the stub gives its first label 0.7: under confident=0.8
+    assert r.classify("I was charged twice", ["billing", "shipping"])["source"] == "teacher" and teacher.calls == 1
+    r2 = Hippocampus(lambda text, labels: {lab: (0.95 if i == 0 else 0.05) for i, lab in enumerate(labels)}, teacher=teacher)
+    assert r2.classify("I was charged twice", ["billing", "shipping"])["source"] == "model" and teacher.calls == 1
+    unsure = Hippocampus(teacher=lambda text, labels: {"billing": 0.6, "shipping": 0.4})
+    out = unsure.classify("hello", ["billing", "shipping"])
+    assert out["label"] is None and unsure.labels() == {}  # 0.6 < confident: not a source of truth
+    assert Hippocampus(teacher=lambda text, labels: "refunds").classify("hello", ["billing"])["label"] is None  # not an offered label
+
+
+def test_teacher_is_not_asked_once_the_memory_is_decisive():
+    teacher = Teacher({"charged": "billing"})
+    r = Hippocampus(StubArc1(), teacher=teacher)  # the model always leans to the first label, "shipping"
+    options = ["shipping", "billing"]
+    for text in ("I was charged twice", "charged for a refund I never asked", "card charged again yesterday"):
+        assert r.classify(text, options)["source"] == "teacher"  # the memory's vote (billing) lifts it only to 0.65
+    assert teacher.calls == 3 and len(r.labels()) == 3
+    out = r.classify("why am I charged every month", options)
+    assert (out["label"], out["source"], teacher.calls) == ("billing", "model+memory", 3)  # 3 neighbors back billing
+
+
+def test_a_failing_teacher_leaves_the_memory_working_and_remembered_texts_are_not_put_to_it():
+    r = Hippocampus(teacher=Teacher(fail=True))
+    out = r.classify("hello", ["billing", "shipping"])
+    assert out["label"] is None and "ConnectionError: teacher offline" in out["teacher_error"] and r.labels() == {}
+    teacher = Teacher({"charged": "billing"})
+    r = Hippocampus(teacher=teacher)
+    r.remember("I was charged twice", "fraud")
+    assert r.classify("I was charged twice", ["billing", "fraud"])["label"] == "fraud" and teacher.calls == 0
+    capped = Hippocampus(teacher=Teacher({"a": "x", "b": "y"}), max_size=1)
+    capped.classify("a one", ["x", "y"])
+    capped.classify("b two", ["x", "y"])
+    assert list(capped.labels().values()) == ["y"]  # the cap applies to what the teacher taught
+
+
 def test_observe_stores_only_what_is_surprising():
     r = Hippocampus()
     assert r.observe("I was charged twice", "billing")  # nothing known: stored

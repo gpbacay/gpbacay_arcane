@@ -351,6 +351,15 @@ hippocampus.forget("thanks, that's all")                             # re-rememb
   call; `max_pending` bounds the candidates waiting for more evidence. `max_size` caps the memory by
   forgetting the oldest `observe`d example; examples you `remember` are never evicted. `remember` and `forget` stay as
   the manual override. It needs an outcome signal. The JavaScript port has it too (`await hippocampus.observe(...)`).
+- **Learns from a stronger model (`teacher=`).** With no person in the loop, a memory can only echo its model:
+  storing its own confident predictions lowered accuracy in our tests, so there is no such mode. Give
+  `Hippocampus(model, teacher=fn)` a stronger, slower model instead (an LLM, a bigger classifier) as
+  `fn(text, labels) -> label | {label: probability} | None`. When `classify` is under `confident` and the memory
+  alone isn't decisive (three neighbors holding 80% of the vote), it asks the teacher, returns the answer
+  (`source="teacher"`) and remembers it, so the next similar request is decided here without the teacher.
+  A teacher answer under `confident` isn't trusted, a teacher that raises leaves the memory's own decision
+  with `teacher_error`, and a text you `remember`ed is never put to it. The teacher is a plain callable in
+  Python and JavaScript; no LLM client is bundled.
 - **Scalable.** Inserts don't scan the memory. The default graph skips semantic links, which on CLINC150
   lowered accuracy and cost 15 ms per insert at 15k examples. Lookups touch only examples that share words
   with the request.
@@ -401,6 +410,22 @@ Scoring examples by how often a lookup agreed with the outcome did no better tha
 eviction is plain FIFO. `leak` is off because it has to match the gap between repeats of a text: on this
 stream `leak=0.01` stored 32 examples at 10.5% accuracy and a tuned `5e-5` scored 70.2%, below no leak at all.
 The old `remember` path scores the same as before this change (74.0% vs 74.5% on the clean stream).
+
+`python examples/benchmark_hippocampus.py --teacher` measures the teacher (ARC 1 + memory, all 29 CLINC150
+held-out intents as labels, a stream of 1,740 unlabeled utterances, 600 test utterances afterwards with the
+teacher switched off, mean of 3 seeds). **The teacher is simulated** (right with probability 100% or 80%, errors
+at random); no real LLM was run:
+
+| Hand-labeled per intent | No teacher | Teacher always right | Teacher 80% right | Every stream item labeled by hand |
+|---|---|---|---|---|
+| 1 | 62.0% | **94.0%**, asked 787 times (45%) | **92.3%**, asked 1,144 times (66%) | 93.5% |
+| 5 | 81.7% | **93.6%**, asked 710 times (41%) | **92.4%**, asked 971 times (56%) | 93.7% |
+
+The memory reaches the hand-labeled ceiling while the teacher is asked about under half of the stream, and an
+80%-right teacher still gets within about a point, because the vote outweighs its mistakes. Without the
+decisive-memory check the teacher was asked 98% of the time for the same accuracy. A real LLM's mistakes are
+likely correlated (it confuses the same similar intents), which this does not model, so treat 92% as a best case
+for a teacher of that accuracy.
 
 ### Distilling Qwen2.5-0.5B into ARCANE
 

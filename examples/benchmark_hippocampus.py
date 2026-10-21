@@ -126,15 +126,89 @@ def policy(shots=20, n=1000, noise=0.2, repeats=3, seeds=(0, 1, 2)):
                 "per_seed": [round(r[1], 3) for r in v]} for k, v in rows.items()}
 
 
+def teacher(agent, shots=(1, 5), per_intent=60, n=600, seeds=(0, 1, 2), accuracies=(1.0, 0.8)):
+    """ARC 1 + memory on every CLINC150 held-out intent: ``shots`` hand-labeled examples each, then a stream of
+    unlabeled utterances a *simulated* teacher may label (right with probability ``accuracy``, else a random
+    other label). No real LLM was run: this measures the mechanism for a teacher of that quality.
+
+    ``confident=0.8`` is the default: the teacher is asked when the decision is under it and the memory alone is
+    not decisive. ``confident=1.0`` asks far more often. Accuracy is System 1 alone afterwards (teacher off) on
+    test utterances, 29-way.
+    """
+    data = json.load(open(CLINC, encoding="utf-8"))
+    intents = real_eval_intents(CLINC)
+    labels = [_humanize(i) for i in intents]
+    out = {}
+    for k in shots:
+        rows = {}
+        for seed in seeds:
+            rng = random.Random(seed)
+            seeds_, stream, gold = [], [], {}
+            for i in intents:
+                pool = rng.sample([t for t, lab in data["train"] if lab == i], len([1 for t, lab in data["train"] if lab == i]))
+                seeds_ += [(t, _humanize(i)) for t in pool[:k]]
+                stream += [(t, _humanize(i)) for t in pool[k:k + per_intent]]
+            gold = dict(stream)
+            rng.shuffle(stream)
+            test = rng.sample([(t, lab) for t, lab in data["test"] if lab in set(intents)], n)
+
+            def build(teacher_fn=None, confident=0.8):
+                h = Hippocampus(agent, teacher=teacher_fn, confident=confident)
+                for t, lab in seeds_:
+                    h.remember(t, lab)
+                return h
+
+            def noisy(accuracy):
+                calls = {"n": 0}
+
+                def ask(text, options):
+                    calls["n"] += 1
+                    right = gold[text]
+                    return right if rng.random() < accuracy else rng.choice([x for x in options if x != right])
+                return ask, calls
+
+            def score(name, h, calls=None):
+                h.teacher = None  # System 1 alone from here on
+                acc = float(np.mean([h.classify(t, labels, task=TASK)["label"] == _humanize(lab) for t, lab in test]))
+                taught = [d for d in h.labels() if h.graph.docs[d].get("source") == "auto"]
+                right = sum(h.labels()[d] == gold.get(h.graph.nodes[d]["content"]) for d in taught)
+                rows.setdefault(name, []).append((acc, calls["n"] if calls else 0, len(taught), right / max(len(taught), 1)))
+
+            score("no teacher", build())
+            for accuracy in accuracies:
+                for name, confident in (("confident=1.0", 1.0), ("confident=0.8", 0.8)):
+                    ask, calls = noisy(accuracy)
+                    h = build(ask, confident)
+                    for t, _ in stream:
+                        h.classify(t, labels, task=TASK)
+                    score(f"teacher {accuracy:.0%} right, {name}", h, calls)
+            h = build()
+            for t, lab in stream:
+                h.remember(t, lab)
+            score("every stream item labeled by hand", h)
+        out[f"{k} hand-labeled per intent"] = {
+            name: {"accuracy": round(float(np.mean([r[0] for r in v])), 3), "teacher_calls": round(float(np.mean([r[1] for r in v]))),
+                   "taught": round(float(np.mean([r[2] for r in v]))), "taught_label_precision": round(float(np.mean([r[3] for r in v])), 3)}
+            for name, v in rows.items()}
+    return out
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--shots", type=int, nargs="+", default=[5])
     ap.add_argument("-n", type=int, default=600)
     ap.add_argument("--policy", action="store_true", help="only compare remember-all with observe (no ARC 1 needed)")
+    ap.add_argument("--teacher", action="store_true", help="only measure learning from a simulated teacher (needs ARC 1)")
     a = ap.parse_args()
     if a.policy:
         for k, v in policy().items():
             print(f"{k}: {json.dumps(v)}", flush=True)
+        sys.exit()
+    if a.teacher:
+        for k, rows in teacher(load_arc1()).items():
+            print(k, flush=True)
+            for name, v in rows.items():
+                print(f"  {name}: {json.dumps(v)}", flush=True)
         sys.exit()
     if os.path.exists(CLINC):
         print("scale, memory only, CLINC150 150-way:", json.dumps(scale()), flush=True)

@@ -75,6 +75,12 @@ const POLICY: [string, string, string][] = [
   ["20% wrong labels, each text seen 3 times", "3,000 examples, 71.0%", "1,977 examples, 70.9% (trust=0.5, threshold=0.9)"],
 ];
 
+// python examples/benchmark_hippocampus.py --teacher: SIMULATED teacher, 29 held-out CLINC150 intents, mean of 3 seeds.
+const TEACHER: [string, string, string, string, string][] = [
+  ["1", "62.0%", "94.0% (asked 787 times, 45%)", "92.3% (asked 1,144 times, 66%)", "93.5%"],
+  ["5", "81.7%", "93.6% (asked 710 times, 41%)", "92.4% (asked 971 times, 56%)", "93.7%"],
+];
+
 const TOOLS: [string, string, string, string, string][] = [
   ["none (model alone)", "55.7%", "42.3%", "–", "18.6%"],
   ["1", "77.0%", "50.3%", "64.0%", "53.3%"],
@@ -418,6 +424,79 @@ hippocampus.observe("refund my invoice", "billing", trust=0.6)   # stored: 0.6 +
           plain FIFO.
         </p>
 
+        <h2 id="teacher" className={h2}>
+          Learning from a stronger model
+        </h2>
+        <p className={p}>
+          <code className={code}>observe</code> needs an outcome from somewhere. With none, a memory can only echo its
+          model: storing the model&apos;s own confident predictions lowered accuracy in our tests (62.0% to 52.7% with
+          91% of the stored labels right), so there is no such mode. Give Hippocampus a{" "}
+          <code className={code}>teacher</code> instead, a stronger and slower model such as an LLM, and it learns from
+          the teacher&apos;s answers with nobody in the loop.
+        </p>
+        <CodeSnippet
+          filename="teacher.py"
+          language="python"
+          code={`def ask_llm(text, labels):            # any stronger model: a label, {label: probability}, or None
+    return my_llm.classify(text, labels)
+
+hippocampus = Hippocampus(arc1, teacher=ask_llm)
+
+hippocampus.classify("my card was declined", ["billing", "shipping"])
+# unsure: asks the teacher, returns its answer (source="teacher") and remembers it
+hippocampus.classify("card declined at checkout", ["billing", "shipping"])
+# decided here now ("memory" or "model+memory"); the teacher is not called`}
+        />
+        <ul className="mt-4 max-w-2xl list-disc space-y-2 pl-5 text-sm leading-relaxed text-zinc-300">
+          <li>
+            <strong className="text-zinc-100">Asked only when needed.</strong> The teacher is asked when the decision is
+            under <code className={code}>confident=0.8</code> and the memory alone isn&apos;t decisive (three neighbors
+            holding 80% of the vote). The blended confidence can&apos;t show that on its own, because a weak model caps
+            it. Without the second check the teacher was asked 98% of the time for the same accuracy.
+          </li>
+          <li>
+            <strong className="text-zinc-100">Safe by default.</strong> A teacher answer under{" "}
+            <code className={code}>confident</code> or outside the offered labels is ignored. A teacher that raises
+            leaves the memory&apos;s decision with <code className={code}>teacher_error</code>. A text you{" "}
+            <code className={code}>remember</code>ed is never put to the teacher, and{" "}
+            <code className={code}>max_size</code> caps what it taught. The JavaScript version takes the same option as an
+            async function.
+          </li>
+        </ul>
+        <div className="not-prose mt-6 overflow-x-auto">
+          <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-zinc-500">
+                <th className={th}>Hand-labeled per intent</th>
+                <th className={th}>No teacher</th>
+                <th className={th}>Teacher always right</th>
+                <th className={th}>Teacher 80% right</th>
+                <th className="py-2 font-medium">All labeled by hand</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TEACHER.map(([shots, none, right, noisy, hand]) => (
+                <tr key={shots} className="border-b border-zinc-900 align-top">
+                  <td className={td}>{shots}</td>
+                  <td className={td}>{none}</td>
+                  <td className="py-2.5 pr-4 font-semibold tabular-nums text-zinc-100">{right}</td>
+                  <td className="py-2.5 pr-4 font-semibold tabular-nums text-zinc-100">{noisy}</td>
+                  <td className="py-2.5 tabular-nums text-zinc-300">{hand}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={`${p} mt-4 text-sm text-zinc-400`}>
+          ARC 1 plus memory on all 29 CLINC150 held-out intents, 1,740 unlabeled stream utterances, then 600 test
+          utterances with the teacher switched off, mean of 3 seeds. Run{" "}
+          <code className={code}>python examples/benchmark_hippocampus.py --teacher</code> to reproduce.{" "}
+          <strong className="text-zinc-200">The teacher is simulated</strong>, right with probability 100% or 80% with
+          errors at random, and no real LLM was run. The memory reaches the hand-labeled accuracy while the teacher is
+          asked about under half of the stream, and an 80%-right teacher gets within about a point, because the vote
+          outweighs its mistakes. A real LLM&apos;s mistakes are likely correlated, so read the 80% column as a best case.
+        </p>
+
         <h2 id="any-model" className={h2}>
           Use it with any model
         </h2>
@@ -619,6 +698,7 @@ hippocampus.labels()   # {"memory-3f2a...": "billing", ...}`}
             ["Tested up to 15,000 examples", "Lookups slow down when common words match many examples. Expect that somewhere past about 100,000; it has not been measured."],
             ["Shared graphs", "If the graph also holds documents, each lookup filters across all stored examples. The default graph holds only examples."],
             ["observe needs an outcome signal", "Without a user correction, a tool result or a true label, observe can only skip duplicates and cap size. Evidence builds only when the same text comes back; a rephrased request starts over. Wrong signals are stored as readily as right ones, so it matches but does not beat remember on noisy labels (see the table above)."],
+            ["The teacher sets the ceiling", "The memory can be no better than its teacher's answers, and an 80%-right teacher left it about a point below hand labels in the simulation. The teacher covers classify only, not tool calls, and is a plain callable: no LLM client is bundled, and the benchmark used a simulated teacher, not a real model."],
             ["Tool calling needs tool_prior", "Any model can classify, but run() needs a model that accepts tool_prior. Arc1Agent does; other tool-calling models need that one argument."],
           ].map(([title, body]) => (
             <li key={title} className="py-3.5">

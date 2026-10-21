@@ -21,6 +21,7 @@ const STOPWORDS = new Set(
   "both each few more most other over same some such only own under until up very just tell show give get use using").split(" "));
 const SUFFIXES = ["ations", "ation", "ments", "ment", "ings", "ing", "ed"];
 const K1 = 1.2, B = 0.75;
+const AGREE = 3; // neighbors that must back a label before the memory alone counts as sure (see _decisive)
 
 function stem(w) {
   if (w.length > 4 && w.endsWith("ies")) return w.slice(0, -3) + "y";
@@ -83,7 +84,9 @@ export class Hippocampus {
   /**
    * @param {object|function|null} model see the header; null decides from memory alone.
    * @param {{ k?: number, weight?: number, memory?: object[]|object, maxSize?: number|null, confident?: number,
-   *   threshold?: number, leak?: number, maxPending?: number }} [options]
+   *   threshold?: number, leak?: number, maxPending?: number, teacher?: function|null }} [options]
+   *   teacher: async (text, labels) => label | { label: probability } | null, a stronger model that classify() asks
+   *   when its own decision is under `confident`; its trusted answer is returned and remembered (see classify).
    *   k: neighbors that vote. weight: share of a classify distribution given to the vote when any neighbor is found.
    *   maxSize: cap on remembered examples; observe() evicts its own oldest writes past it (remembered ones never go).
    *   confident: observe() skips an example the memory and model already decide this confidently.
@@ -94,8 +97,8 @@ export class Hippocampus {
    *   memory: examples to start with: toJSON() output ([{ text, label, arguments }], the same shape as the ARC 1
    *   server's `memory` field) or a Python graph.to_json() (graph-of-thought v2).
    */
-  constructor(model = null, { k = 8, weight = 0.5, memory = [], maxSize = null, confident = 0.8, threshold = 1, leak = 0, maxPending = 10000 } = {}) {
-    Object.assign(this, { model, k, weight, maxSize, confident, threshold, leak, maxPending });
+  constructor(model = null, { k = 8, weight = 0.5, memory = [], maxSize = null, confident = 0.8, threshold = 1, leak = 0, maxPending = 10000, teacher = null } = {}) {
+    Object.assign(this, { model, k, weight, maxSize, confident, threshold, leak, maxPending, teacher });
     this._examples = new Map(); // norm(text) -> { text, label, arguments, source, tf, len }
     this._postings = new Map(); // term -> Map(norm(text) -> term count)
     this._labels = new Map(); // label -> number of examples
@@ -152,7 +155,7 @@ export class Hippocampus {
     if (label && !space.includes(label)) space.push(label);
     const seen = label === null || space.length < 2 // a model's choice among fewer than two labels says nothing
       ? this._vote(text, decisionLabels ? space : null).votes.get(label) ?? 0
-      : (await this.classify(text, space, opts)).distribution[label] ?? 0;
+      : (await this._decide(text, space, opts)).distribution[label] ?? 0;
     if (this.leak) {
       for (const [id, cands] of this._pending) {
         for (const [lab, v] of cands) v * (1 - this.leak) > 0.01 ? cands.set(lab, v * (1 - this.leak)) : cands.delete(lab);
@@ -276,9 +279,51 @@ export class Hippocampus {
   // -------------------------------------------------------------- decisions
   /** Pick one of `labels`: the model's distribution mixed with the memory's vote. Returns the model's own fields
    *  (if any) with label, confidence, distribution, source ("model", "memory" or "model+memory") and neighbors.
-   *  With no model and no similar example, label is null: Hippocampus abstains rather than guess. */
+   *  With no model and no similar example, label is null: Hippocampus abstains rather than guess.
+   *
+   *  With a `teacher`, a decision under `confident` is put to it: a trusted answer becomes the result
+   *  (source "teacher") and is remembered as an observed example, so the next similar request is decided without
+   *  it. If the teacher throws, the memory's own decision stands, with `teacher_error`. A text you remember()ed is
+   *  never put to the teacher. */
   async classify(text, labels, opts = {}) {
     labels = [...new Set(labels.map(String))];
+    const out = await this._decide(text, labels, opts);
+    const id = norm(text);
+    if (!this.teacher || out.confidence >= this.confident || this._decisive(out) || this._examples.get(id)?.source === "manual") return out;
+    let taught;
+    try {
+      taught = await this._askTeacher(text, labels);
+    } catch (error) {
+      return { ...out, teacher_error: `${error?.name ?? "Error"}: ${error?.message ?? error}` };
+    }
+    if (!taught) return out;
+    const [label, distribution] = taught;
+    this._store(text, label, null, "auto");
+    this._evict(id);
+    return { ...out, label, confidence: distribution[label], distribution, source: "teacher" };
+  }
+
+  /** The memory alone is sure: at least AGREE neighbors back the decided label and hold `confident` of the vote. The
+   *  blended confidence can't say so, since it is capped by the model's own, weak, probability. */
+  _decisive(out) {
+    const total = out.neighbors.reduce((sum, h) => sum + h.score, 0);
+    const backing = out.neighbors.filter((h) => h.label === out.label).map((h) => h.score);
+    return backing.length >= AGREE && backing.reduce((a, b) => a + b, 0) >= this.confident * total;
+  }
+
+  /** [label, distribution] from the teacher when it is confident about one of `labels`, else null. */
+  async _askTeacher(text, labels) {
+    const answer = await this.teacher(text, labels);
+    if (answer == null) return null;
+    const given = typeof answer === "string" ? { [answer]: 1 } : answer;
+    const total = labels.reduce((sum, l) => sum + (Number(given[l]) || 0), 0);
+    if (!(total > 0)) return null;
+    const distribution = Object.fromEntries(labels.map((l) => [l, (Number(given[l]) || 0) / total]));
+    const label = labels.reduce((best, l) => (distribution[l] > distribution[best] ? l : best), labels[0]);
+    return distribution[label] >= this.confident ? [label, distribution] : null;
+  }
+
+  async _decide(text, labels, opts) {
     let out = {}, modelDist = {};
     if (typeof this.model?.classify === "function") {
       out = { ...(await this.model.classify(text, labels, opts)) };

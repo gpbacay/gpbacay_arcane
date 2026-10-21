@@ -108,6 +108,9 @@ hippocampus.forget("thanks, that's all");
 await hippocampus.observe("my card was declined", "billing");              // stored, or null if already decided confidently
 await hippocampus.observe("refund my invoice", "billing", null, 0.6);     // trust 0.6: stored once evidence reaches threshold (1)
 // observe(text, label, args, trust, decisionLabels): the 5th argument is the decision space it judges over (default: every label)
+// Or give it a stronger model to learn from: classify() asks it when unsure, returns its answer and remembers it
+// const hippocampus = new Hippocampus(await load(), { teacher: async (text, labels) => askMyLlm(text, labels) });
+// the teacher returns a label, { label: probability } or null; an answer under `confident` (0.8) is not trusted
 // new Hippocampus(model, { maxSize: 5000 }) forgets the oldest observed example past the cap; remembered ones stay,
 // and observe never overwrites an example you remember()ed
 

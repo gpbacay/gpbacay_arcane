@@ -23,6 +23,7 @@ declare module "gpbacay-arcane/hippocampus" {
         threshold?: number;
         leak?: number;
         maxPending?: number;
+        teacher?: ((text: string, labels: string[]) => Promise<string | Record<string, number> | null>) | null;
       },
     );
     classify(

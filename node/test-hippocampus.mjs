@@ -99,6 +99,59 @@ assert.equal(h.toJSON().length, 2);
 assert.equal((await h.classify("charged twice", ["billing", "fraud"])).label, "fraud");
 assert.ok(await new Hippocampus(stub).observe("my parcel never arrived", "shipping")); // model unsure (0.7) and no memory
 
+// a teacher answers when the memory is unsure, and the memory keeps the answer
+const teacherOf = (answers = {}, fail = false) => {
+  const t = async (text) => {
+    t.calls++;
+    if (fail) throw new Error("teacher offline");
+    return Object.entries(answers).find(([word]) => text.includes(word))?.[1] ?? null;
+  };
+  t.calls = 0;
+  return t;
+};
+let teacher = teacherOf({ charged: "billing", parcel: "shipping" });
+h = new Hippocampus(null, { teacher }); // no model, no memory: a cold start
+let taught = await h.classify("I was charged twice", ["billing", "shipping"]);
+assert.deepStrictEqual([taught.label, taught.source, taught.confidence, teacher.calls], ["billing", "teacher", 1, 1]);
+assert.deepStrictEqual(h.toJSON().map((e) => e.source), ["auto"]);
+taught = await h.classify("why was I charged twice this month", ["billing", "shipping"]);
+assert.deepStrictEqual([taught.label, taught.source, teacher.calls], ["billing", "memory", 1]); // decided here, teacher not asked
+assert.equal((await h.classify("my parcel never arrived", ["billing", "shipping"])).source, "teacher");
+assert.equal(teacher.calls, 2);
+// not asked once the memory is decisive: three neighbors back the label (the stub model leans to "shipping")
+teacher = teacherOf({ charged: "billing" });
+h = new Hippocampus(stub, { teacher });
+for (const text of ["I was charged twice", "charged for a refund I never asked", "card charged again yesterday"]) {
+  assert.equal((await h.classify(text, ["shipping", "billing"])).source, "teacher");
+}
+assert.equal(teacher.calls, 3);
+taught = await h.classify("why am I charged every month", ["shipping", "billing"]);
+assert.deepStrictEqual([taught.label, taught.source, teacher.calls], ["billing", "model+memory", 3]);
+// asked only when under `confident`; trusted only when confident; an offered label only
+h = new Hippocampus(stub, { teacher }); // the stub gives its first label 0.7: under 0.8
+assert.equal((await h.classify("I was charged twice", ["billing", "shipping"])).source, "teacher");
+const sure = async (text, labels) => Object.fromEntries(labels.map((l, i) => [l, i === 0 ? 0.95 : 0.05]));
+const calls = teacher.calls;
+assert.equal((await new Hippocampus(sure, { teacher }).classify("I was charged twice", ["billing", "shipping"])).source, "model");
+assert.equal(teacher.calls, calls);
+const unsure = new Hippocampus(null, { teacher: async () => ({ billing: 0.6, shipping: 0.4 }) });
+assert.equal((await unsure.classify("hello", ["billing", "shipping"])).label, null);
+assert.equal(unsure.toJSON().length, 0); // 0.6 < confident: not a source of truth
+assert.equal((await new Hippocampus(null, { teacher: async () => "refunds" }).classify("hello", ["billing"])).label, null);
+// a failing teacher leaves the memory working; remembered texts are not put to the teacher; the cap applies
+h = new Hippocampus(null, { teacher: teacherOf({}, true) });
+taught = await h.classify("hello", ["billing", "shipping"]);
+assert.ok(taught.label === null && taught.teacher_error.includes("teacher offline") && h.toJSON().length === 0);
+teacher = teacherOf({ charged: "billing" });
+h = new Hippocampus(null, { teacher });
+h.remember("I was charged twice", "fraud");
+assert.equal((await h.classify("I was charged twice", ["billing", "fraud"])).label, "fraud");
+assert.equal(teacher.calls, 0);
+h = new Hippocampus(null, { teacher: teacherOf({ a: "x", b: "y" }), maxSize: 1 });
+await h.classify("a one", ["x", "y"]);
+await h.classify("b two", ["x", "y"]);
+assert.deepStrictEqual(h.toJSON().map((e) => e.label), ["y"]);
+
 // observe judges over the given decision space and spares remembered examples
 const alphaBeta = () => {
   const m = new Hippocampus();
