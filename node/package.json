@@ -6,19 +6,23 @@
   "exports": {
     ".": "./index.js",
     "./web": "./web.mjs",
-    "./hippocampus": "./hippocampus.mjs"
+    "./hippocampus": "./hippocampus.mjs",
+    "./capsule": "./capsule.mjs",
+    "./capsule-video": "./capsule-video.mjs"
   },
   "files": [
     "index.js",
     "web.mjs",
     "tools.mjs",
     "hippocampus.mjs",
+    "capsule.mjs",
+    "capsule-video.mjs",
     "web/arc1.onnx",
     "web/arc1.json",
     "README.md"
   ],
   "scripts": {
-    "test": "node test.js && node test-web.mjs && node test-hippocampus.mjs"
+    "test": "node test.js && node test-web.mjs && node test-hippocampus.mjs && node test-capsule.mjs"
   },
   "engines": {
     "node": ">=18"
@@ -34,7 +38,12 @@
     "hippocampus",
     "memory",
     "system-1-ai",
-    "grounded-decisions"
+    "grounded-decisions",
+    "capsule",
+    "qr-code",
+    "video",
+    "knowledge-base",
+    "offline-rag"
   ],
   "author": "Gianne P. Bacay",
   "license": "MIT",
@@ -44,14 +53,29 @@
     "directory": "node"
   },
   "peerDependencies": {
-    "onnxruntime-web": ">=1.19"
+    "onnxruntime-web": ">=1.19",
+    "ffmpeg-static": ">=5",
+    "jsqr": ">=1.4",
+    "qrcode": ">=1.5"
   },
   "peerDependenciesMeta": {
     "onnxruntime-web": {
       "optional": true
+    },
+    "ffmpeg-static": {
+      "optional": true
+    },
+    "jsqr": {
+      "optional": true
+    },
+    "qrcode": {
+      "optional": true
     }
   },
   "devDependencies": {
-    "onnxruntime-web": "^1.30.0"
+    "ffmpeg-static": "^5.3.0",
+    "jsqr": "^1.4.0",
+    "onnxruntime-web": "^1.30.0",
+    "qrcode": "^1.5.4"
   }
 }

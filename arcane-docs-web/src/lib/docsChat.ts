@@ -113,6 +113,16 @@ export const PAGES: DocPage[] = [
     nav: ["go to the hippocampus page", "open hippocampus", "take me to neural memory", "show the memory docs"],
   },
   {
+    id: "capsule",
+    title: "Arcane Capsule",
+    href: "/docs/capsule",
+    answer:
+      "Arcane Capsule stores documents as QR-code frames of an MP4. Opening it decodes the frames and rebuilds a Hippocampus search over the chunks, with no vector database or embedder. It is about 5.7 times the size of its text, so it is portable, not compressed.",
+    aliases: ["capsule", "arcane capsule", "qryptorag", "qr video"],
+    keys: [/\b(capsule|qryptorag|qr[- ]?video|qr codes?)\b/],
+    nav: ["go to the capsule page", "open arcane capsule", "take me to the qr video docs", "show the capsule docs"],
+  },
+  {
     id: "graph-of-thought",
     title: "Graph of Thought",
     href: "/docs/graph-of-thought",

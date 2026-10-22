@@ -427,6 +427,13 @@ decisive-memory check the teacher was asked 98% of the time for the same accurac
 likely correlated (it confuses the same similar intents), which this does not model, so treat 92% as a best case
 for a teacher of that accuracy.
 
+#### Arcane Capsule: a knowledge base in one video file (Node.js)
+
+`gpbacay-arcane/capsule-video` writes documents as QR-code frames of an MP4. `openCapsule` decodes them back into
+a Hippocampus over the chunks, so you don't need a vector database or an embedder. It replaces QRyptoRAG
+(`qr-video-rag`). On this repo's docs the capsule is 5.7× the size of the text, not smaller, and still decodes
+after lossy re-encoding. See [node/README.md](node/README.md#capsule-a-knowledge-base-in-one-video-file).
+
 ### Distilling Qwen2.5-0.5B into ARCANE
 
 The `distill` preset is tuned as a distillation target for a softmax teacher:
