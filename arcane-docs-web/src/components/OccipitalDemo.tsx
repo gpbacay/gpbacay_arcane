@@ -3,7 +3,7 @@
 import { useState } from "react";
 import QRCode from "qrcode";
 import jsQR from "jsqr";
-import { pack, unpack } from "gpbacay-arcane/capsule";
+import { pack, unpack } from "gpbacay-arcane/occipital";
 import type { Hippocampus } from "gpbacay-arcane/hippocampus";
 
 const SAMPLE = `# Refunds
@@ -28,7 +28,7 @@ function toDocuments(text: string) {
   return docs;
 }
 
-export function CapsuleDemo() {
+export function OccipitalDemo() {
   const [text, setText] = useState(SAMPLE);
   const [query, setQuery] = useState("my parcel has had no tracking scan");
   const [built, setBuilt] = useState<Built | null>(null);
@@ -43,7 +43,7 @@ export function CapsuleDemo() {
       const payloads = await pack(docs, { chunkSize: 160, overlap: 30 }); // small, so a short sample spans several frames
       const frames: string[] = [], read: (Uint8Array | null)[] = [];
       for (const payload of payloads) {
-        // Draw the frame, then read it back from its pixels: what openCapsule does with each video frame.
+        // Draw the frame, then read it back from its pixels: what readVideo does with each video frame.
         const canvas = document.createElement("canvas");
         await QRCode.toCanvas(canvas, [{ data: payload, mode: "byte" }], { errorCorrectionLevel: "M", margin: 2, scale: 4 });
         const { data, width, height } = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height);
@@ -74,11 +74,11 @@ export function CapsuleDemo() {
   return (
     <div className="not-prose mt-6 border border-zinc-800 bg-zinc-950">
       <div className="border-b border-zinc-800 p-4 sm:p-5">
-        <label htmlFor="capsule-text" className="text-sm font-medium text-zinc-200">
+        <label htmlFor="occipital-text" className="text-sm font-medium text-zinc-200">
           Documents <span className="font-normal text-zinc-500">(each &quot;# Title&quot; section is one document)</span>
         </label>
         <textarea
-          id="capsule-text"
+          id="occipital-text"
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={9}
@@ -126,11 +126,11 @@ export function CapsuleDemo() {
           </ol>
 
           <div className="p-4 sm:p-5">
-            <label htmlFor="capsule-query" className="text-sm font-medium text-zinc-200">
+            <label htmlFor="occipital-query" className="text-sm font-medium text-zinc-200">
               Search the decoded frames
             </label>
             <input
-              id="capsule-query"
+              id="occipital-query"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="mt-2 w-full border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-[#C785F2] focus:outline-none"

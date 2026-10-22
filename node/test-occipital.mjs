@@ -1,10 +1,10 @@
-// Arcane Capsule (capsule.mjs, capsule-video.mjs). node test-capsule.mjs
+// Occipital (occipital.mjs, occipital-video.mjs). node test-occipital.mjs
 import assert from "node:assert";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { chunk, pack, unpack, MAX_PAYLOAD } from "./capsule.mjs";
-import { writeCapsule, openCapsule } from "./capsule-video.mjs";
+import { chunk, pack, unpack, MAX_PAYLOAD } from "./occipital.mjs";
+import { writeVideo, readVideo } from "./occipital-video.mjs";
 
 const DOCS = {
   billing: "Refunds are issued to the original card within five business days. A duplicate charge is reversed automatically once the bank confirms it. ".repeat(6),
@@ -37,12 +37,12 @@ const noise = Array.from({ length: 2000 }, (_, i) => ((i * 7919) % 100003).toStr
 await assert.rejects(pack({ big: noise }, { chunkSize: 9000 }), /lower chunkSize/);
 
 // the video round-trips and still opens after lossy re-encoding (needs ffmpeg)
-const dir = mkdtempSync(path.join(tmpdir(), "capsule-"));
+const dir = mkdtempSync(path.join(tmpdir(), "occipital-"));
 try {
   const file = path.join(dir, "kb.mp4");
-  const written = await writeCapsule(file, DOCS, { chunkSize: 200 });
+  const written = await writeVideo(file, DOCS, { chunkSize: 200 });
   assert.equal(written.frames, payloads.length);
-  const opened = await openCapsule(file);
+  const opened = await readVideo(file);
   assert.equal(opened.frames, written.frames);
   assert.equal(opened.lost, 0);
   assert.equal(opened.memory.neighbors("duplicate charge reversed")[0].label, "billing");
@@ -50,4 +50,4 @@ try {
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
-console.log("capsule ok");
+console.log("occipital ok");

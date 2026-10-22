@@ -119,28 +119,28 @@ new Hippocampus(agent, { memory: JSON.parse(saved) }); // also accepts Python's 
 ```
 
 - For memory-only use, `import { Hippocampus } from "gpbacay-arcane/hippocampus"`. It doesn't need onnxruntime-web.
+- `run` passes the memory's vote to the model as `opts.toolPrior`. ARC 1 web combines it with its own firing probability by noisy-OR. Tools are not executed.
 
-## Capsule: a knowledge base in one video file
+## Occipital: visual memory in one video file
 
-A capsule packs documents into QR-code frames of an MP4. Opening it decodes the frames and rebuilds the search as a `Hippocampus` over the chunks, so you don't need a vector database, an embedder or a server.
+Occipital writes documents as QR-code frames of an MP4. Reading the video back decodes the frames and rebuilds the search as a `Hippocampus` over the passages, so you don't need a vector database, an embedder or a server. It plays the role of the visual cortex: knowledge held as images, read by sight, handed to the hippocampus.
 
 ```sh
 npm install gpbacay-arcane qrcode jsqr ffmpeg-static   # or set $FFMPEG_PATH / have ffmpeg on PATH
 ```
 
 ```js
-import { writeCapsule, openCapsule } from "gpbacay-arcane/capsule-video";
+import { writeVideo, readVideo } from "gpbacay-arcane/occipital-video";
 
-await writeCapsule("kb.mp4", { "refunds.md": refundsText, "shipping.md": shippingText });
+await writeVideo("kb.mp4", { "refunds.md": refundsText, "shipping.md": shippingText });
 // { frames, bytes, textBytes }
 
-const { memory, lost } = await openCapsule("kb.mp4");   // lost = frames that could not be read
+const { memory, lost } = await readVideo("kb.mp4");     // lost = frames that could not be read
 memory.neighbors("how long do refunds take?");          // [{ text, label: "refunds.md", score }]
 memory.react("how long do refunds take?").votes;        // { "refunds.md": 1 }: which document answers
 ```
 
-- Each chunk (500 characters, 50 overlap, cut at whitespace) is stored as `deflate(["arcane-capsule/1", id, text])` in one QR frame. A frame is self-describing, so a damaged frame loses only its own chunk.
-- `gpbacay-arcane/capsule` holds `chunk`, `pack` and `unpack` with no dependencies, for the browser or any other medium.
-- `node bench-capsule.mjs ../docs` measures the 13 docs in this repo (119 KB of text, 43 KB gzipped). The result is 269 frames in 673 KB, **5.7× the text size**, written in 2 s and opened in 5.5 s. Every frame still decodes after re-encoding at H.264 CRF 35 or VP9. QRyptoRAG v1's settings made 6.3 MB from the same text.
-- A capsule is **larger** than its text, so it's not compression. Use it when one portable file that survives video pipelines is worth the size.
-- `run` passes the memory's vote to the model as `opts.toolPrior`. ARC 1 web combines it with its own firing probability by noisy-OR. Tools are not executed.
+- Each passage (500 characters, 50 overlap, cut at whitespace) is stored as `deflate(["arcane-occipital/1", id, text])` in one QR frame. A frame is self-describing, so a damaged frame loses only its own passage.
+- `gpbacay-arcane/occipital` holds `chunk`, `pack` and `unpack` with no dependencies, for the browser or any other medium.
+- `node bench-occipital.mjs ../docs` measures the 13 docs in this repo (119 KB of text, 43 KB gzipped). The result is 269 frames in 681 KB, **5.7× the text size**, written in 2 s and read in 5.5 s. Every frame still decodes after re-encoding at H.264 CRF 35 or VP9.
+- The video is **larger** than its text, so it's not compression. Use it when one portable file that survives video pipelines is worth the size.

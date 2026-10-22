@@ -1,11 +1,11 @@
-// Arcane Capsule as a video: each payload of capsule.mjs becomes one QR code frame of an H.264 MP4, so a knowledge
-// base is one file that any video tool can copy, stream or archive, and that opens back into a search. Node only.
+// Occipital as a video: each payload of occipital.mjs becomes one QR code frame of an H.264 MP4, so a knowledge
+// base is one file that any video tool can copy, stream or archive, and that reads back into a search. Node only.
 // Needs the optional peers qrcode and jsqr, and FFmpeg: $FFMPEG_PATH, else ffmpeg-static if installed, else ffmpeg.
 import { spawn } from "node:child_process";
 import { statSync } from "node:fs";
 import QRCode from "qrcode";
 import jsQR from "jsqr";
-import { pack, unpack } from "./capsule.mjs";
+import { pack, unpack } from "./occipital.mjs";
 
 const ffmpegBin = async () => process.env.FFMPEG_PATH || (await import("ffmpeg-static").then((m) => m.default, () => null)) || "ffmpeg";
 
@@ -22,9 +22,9 @@ async function ffmpeg(args) {
 }
 
 /** Write `documents` ({ id: text }) to `path` as an MP4 with one QR frame per chunk. `scale` is pixels per QR module
- *  and `crf` the H.264 quality (lower = larger, safer); both were picked so every frame decodes (see test-capsule).
+ *  and `crf` the H.264 quality (lower = larger, safer); both were picked so every frame decodes (see test-occipital).
  *  Returns { frames, bytes, textBytes }. */
-export async function writeCapsule(path, documents, { chunkSize = 500, overlap = 50, scale = 4, margin = 2, crf = 23, fps = 1 } = {}) {
+export async function writeVideo(path, documents, { chunkSize = 500, overlap = 50, scale = 4, margin = 2, crf = 23, fps = 1 } = {}) {
   const payloads = await pack(documents, { chunkSize, overlap });
   if (!payloads.length) throw new Error("nothing to write: every document is empty");
   const codes = payloads.map((p) => QRCode.create([{ data: p, mode: "byte" }], { errorCorrectionLevel: "M" }).modules);
@@ -47,9 +47,9 @@ export async function writeCapsule(path, documents, { chunkSize = 500, overlap =
   return { frames: payloads.length, bytes: statSync(path).size, textBytes: Object.values(documents).reduce((n, t) => n + Buffer.byteLength(t), 0) };
 }
 
-/** Open a capsule MP4: decode every frame and rebuild the search. Returns unpack()'s { memory, lost } plus frames.
- *  ponytail: decodes every frame on open (about 50 frames/s); cache JSON.stringify(memory) next to big capsules. */
-export async function openCapsule(path, options = {}) {
+/** Read an Occipital MP4: decode every frame and rebuild the search. Returns unpack()'s { memory, lost } plus frames.
+ *  ponytail: decodes every frame on read (about 50 frames/s); cache JSON.stringify(memory) next to big videos. */
+export async function readVideo(path, options = {}) {
   const { proc, done, log } = await ffmpeg(["-i", path, "-f", "rawvideo", "-pix_fmt", "rgba", "-"]);
   proc.stdin.end();
   const payloads = [], waiting = [];

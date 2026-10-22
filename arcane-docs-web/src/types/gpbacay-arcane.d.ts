@@ -45,7 +45,7 @@ declare module "gpbacay-arcane/hippocampus" {
   }
 }
 
-declare module "gpbacay-arcane/capsule" {
+declare module "gpbacay-arcane/occipital" {
   import type { Hippocampus } from "gpbacay-arcane/hippocampus";
   export const TAG: string;
   export const MAX_PAYLOAD: number;

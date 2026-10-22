@@ -1,15 +1,15 @@
-// Arcane Capsule: a knowledge base packed into self-describing frames, searched with Hippocampus. No server, no
-// vector database, no embedder. Rebuilt from QRyptoRAG (qr-video-rag): there the MP4 only held a copy of text a
-// vector database already stored; here the frames are the whole store, and opening them rebuilds the search.
+// Occipital: visual memory for System 1 models. Knowledge is written as images and read back by sight into a
+// Hippocampus, the way the visual cortex feeds the medial temporal lobe. No server, no vector database, no embedder:
+// the frames are the whole store, and seeing them again rebuilds the search.
 //
-// pack({ id: text }) -> one payload (Uint8Array) per chunk: deflate(JSON ["arcane-capsule/1", id, chunk]), sized
+// pack({ id: text }) -> one payload (Uint8Array) per chunk: deflate(JSON ["arcane-occipital/1", id, chunk]), sized
 // for one QR code. unpack(payloads) -> { memory, lost }: a Hippocampus whose examples are the chunks, labeled by
 // document id, so memory.neighbors(query) retrieves passages and memory.react(query) says which document answers.
-// The medium is up to you: capsule-video.mjs writes the payloads as QR frames of an MP4; the docs site draws them
+// The medium is up to you: occipital-video.mjs writes the payloads as QR frames of an MP4; the docs site draws them
 // on canvases. This file uses only web APIs, so it runs in Node 18+ and the browser alike.
 import { Hippocampus } from "./hippocampus.mjs";
 
-export const TAG = "arcane-capsule/1";
+export const TAG = "arcane-occipital/1";
 export const MAX_PAYLOAD = 2331; // bytes a version-40 QR code holds at error correction M
 
 const squeeze = async (bytes, stream) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
@@ -48,14 +48,14 @@ export async function pack(documents, { chunkSize = 500, overlap = 50 } = {}) {
 
 /** Rebuild the knowledge base from payloads (null = a frame that could not be read). Returns { memory, lost }:
  *  memory is a Hippocampus over the chunks (label = document id; `options` go to it, e.g. { k: 5 }), lost counts
- *  payloads that were unreadable or not from a capsule. */
+ *  payloads that were unreadable or not Occipital frames. */
 export async function unpack(payloads, options = {}) {
   const memory = new Hippocampus(null, options);
   let lost = 0;
   for (const bytes of payloads) {
     try {
       const [tag, id, text] = JSON.parse(new TextDecoder().decode(await squeeze(bytes, new DecompressionStream("deflate"))));
-      if (tag !== TAG) throw new Error("not a capsule frame");
+      if (tag !== TAG) throw new Error("not an Occipital frame");
       memory.remember(text, id);
     } catch {
       lost++;

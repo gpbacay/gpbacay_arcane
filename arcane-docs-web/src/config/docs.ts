@@ -111,9 +111,9 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
           keywords: ["episodic memory", "retrieval", "few-shot", "examples", "routing", "tool calling"],
         },
         {
-          title: "Arcane Capsule",
-          href: "/docs/capsule",
-          keywords: ["qr code", "video", "mp4", "knowledge base", "offline rag", "qryptorag", "portable"],
+          title: "Occipital",
+          href: "/docs/occipital",
+          keywords: ["visual memory", "visual cortex", "qr code", "video", "mp4", "knowledge base", "offline rag", "portable"],
         },
         {
           title: "Graph of Thought",

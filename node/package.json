@@ -7,22 +7,22 @@
     ".": "./index.js",
     "./web": "./web.mjs",
     "./hippocampus": "./hippocampus.mjs",
-    "./capsule": "./capsule.mjs",
-    "./capsule-video": "./capsule-video.mjs"
+    "./occipital": "./occipital.mjs",
+    "./occipital-video": "./occipital-video.mjs"
   },
   "files": [
     "index.js",
     "web.mjs",
     "tools.mjs",
     "hippocampus.mjs",
-    "capsule.mjs",
-    "capsule-video.mjs",
+    "occipital.mjs",
+    "occipital-video.mjs",
     "web/arc1.onnx",
     "web/arc1.json",
     "README.md"
   ],
   "scripts": {
-    "test": "node test.js && node test-web.mjs && node test-hippocampus.mjs && node test-capsule.mjs"
+    "test": "node test.js && node test-web.mjs && node test-hippocampus.mjs && node test-occipital.mjs"
   },
   "engines": {
     "node": ">=18"
@@ -39,7 +39,8 @@
     "memory",
     "system-1-ai",
     "grounded-decisions",
-    "capsule",
+    "occipital",
+    "visual-memory",
     "qr-code",
     "video",
     "knowledge-base",
