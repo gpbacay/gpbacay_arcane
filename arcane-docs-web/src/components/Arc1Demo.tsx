@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListboxSelect } from "@/components/ui/listbox-select";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import { Accordion, AccordionContent, AccordionItem } from "@/components/ui/accordion";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CodeSnippet } from "@/components/CodeSnippet";
 import {
   ArrowLeftRight,
   Check,
+  ChevronRight,
   CloudSun,
   Copy,
   FileText,
@@ -657,31 +659,32 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <AccordionItem value={value} className="relative border-zinc-800">
-      <AccordionTrigger className="items-center gap-3 px-3 py-2.5 text-zinc-200 hover:bg-zinc-900/60 hover:no-underline focus-visible:ring-0 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]">
-        {/* pr-7 keeps the text clear of the info icon, which is laid over the header's right end */}
-        <span className={`flex min-w-0 flex-1 items-baseline justify-between gap-3 ${info ? "pr-7" : ""}`}>
+    <AccordionItem value={value} className="border-zinc-800">
+      {/* One flex row, so nothing is laid over anything: [chevron title ... value] [info]. The info button is a
+          sibling of the trigger because a button can't nest inside a button. */}
+      <AccordionPrimitive.Header className="flex items-center hover:bg-zinc-900/60">
+        <AccordionPrimitive.Trigger className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-zinc-200 outline-none transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2] data-[state=open]:text-purple-400 [&[data-state=open]>svg]:rotate-90">
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-500 transition-transform duration-200" aria-hidden />
           <span className="shrink-0">{title}</span>
-          {summary && <span className="min-w-0 truncate text-xs font-normal text-zinc-500">{summary}</span>}
-        </span>
-      </AccordionTrigger>
-      {/* A sibling of the trigger, not a child: a button can't nest inside a button. Sits on the title row, left of the chevron. */}
-      {info && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={`About ${title}`}
-              className="absolute right-9 top-3 text-zinc-500 transition-colors hover:text-zinc-200 focus-visible:text-zinc-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
-            >
-              <Info className="h-4 w-4" aria-hidden />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="left" className="max-w-56 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
-            {info}
-          </TooltipContent>
-        </Tooltip>
-      )}
+          {summary && <span className="ml-auto min-w-0 truncate pl-2 text-xs font-normal text-zinc-500">{summary}</span>}
+        </AccordionPrimitive.Trigger>
+        {info && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={`About ${title}`}
+                className="mr-3 shrink-0 text-zinc-500 transition-colors hover:text-zinc-200 focus-visible:text-zinc-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
+              >
+                <Info className="h-4 w-4" aria-hidden />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="max-w-56 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
+              {info}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </AccordionPrimitive.Header>
       <AccordionContent className="px-3 pb-3">{children}</AccordionContent>
     </AccordionItem>
   );
@@ -1012,6 +1015,12 @@ export function Arc1Demo() {
   const decisions = useMemo(() => (result ? argumentDecisions(result) : []), [result]);
   const calls = result?.function_calls || [];
   const fired = new Set(calls.map((c) => c.name));
+  // Hippocampus clears the model's confidence when a remembered pattern fills a call's arguments (that probability no
+  // longer describes the call). The tool's own fire probability, which already includes the memory's votes, still does.
+  const fireProbs = result ? calls.map((c) => toolProbs(result)[c.name]).filter((p) => typeof p === "number") : [];
+  const confidence =
+    typeof result?.confidence === "number" ? result.confidence : fireProbs.length ? Math.min(...fireProbs) : null;
+  const confidenceFromTools = typeof result?.confidence !== "number" && confidence !== null;
   // Arguments Hippocampus copied through a remembered pattern replace ARC 1's anchors for that tool.
   const memTools = new Set(result?.memory_arguments || []);
   const fromMemory: Decision[] = calls
@@ -1485,7 +1494,8 @@ export function Arc1Demo() {
               <div>
                 <dt className="text-xs text-zinc-500">Confidence</dt>
                 <dd className="tabular-nums text-zinc-100">
-                  {typeof result.confidence === "number" ? pct(result.confidence) : "n/a"}
+                  {confidence === null ? "n/a" : pct(confidence)}
+                  {confidenceFromTools && <span className="block text-[11px] leading-snug text-zinc-500">tool fire, arguments from memory</span>}
                 </dd>
               </div>
               <div>
