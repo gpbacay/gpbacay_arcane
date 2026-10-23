@@ -659,9 +659,10 @@ function Panel({
   return (
     <AccordionItem value={value} className="relative border-zinc-800">
       <AccordionTrigger className="items-center gap-3 px-3 py-2.5 text-zinc-200 hover:bg-zinc-900/60 hover:no-underline focus-visible:ring-0 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]">
-        <span className={`flex min-w-0 flex-1 items-baseline gap-2 ${info ? "pr-6" : ""}`}>
+        {/* pr-7 keeps the text clear of the info icon, which is laid over the header's right end */}
+        <span className={`flex min-w-0 flex-1 items-baseline justify-between gap-3 ${info ? "pr-7" : ""}`}>
           <span className="shrink-0">{title}</span>
-          {summary && <span className="truncate text-xs font-normal text-zinc-500">{summary}</span>}
+          {summary && <span className="min-w-0 truncate text-xs font-normal text-zinc-500">{summary}</span>}
         </span>
       </AccordionTrigger>
       {/* A sibling of the trigger, not a child: a button can't nest inside a button. Sits on the title row, left of the chevron. */}
@@ -1438,9 +1439,9 @@ export function Arc1Demo() {
           {maxRsaaCycles > 0 && (
             <Panel
               value="rsaa"
-              title="RSAA alignment"
+              title="RSAA cycles"
               summary={rsaaAuto ? "Auto" : rsaaCycles === 0 ? "Off" : String(rsaaCycles)}
-              info="Auto uses the checkpoint budget. A step is kept only when it reduces divergence between layers, and a harmful step is rolled back. A number forces that budget."
+              info="RSAA alignment cycles. Auto uses the checkpoint budget. A step is kept only when it reduces divergence between layers, and a harmful step is rolled back. A number forces that budget."
             >
               <div className="grid grid-flow-col gap-px bg-zinc-800" role="radiogroup" aria-label="RSAA cycles">
                 <button
