@@ -1,6 +1,8 @@
 # Render Blueprint: ARC 1 inference API for Arcane docs
 # Deploy this service, then set ARC1_API_URL on Vercel to the Render service URL.
-# Serves Models/arc1_arc1_tiny.* (train with: python examples/train_arc1.py).
+# Serves Models/arc1_arc1_tiny.* (train with: python examples/train_arc1.py) straight from the repository, so every
+# deploy runs the latest ARC 1, with Hippocampus + Occipital for the demo's memory. Keep auto-deploy on in Render;
+# /health reports the weights' fingerprint (compare with node/web/arc1.json, the chatbot's copy).
 
 services:
   - type: web

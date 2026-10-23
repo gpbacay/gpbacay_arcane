@@ -36,6 +36,8 @@ from pydantic import BaseModel, Field
 
 from gpbacay_arcane.arc1 import Arc1Config, Arc1Model
 from gpbacay_arcane.hippocampus import Hippocampus
+from gpbacay_arcane.occipital import Occipital
+from publish_arc1 import fingerprint  # examples/, next to this file
 from gpbacay_arcane.tokenization import BASE_VOCAB, BytePairTokenizer
 from gpbacay_arcane.tools import Arc1Agent, ToolParam, ToolSpec
 
@@ -81,6 +83,8 @@ METRICS_PATH = _env("ARC1_METRICS_PATH") or _first_existing(
     os.path.join(MODELS_DIR, "arc1_arc1_tiny.metrics.json"),
 )
 ALLOW_HEURISTIC = _env("ARC1_ALLOW_HEURISTIC") in ("1", "true", "yes")
+# Only the default trained files have a fingerprint; ARC1_*_PATH overrides serve something else.
+WEIGHTS_FINGERPRINT = None if any(_env(k) for k in ("ARC1_CONFIG_PATH", "ARC1_WEIGHTS_PATH", "ARC1_TOKENIZER_PATH")) else fingerprint()
 
 _model: Optional[Arc1Model] = None
 _tokenizer: Any = None
@@ -371,7 +375,8 @@ MEMORY_LIMIT = 200
 
 
 def _hippocampus(memory: List[MemoryExample]) -> Hippocampus:
-    hippocampus = Hippocampus(_agent)
+    # Occipital recalls examples by their letters too, so a typo still finds its neighbors (docs: /docs/occipital).
+    hippocampus = Hippocampus(_agent, occipital=Occipital())
     for ex in memory:
         hippocampus.remember(ex.text, ex.label, ex.arguments)
     return hippocampus
@@ -439,6 +444,8 @@ def health():
         "error": _state["error"],
         "model": "ARC 1",
         "hippocampus": True,  # /run and /classify accept "memory"
+        "occipital": True,  # that memory also recalls by letters
+        "weights": WEIGHTS_FINGERPRINT,  # = node/web/arc1.json source.sha256 when the chatbot runs the same ARC 1
 
     }
 

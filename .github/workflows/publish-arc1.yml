@@ -1,0 +1,50 @@
+# Keeps every served copy of ARC 1 on the latest trained weights. When Models/arc1_arc1_tiny.* change, rebuild
+# the bundled .rcn and the browser ONNX (examples/publish_arc1.py) and commit them. The docs site (Vercel) and the
+# demo server (Render) redeploy from that push, so the chatbot and the ARC 1 demo both serve the new model.
+name: Publish ARC 1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Models/arc1_arc1_tiny.config.json"
+      - "Models/arc1_arc1_tiny.weights.h5"
+      - "Models/arc1_arc1_tiny_tokenizer.json"
+      - "examples/publish_arc1.py"
+      - "examples/export_arc1_onnx.py"
+      - "gpbacay_arcane/rcn.py"
+      - "gpbacay_arcane/arc1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-arc1
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # The versions publish_arc1.py was verified with (TF -> ONNX parity checked by export_arc1_onnx.py).
+      - name: Install exporters
+        run: pip install tensorflow==2.20.0 keras==3.13.0 h5py==3.15.1 numpy==2.4.0 tf2onnx==1.17.0 onnx==1.23.0 onnxruntime==1.30.0
+
+      - name: Rebuild the .rcn and the browser model
+        run: python examples/publish_arc1.py && python examples/publish_arc1.py --check
+
+      - name: Commit if anything changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gpbacay_arcane/models/arc1-tiny.rcn node/web/arc1.onnx node/web/arc1.json
+          if git diff --cached --quiet; then echo "ARC 1 copies already up to date"; exit 0; fi
+          git commit -m "chore: publish ARC 1 to the package and the browser runtime"
+          git push

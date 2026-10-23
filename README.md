@@ -505,6 +505,16 @@ npm run dev
 
 The portal will be available at `http://localhost:3000`.
 
+The portal's ARC 1 demo and chatbot always serve the latest trained ARC 1, with Hippocampus and Occipital:
+
+- The demo calls `examples/serve_arc1_api.py` (Render), which loads `Models/arc1_arc1_tiny.*` straight from the
+  repository on every deploy.
+- The chatbot runs ARC 1 in the browser from `node/web/arc1.onnx`. That file and the bundled
+  `gpbacay_arcane/models/arc1-tiny.rcn` are built from the same trained files by `python examples/publish_arc1.py`.
+- `.github/workflows/publish-arc1.yml` runs that script whenever the trained files change and commits the result.
+  The portal's build refuses a browser model older than the weights.
+- To confirm both run the same model, compare `/health`'s `weights` with `source.sha256` in `node/web/arc1.json`.
+
 ## Available Models
 
 ARCANE provides the `System1` composition API plus model classes for different use cases:

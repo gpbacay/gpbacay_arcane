@@ -3,6 +3,7 @@
  * Until then, retrieval is memory only.
  */
 import { Hippocampus } from "gpbacay-arcane/hippocampus";
+import { Occipital } from "gpbacay-arcane/occipital";
 import { EXAMPLES, PAGES, decide, type ChatRoute, type Classifier } from "./docsChat";
 
 type Arc1 = Classifier;
@@ -11,8 +12,10 @@ const PAGE_IDS = PAGES.map((page) => page.id);
 // The docs examples are remembered by hand and stay. Past this many turns learned by observe(), the oldest goes.
 const LEARNED_TURNS = 100;
 const OPTIONS = { k: 8, weight: 0.7, maxSize: EXAMPLES.length + LEARNED_TURNS };
+// Each Hippocampus gets its own Occipital, so a visitor's typos still find the docs examples (/docs/occipital).
+const memoryOptions = () => ({ ...OPTIONS, occipital: new Occipital() });
 
-let hippo: Hippocampus = new Hippocampus(null, { ...OPTIONS, memory: EXAMPLES });
+let hippo: Hippocampus = new Hippocampus(null, { ...memoryOptions(), memory: EXAMPLES });
 let loading: Promise<void> | null = null;
 let modelReady = false;
 let status: "idle" | "loading" | "ready" | "error" = "idle";
@@ -45,7 +48,7 @@ export function warmArc1(): void {
       }),
     ]);
     const agent: Arc1 = await load({ model: new Uint8Array(model), config });
-    hippo = new Hippocampus(agent, { ...OPTIONS, memory: hippo.toJSON() });
+    hippo = new Hippocampus(agent, { ...memoryOptions(), memory: hippo.toJSON() });
     modelReady = true;
     setStatus("ready");
   })().catch((error) => {

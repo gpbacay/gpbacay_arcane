@@ -1,15 +1,19 @@
 // node --experimental-strip-types src/lib/docsChat.test.mts
 import assert from "node:assert/strict";
 import { Hippocampus } from "gpbacay-arcane/hippocampus";
+import { Occipital } from "gpbacay-arcane/occipital";
 import { appendTranscript, blankThread, removeThread, titleFrom, truncateBefore } from "./chatThreads.ts";
 import { EXAMPLES, answerDocs, decide, navigationOnly, withContext } from "./docsChat.ts";
 
-const hippo = new Hippocampus(null, { k: 8, weight: 0.7, memory: EXAMPLES });
+const hippo = new Hippocampus(null, { k: 8, weight: 0.7, memory: EXAMPLES, occipital: new Occipital() }); // as arc1Router.ts
 
 const heldOut: [string, { intent?: "docs" | "none"; pageId?: string | null }][] = [
   ["scroll me over to the install docs", { intent: "none", pageId: "installation" }],
   ["open the hippocampus page", { intent: "none", pageId: "hippocampus" }],
   ["jump to the quick start", { intent: "none", pageId: "quick-start" }],
+  ["opn the hipocampus page", { intent: "none", pageId: "hippocampus" }], // typos: found through Occipital
+  ["go to instalation", { intent: "none", pageId: "installation" }],
+  ["show me the instal page", { intent: "none", pageId: "installation" }],
   ["what does ARC 1 actually return", { intent: "docs" }],
   ["how do I install the package", { intent: "docs", pageId: null }],
   ["write me a haiku about rain", { intent: "none", pageId: null }],

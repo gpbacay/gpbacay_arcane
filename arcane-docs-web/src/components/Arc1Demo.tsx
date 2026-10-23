@@ -697,7 +697,8 @@ function MemoryPanel({
         </span>
       </div>
       <p className="px-3 pt-2 text-xs leading-relaxed text-zinc-500">
-        Decided examples ARC 1 retrieves at request time, instead of fine-tuning.{" "}
+        Decided examples ARC 1 retrieves at request time, instead of fine-tuning. Occipital also matches them by
+        their letters, so a typo still finds them.{" "}
         {isRun
           ? "A tool example with its arguments also shows where each argument sits in a request."
           : "The most similar ones vote for their label."}
