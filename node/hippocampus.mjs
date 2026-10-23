@@ -96,9 +96,11 @@ export class Hippocampus {
    *   maxPending candidates is dropped past it.
    *   memory: examples to start with: toJSON() output ([{ text, label, arguments }], the same shape as the ARC 1
    *   server's `memory` field) or a Python graph.to_json() (graph-of-thought v2).
+   *   occipital: an Occipital (occipital.mjs) of its own, which also recalls examples by their letters, so typos and
+   *   other word forms find their neighbors. null (default) searches words only.
    */
-  constructor(model = null, { k = 8, weight = 0.5, memory = [], maxSize = null, confident = 0.8, threshold = 1, leak = 0, maxPending = 10000, teacher = null } = {}) {
-    Object.assign(this, { model, k, weight, maxSize, confident, threshold, leak, maxPending, teacher });
+  constructor(model = null, { k = 8, weight = 0.5, memory = [], maxSize = null, confident = 0.8, threshold = 1, leak = 0, maxPending = 10000, teacher = null, occipital = null } = {}) {
+    Object.assign(this, { model, k, weight, maxSize, confident, threshold, leak, maxPending, teacher, occipital });
     this._examples = new Map(); // norm(text) -> { text, label, arguments, source, tf, len }
     this._postings = new Map(); // term -> Map(norm(text) -> term count)
     this._labels = new Map(); // label -> number of examples
@@ -130,6 +132,7 @@ export class Hippocampus {
     for (const t of tokenize(text.trim())) tf.set(t, (tf.get(t) || 0) + 1);
     this._examples.set(id, { text: text.trim(), label: label || null, arguments: args ? { ...args } : undefined, source, tf, len: [...tf.values()].reduce((a, b) => a + b, 0) });
     this._labels.set(label || null, (this._labels.get(label || null) || 0) + 1);
+    this.occipital?.add(id, text.trim());
     for (const [t, c] of tf) {
       if (!this._postings.has(t)) this._postings.set(t, new Map());
       this._postings.get(t).set(id, c);
@@ -204,6 +207,7 @@ export class Hippocampus {
     const n = this._labels.get(ex.label) - 1;
     if (n) this._labels.set(ex.label, n);
     else this._labels.delete(ex.label);
+    this.occipital?.remove(id);
     return this._examples.delete(id);
   }
 
@@ -217,7 +221,8 @@ export class Hippocampus {
   // -------------------------------------------------------------- retrieval
   _search(text, labels) {
     const allowed = labels ? new Set(labels.map((l) => l ?? null)) : null;
-    const n = this._examples.size, scores = new Map();
+    const n = this._examples.size;
+    let scores = new Map(); // id -> score
     if (!n) return [];
     let avg = 0;
     for (const ex of this._examples.values()) avg += ex.len / n;
@@ -228,11 +233,13 @@ export class Hippocampus {
       for (const [key, tf] of post) {
         const ex = this._examples.get(key);
         if (allowed && !allowed.has(ex.label)) continue;
-        scores.set(ex, (scores.get(ex) || 0) + (idf * tf * (K1 + 1)) / (tf + K1 * (1 - B + (B * ex.len) / avg)));
+        scores.set(key, (scores.get(key) || 0) + (idf * tf * (K1 + 1)) / (tf + K1 * (1 - B + (B * ex.len) / avg)));
       }
     }
     const top = Math.max(...scores.values());
-    return [...scores].map(([ex, s]) => ({ ex, score: s / top })).sort((a, b) => b.score - a.score).slice(0, this.k);
+    for (const [key, s] of scores) scores.set(key, s / top);
+    if (this.occipital) scores = this.occipital.fuse(text, scores, (key) => !allowed || allowed.has(this._examples.get(key).label));
+    return [...scores].map(([key, score]) => ({ ex: this._examples.get(key), score })).sort((a, b) => b.score - a.score).slice(0, this.k);
   }
 
   /** Remembered examples most like `text` (only those labeled one of `labels`, if given): [{ text, label, score }]. */

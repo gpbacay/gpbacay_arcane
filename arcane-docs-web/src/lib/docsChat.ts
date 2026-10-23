@@ -117,9 +117,9 @@ export const PAGES: DocPage[] = [
     title: "Occipital",
     href: "/docs/occipital",
     answer:
-      "Occipital is visual memory: it writes documents as QR-code frames of an MP4, and reading the video back rebuilds a Hippocampus search over the passages, with no vector database or embedder. The video is about 5.7 times the size of its text, so it is portable, not compressed.",
-    aliases: ["occipital", "visual memory", "qr video"],
-    keys: [/\boccipital\b/, /\b(visual memory|visual cortex|qr[- ]?video|qr codes?)\b/],
+      "Occipital is the visual pathway of Hippocampus. It recalls remembered examples by their letters, the way the brain's visual word form area reads, so typos and other word forms still find their neighbors, and any model behind the memory, ARC 1 included, decides better. It can also store a memory as QR-code frames of an MP4.",
+    aliases: ["occipital", "visual memory", "letter recall", "qr video"],
+    keys: [/\boccipital\b/, /\b(visual memory|visual cortex|typos?|misspell\w*|qr[- ]?video|qr codes?)\b/],
     nav: ["go to the occipital page", "open occipital", "take me to visual memory", "show the qr video docs"],
   },
   {

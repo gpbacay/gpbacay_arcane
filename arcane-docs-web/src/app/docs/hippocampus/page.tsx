@@ -131,7 +131,11 @@ export default function HippocampusPage() {
           <Link href="/docs/graph-of-thought" className={link}>
             Grounded Graph of Thought
           </Link>
-          . Search needs only numpy, with no API keys or vector database.
+          . Search needs only numpy, with no API keys or vector database. Give it an{" "}
+          <Link href="/docs/occipital" className={link}>
+            Occipital
+          </Link>{" "}
+          to also recall examples by their letters, so typos and other word forms still find their neighbors.
         </p>
 
         <h2 id="brain" className={h2}>
@@ -692,7 +696,7 @@ hippocampus.labels()   # {"memory-3f2a...": "billing", ...}`}
         <ul className="not-prose mt-2 max-w-2xl divide-y divide-zinc-900 border-y border-zinc-800">
           {[
             ["Measured on one model", "Every improvement figure on this page comes from arc1-tiny. Other models were not benchmarked, so treat the gains as an example of the effect, not a guarantee."],
-            ["Keyword retrieval", "A request that shares no words with any example gets no vote and falls back to the model. Using ARC 1's embeddings as DocumentGraph(embed=...) did not meaningfully help on CLINC150."],
+            ["Keyword retrieval", "A request that shares no words with any example gets no vote and falls back to the model. Using ARC 1's embeddings as DocumentGraph(embed=...) did not meaningfully help on CLINC150. Occipital adds recall by letters, so typos and other word forms still find their neighbors."],
             ["Argument patterns", "A pattern only matches phrasings like a remembered one; others fall back to the model's arguments. A value at the start or end of a pattern stops at punctuation or at and, then, plus or also, so \"Tom and Jerry\" in that position is cut. English joining words only."],
             ["Uncalibrated mix", "Even if the model's probabilities are calibrated, the combined confidence has not been re-fitted, so treat it as a ranking."],
             ["Tested up to 15,000 examples", "Lookups slow down when common words match many examples. Expect that somewhere past about 100,000; it has not been measured."],

@@ -427,13 +427,36 @@ decisive-memory check the teacher was asked 98% of the time for the same accurac
 likely correlated (it confuses the same similar intents), which this does not model, so treat 92% as a best case
 for a teacher of that accuracy.
 
-#### Occipital — visual memory in one video file (Node.js)
+#### Occipital — the visual pathway of Hippocampus
 
-`gpbacay-arcane/occipital-video` writes documents as QR-code frames of an MP4, and `readVideo` reads them back into
-a Hippocampus over the passages, so you don't need a vector database or an embedder. Like the visual cortex
-feeding the hippocampus, it holds knowledge as images and hands what it reads to memory. On this repo's docs the
-video is 5.7× the size of the text, not smaller, and still decodes after lossy re-encoding. See
-[node/README.md](node/README.md#occipital-visual-memory-in-one-video-file).
+Hippocampus recalls examples by whole words, so a request with a typo or another word form ("parcle",
+"refunded") gets no vote from an example it obviously matches. Occipital reads the way the brain's visual word
+form area does, by letters: it indexes every remembered example by letter 3- and 4-grams and fuses those scores
+with the word search before the neighbors vote. It changes which examples vote, not the model, so every System 1
+model behind the memory (ARC 1, a classifier, an LLM router) decides better.
+
+```python
+from gpbacay_arcane import Hippocampus, Occipital, load_arc1
+
+hippocampus = Hippocampus(load_arc1(), occipital=Occipital())   # or any model, or None for memory only
+hippocampus.remember("my parcel never arrived", "shipping")
+hippocampus.classify("my parcle nevr arived", ["billing", "shipping"])   # found through its letters
+```
+
+`python examples/benchmark_hippocampus.py --shots 1 5 10 --occipital` (same protocol as the tables above):
+
+| | Words only | + Occipital |
+|---|---|---|
+| ARC 1 + memory, CLINC150 unseen intents, 1 / 5 / 10 examples | 80.5% / 90.5% / 93.5% | **81.3% / 92.2% / 94.5%** |
+| Memory alone, 150 intents, 15,000 examples | 80.1% | **83.2%** |
+| Median decision at 15,000 examples | 4.2 ms | 16 ms |
+
+With typos in the requests (`node/bench-occipital-arc1.mjs`) the default settings gain about as much, and
+memory-only abstention on CLINC150's out-of-scope requests stays within half a point. `min_coverage` (default 0.3)
+trades abstention for accuracy (at 0.1, ARC 1 gains 5 to 7 points on typos), and `max_df` (default 0.1) trades accuracy for speed; both are documented in `occipital.py`. For
+tool calling it doesn't help: tool choice and exact calls were unchanged, and with one example per tool it made
+ARC 1 fire a tool on 1.2% of requests that need none, so leave it off for a tool memory. In Node.js, Occipital
+can also store a whole memory as QR-code frames of an MP4 ([node/README.md](node/README.md#occipital-the-visual-pathway-of-hippocampus)).
 
 ### Distilling Qwen2.5-0.5B into ARCANE
 

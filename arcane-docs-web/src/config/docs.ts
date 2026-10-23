@@ -113,7 +113,7 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
         {
           title: "Occipital",
           href: "/docs/occipital",
-          keywords: ["visual memory", "visual cortex", "qr code", "video", "mp4", "knowledge base", "offline rag", "portable"],
+          keywords: ["visual word form", "letter recall", "typos", "misspellings", "visual cortex", "qr code", "video", "portable memory"],
         },
         {
           title: "Graph of Thought",

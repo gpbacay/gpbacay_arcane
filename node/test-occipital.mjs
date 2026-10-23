@@ -3,8 +3,12 @@ import assert from "node:assert";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { chunk, pack, unpack, MAX_PAYLOAD } from "./occipital.mjs";
+import { chunk, pack, unpack, MAX_PAYLOAD, Occipital } from "./occipital.mjs";
 import { writeVideo, readVideo } from "./occipital-video.mjs";
+import { Hippocampus } from "./hippocampus.mjs";
+import { load } from "./web.mjs";
+
+const RATE = { name: "rate_movie", description: "Rate a movie", parameters: [{ name: "title" }, { name: "stars", type: "integer" }] };
 
 const DOCS = {
   billing: "Refunds are issued to the original card within five business days. A duplicate charge is reversed automatically once the bank confirms it. ".repeat(6),
@@ -24,6 +28,27 @@ for (const word of text.split(/\s+/)) assert.ok(pieces.some((p) => p.split(" ").
 assert.ok(pieces[0].slice(-30).includes(pieces[1].split(" ").slice(0, 2).join(" ")), "no overlap");
 assert.deepStrictEqual(chunk("   "), []);
 assert.deepStrictEqual(chunk("short"), ["short"]);
+
+// the letter pathway: typos find the neighbors words miss, abstention stays, the index follows the memory
+const TICKETS = [["I was charged twice", "billing"], ["refund my last invoice", "billing"],
+  ["my parcel never arrived", "shipping"], ["track my delivery", "shipping"]];
+const tickets = (occipital = null) => {
+  const h = new Hippocampus(null, { occipital });
+  for (const [t, l] of TICKETS) h.remember(t, l);
+  return h;
+};
+const TYPO = "my parcle nevr arived", LABELS = ["billing", "shipping"];
+assert.equal((await tickets().classify(TYPO, LABELS)).label, null);
+assert.equal((await tickets(new Occipital()).classify(TYPO, LABELS)).neighbors[0].text, "my parcel never arrived");
+assert.equal((await tickets(new Occipital()).classify("hello partner", LABELS)).label, null);
+assert.ok(tickets(new Occipital({ minCoverage: 0 })).react("hello partner").neighbors.length);
+assert.equal((await tickets(new Occipital()).classify("I was charged twice for the invoice", LABELS)).neighbors[0].text, "I was charged twice");
+const followed = tickets(new Occipital());
+followed.forget("my parcel never arrived");
+assert.ok(followed.neighbors(TYPO).every((n) => n.text !== "my parcel never arrived"));
+followed.remember("my parcel never arrived", "billing");
+assert.equal((await followed.classify(TYPO, LABELS)).label, "billing");
+assert.deepStrictEqual([...tickets(new Occipital()).occipital.fuse(TYPO, new Map())].map(([, s]) => +s.toFixed(6)), [0.25]); // = Python
 
 // payloads round-trip into a search; foreign or broken frames are counted, not fatal
 const payloads = await pack(DOCS, { chunkSize: 200 });
@@ -47,6 +72,24 @@ try {
   assert.equal(opened.lost, 0);
   assert.equal(opened.memory.neighbors("duplicate charge reversed")[0].label, "billing");
   console.log(`video: ${written.frames} frames, ${written.bytes} bytes for ${written.textBytes} bytes of text`);
+
+  // an ARC 1 memory with tool arguments, read back from video, teaches ARC 1 a tool it was never trained on
+  const taught = new Hippocampus();
+  taught.remember("rate Dune 4 stars", "rate_movie", { title: "Dune", stars: 4 });
+  taught.remember("give Alien five stars", "rate_movie", { title: "Alien", stars: 5 });
+  taught.remember("thanks, that's all", null);
+  await writeVideo(file, taught.toJSON().map((e) => [e.label, e.text, e.arguments]));
+  const arc1 = await load();
+  try {
+    const { memory: skill, lost: skillLost } = await readVideo(file, { model: arc1 });
+    assert.equal(skillLost, 0);
+    assert.deepStrictEqual(skill.toJSON(), taught.toJSON());
+    const out = await skill.run("rate Coco 3 stars", [RATE]);
+    assert.deepStrictEqual(out.function_calls, [{ name: "rate_movie", arguments: { title: "Coco", stars: 3 } }]);
+    console.log("occipital + arc1 ok", JSON.stringify(out.function_calls));
+  } finally {
+    await arc1.close();
+  }
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

@@ -121,9 +121,26 @@ new Hippocampus(agent, { memory: JSON.parse(saved) }); // also accepts Python's 
 - For memory-only use, `import { Hippocampus } from "gpbacay-arcane/hippocampus"`. It doesn't need onnxruntime-web.
 - `run` passes the memory's vote to the model as `opts.toolPrior`. ARC 1 web combines it with its own firing probability by noisy-OR. Tools are not executed.
 
-## Occipital: visual memory in one video file
+## Occipital: the visual pathway of Hippocampus
 
-Occipital writes documents as QR-code frames of an MP4. Reading the video back decodes the frames and rebuilds the search as a `Hippocampus` over the passages, so you don't need a vector database, an embedder or a server. It plays the role of the visual cortex: knowledge held as images, read by sight, handed to the hippocampus.
+`Occipital` gives a `Hippocampus` recall by letters as well as words, the way the brain's visual word form area reads, so typos and other word forms still find their neighbors. It changes which examples vote, not the model, so ARC 1 or any other model behind the memory decides better. It's a port of the Python `Occipital` and returns the same scores.
+
+```js
+import { load, Hippocampus } from "gpbacay-arcane/web";
+import { Occipital } from "gpbacay-arcane/occipital";
+
+const hippocampus = new Hippocampus(await load(), { occipital: new Occipital() }); // one Occipital per Hippocampus
+hippocampus.remember("my parcel never arrived", "shipping");
+await hippocampus.classify("my parcle nevr arived", ["billing", "shipping"]); // "shipping", through its letters
+```
+
+- `node bench-occipital-arc1.mjs 1 5 10` uses 29 CLINC150 intents ARC 1 never trained on. With clean requests, ARC 1 + Hippocampus went from 83.2 / 89.7 / 94.3% to 84.0 / 91.0 / 95.8% at 1, 5 and 10 examples per intent. With typos it went from 66.2 / 74.8 / 81.8% to 66.7 / 76.3 / 83.0%. Memory-only abstention on out-of-scope requests stayed within 0.5 points.
+- Options: `{ weight: 0.5, sharpness: 2, minCoverage: 0.3, maxDf: 0.1 }`. `minCoverage: 0.1` adds about 5 more points on typos, but a memory-only Hippocampus then abstains much less.
+- It doesn't help tool calling, and with one example per tool it costs about 1% of correct refusals, so leave it off for a tool memory.
+
+### Memories as video
+
+A memory or a set of documents can be written as QR-code frames of an MP4 and read back into a `Hippocampus`, with no vector database, embedder or server.
 
 ```sh
 npm install gpbacay-arcane qrcode jsqr ffmpeg-static   # or set $FFMPEG_PATH / have ffmpeg on PATH
@@ -132,15 +149,14 @@ npm install gpbacay-arcane qrcode jsqr ffmpeg-static   # or set $FFMPEG_PATH / h
 ```js
 import { writeVideo, readVideo } from "gpbacay-arcane/occipital-video";
 
-await writeVideo("kb.mp4", { "refunds.md": refundsText, "shipping.md": shippingText });
-// { frames, bytes, textBytes }
+await writeVideo("kb.mp4", { "refunds.md": refundsText, "shipping.md": shippingText });   // documents, or
+await writeVideo("skill.mp4", hippocampus.toJSON().map((e) => [e.label, e.text, e.arguments])); // a memory
 
-const { memory, lost } = await readVideo("kb.mp4");     // lost = frames that could not be read
-memory.neighbors("how long do refunds take?");          // [{ text, label: "refunds.md", score }]
-memory.react("how long do refunds take?").votes;        // { "refunds.md": 1 }: which document answers
+const { memory, lost } = await readVideo("skill.mp4", { model: await load(), occipital: new Occipital() });
+memory.neighbors("how long do refunds take?");   // [{ text, label, score }]; lost = frames that could not be read
 ```
 
-- Each passage (500 characters, 50 overlap, cut at whitespace) is stored as `deflate(["arcane-occipital/1", id, text])` in one QR frame. A frame is self-describing, so a damaged frame loses only its own passage.
-- `gpbacay-arcane/occipital` holds `chunk`, `pack` and `unpack` with no dependencies, for the browser or any other medium.
-- `node bench-occipital.mjs ../docs` measures the 13 docs in this repo (119 KB of text, 43 KB gzipped). The result is 269 frames in 681 KB, **5.7× the text size**, written in 2 s and read in 5.5 s. Every frame still decodes after re-encoding at H.264 CRF 35 or VP9.
-- The video is **larger** than its text, so it's not compression. Use it when one portable file that survives video pipelines is worth the size.
+- Each passage (500 characters, 50 overlap, cut at whitespace) or example is stored as `deflate(["arcane-occipital/1", id, text, args?])` in one self-describing QR frame, so a damaged frame loses only its own entry.
+- `gpbacay-arcane/occipital` also holds `chunk`, `pack` and `unpack` with no dependencies, for the browser or any other medium.
+- A memory read from video decides exactly like the original: 600 of 600 identical decisions in `bench-occipital-arc1.mjs`.
+- `node bench-occipital.mjs ../docs` measures the 13 docs in this repo (119 KB of text, 43 KB gzipped). The result is 269 frames in 681 KB, **5.7× the text size**, written in 2 s and read in 5.5 s. Every frame still decodes after re-encoding at H.264 CRF 35 or VP9. It's not compression.

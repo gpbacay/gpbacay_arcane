@@ -10,6 +10,7 @@
 
   curl -L -o data/external/clinc150_data_full.json https://raw.githubusercontent.com/clinc/oos-eval/master/data/data_full.json
   python examples/benchmark_hippocampus.py --shots 1 2 5 10
+  python examples/benchmark_hippocampus.py --shots 1 5 10 --occipital   # the same, with Occipital's letter recall
 """
 import argparse, json, os, random, sys, time
 
@@ -19,19 +20,24 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 
 import numpy as np
 
-from gpbacay_arcane import Hippocampus, load_arc1
+from gpbacay_arcane import Hippocampus, Occipital, load_arc1
 from gpbacay_arcane.arc1_data import HELD_OUT_TOOLS, _single, build_tool_library, fixed_eval_set
 from gpbacay_arcane.arc1_distill import _humanize, real_eval_intents
 from gpbacay_arcane.arc1_train import evaluate_tools
 
 CLINC = os.path.join(ROOT, "data", "external", "clinc150_data_full.json")
 TASK = "Label the intent of the request."
+OCCIPITAL = False  # --occipital: every memory below also recalls by letters
+
+
+def memory_of(model=None, **kwargs):
+    return Hippocampus(model, occipital=Occipital() if OCCIPITAL else None, **kwargs)
 
 
 def clinc(agent, shots, n, seed=11):
     data = json.load(open(CLINC, encoding="utf-8"))
     intents = real_eval_intents(CLINC)
-    both, memory, rng = Hippocampus(agent), Hippocampus(), random.Random(0)
+    both, memory, rng = memory_of(agent), memory_of(), random.Random(0)
     for i in intents:
         for text in rng.sample([t for t, lab in data["train"] if lab == i], shots):
             both.remember(text, _humanize(i))
@@ -51,7 +57,7 @@ def clinc(agent, shots, n, seed=11):
 
 def unseen_tools(agent, shots, n):
     lib, rng = build_tool_library(), random.Random(0)
-    labels_only, with_args = Hippocampus(agent), Hippocampus(agent)
+    labels_only, with_args = memory_of(agent), memory_of(agent)
     for name in HELD_OUT_TOOLS:
         for _ in range(shots):
             text, call = _single(rng, lib[name], "train")
@@ -67,7 +73,7 @@ def unseen_tools(agent, shots, n):
 
 def scale(shots=100, n=1000):
     data = json.load(open(CLINC, encoding="utf-8"))
-    by, rng, hippocampus = {}, random.Random(0), Hippocampus()
+    by, rng, hippocampus = {}, random.Random(0), memory_of()
     for t, lab in data["train"]:
         by.setdefault(lab, []).append(t)
     pairs = [(t, lab) for lab, ts in by.items() for t in rng.sample(ts, min(shots, len(ts)))]
@@ -199,7 +205,9 @@ if __name__ == "__main__":
     ap.add_argument("-n", type=int, default=600)
     ap.add_argument("--policy", action="store_true", help="only compare remember-all with observe (no ARC 1 needed)")
     ap.add_argument("--teacher", action="store_true", help="only measure learning from a simulated teacher (needs ARC 1)")
+    ap.add_argument("--occipital", action="store_true", help="give every memory an Occipital (letter recall)")
     a = ap.parse_args()
+    OCCIPITAL = a.occipital
     if a.policy:
         for k, v in policy().items():
             print(f"{k}: {json.dumps(v)}", flush=True)

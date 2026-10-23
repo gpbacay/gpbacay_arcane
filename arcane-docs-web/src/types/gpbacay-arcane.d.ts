@@ -24,6 +24,7 @@ declare module "gpbacay-arcane/hippocampus" {
         leak?: number;
         maxPending?: number;
         teacher?: ((text: string, labels: string[]) => Promise<string | Record<string, number> | null>) | null;
+        occipital?: import("gpbacay-arcane/occipital").Occipital | null;
       },
     );
     classify(
@@ -47,12 +48,22 @@ declare module "gpbacay-arcane/hippocampus" {
 
 declare module "gpbacay-arcane/occipital" {
   import type { Hippocampus } from "gpbacay-arcane/hippocampus";
+  export class Occipital {
+    constructor(options?: { weight?: number; sharpness?: number; minCoverage?: number; maxDf?: number });
+    weight: number;
+    sharpness: number;
+    minCoverage: number;
+    maxDf: number;
+  }
   export const TAG: string;
   export const MAX_PAYLOAD: number;
   export function chunk(text: string, size?: number, overlap?: number): string[];
-  export function pack(documents: Record<string, string>, options?: { chunkSize?: number; overlap?: number }): Promise<Uint8Array[]>;
+  export function pack(
+    documents: Record<string, string> | [string | null, string, Record<string, unknown>?][],
+    options?: { chunkSize?: number; overlap?: number },
+  ): Promise<Uint8Array[]>;
   export function unpack(
     payloads: (Uint8Array | null)[],
-    options?: ConstructorParameters<typeof Hippocampus>[1],
+    options?: ConstructorParameters<typeof Hippocampus>[1] & { model?: ConstructorParameters<typeof Hippocampus>[0] },
   ): Promise<{ memory: Hippocampus; lost: number }>;
 }

@@ -123,6 +123,7 @@ from .arc1_codec import Arc1Codec
 
 from .got import DocumentGraph, GroundedGraphOfThought, got_tools
 from .hippocampus import Hippocampus
+from .occipital import Occipital
 
 from .system1 import (
     AdaptationTrace,
@@ -198,6 +199,7 @@ __all__ = [
     "AdaptationTrace",
     "NeuralMemory",
     "Hippocampus",
+    "Occipital",
     "DocumentGraph",
     "GroundedGraphOfThought",
     "got_tools",

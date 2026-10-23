@@ -44,7 +44,7 @@ export async function writeVideo(path, documents, { chunkSize = 500, overlap = 5
   }
   proc.stdin.end();
   await done;
-  return { frames: payloads.length, bytes: statSync(path).size, textBytes: Object.values(documents).reduce((n, t) => n + Buffer.byteLength(t), 0) };
+  return { frames: payloads.length, bytes: statSync(path).size, textBytes: (Array.isArray(documents) ? documents.map(([, t]) => t) : Object.values(documents)).reduce((n, t) => n + Buffer.byteLength(t), 0) };
 }
 
 /** Read an Occipital MP4: decode every frame and rebuild the search. Returns unpack()'s { memory, lost } plus frames.

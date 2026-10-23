@@ -3,8 +3,8 @@
 import { useState } from "react";
 import QRCode from "qrcode";
 import jsQR from "jsqr";
-import { pack, unpack } from "gpbacay-arcane/occipital";
-import type { Hippocampus } from "gpbacay-arcane/hippocampus";
+import { Occipital, pack, unpack } from "gpbacay-arcane/occipital";
+import { Hippocampus } from "gpbacay-arcane/hippocampus";
 
 const SAMPLE = `# Refunds
 Refunds go back to the original card within five business days. A duplicate charge is reversed automatically once the bank confirms it, and you get an email when it is done.
@@ -15,7 +15,7 @@ Parcels ship from Cebu every weekday. Tracking numbers arrive by email. A parcel
 # Accounts
 You can change your email address under Settings. Two-factor sign-in uses an authenticator app; if you lose the phone, recovery codes restore access.`;
 
-type Built = { frames: string[]; textBytes: number; payloadBytes: number; documents: number; lost: number; memory: Hippocampus };
+type Built = { frames: string[]; textBytes: number; payloadBytes: number; documents: number; lost: number; words: Hippocampus; letters: Hippocampus };
 
 /** "# Title" sections become documents named by their title; text before the first heading is "notes". */
 function toDocuments(text: string) {
@@ -30,7 +30,7 @@ function toDocuments(text: string) {
 
 export function OccipitalDemo() {
   const [text, setText] = useState(SAMPLE);
-  const [query, setQuery] = useState("my parcel has had no tracking scan");
+  const [query, setQuery] = useState("my parcle has no traking");
   const [built, setBuilt] = useState<Built | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,14 +51,16 @@ export function OccipitalDemo() {
         read.push(qr ? Uint8Array.from(qr.binaryData) : null);
         frames.push(canvas.toDataURL());
       }
-      const { memory, lost } = await unpack(read, { k: 3 });
+      const { memory: letters, lost } = await unpack(read, { k: 3, occipital: new Occipital() });
+      const words = new Hippocampus(null, { k: 3, memory: letters.toJSON() });
       setBuilt({
         frames,
         textBytes: new TextEncoder().encode(Object.values(docs).join("")).length,
         payloadBytes: payloads.reduce((n, p) => n + p.length, 0),
         documents: Object.keys(docs).length,
         lost,
-        memory,
+        words,
+        letters,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -68,8 +70,13 @@ export function OccipitalDemo() {
     }
   };
 
-  const hits = built && query.trim() ? built.memory.neighbors(query) : [];
-  const votes = built && query.trim() ? Object.entries(built.memory.react(query).votes).sort((a, b) => b[1] - a[1]) : [];
+  const sides = built && query.trim()
+    ? ([["Words only (Hippocampus)", built.words], ["Words + letters (Hippocampus + Occipital)", built.letters]] as const).map(([title, memory]) => ({
+        title,
+        hits: memory.neighbors(query),
+        votes: Object.entries(memory.react(query).votes).sort((a, b) => b[1] - a[1]),
+      }))
+    : [];
 
   return (
     <div className="not-prose mt-6 border border-zinc-800 bg-zinc-950">
@@ -127,7 +134,7 @@ export function OccipitalDemo() {
 
           <div className="p-4 sm:p-5">
             <label htmlFor="occipital-query" className="text-sm font-medium text-zinc-200">
-              Search the decoded frames
+              Search what was read back
             </label>
             <input
               id="occipital-query"
@@ -135,27 +142,36 @@ export function OccipitalDemo() {
               onChange={(e) => setQuery(e.target.value)}
               className="mt-2 w-full border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-[#C785F2] focus:outline-none"
             />
-            {votes.length > 0 && (
-              <p className="mt-3 text-xs text-zinc-400">
-                Answering document:{" "}
-                {votes.map(([doc, share]) => (
-                  <span key={doc} className="mr-3 font-mono text-zinc-200">
-                    {doc} {Math.round(share * 100)}%
-                  </span>
-                ))}
-              </p>
-            )}
-            <ul className="mt-3 space-y-2">
-              {hits.map((hit) => (
-                <li key={hit.text} className="border border-zinc-800 p-3">
-                  <p className="text-xs text-zinc-500">
-                    <span className="font-mono text-[#C785F2]">{hit.label}</span> · score {hit.score.toFixed(2)}
+            <p className="mt-2 text-xs text-zinc-500">Try a typo or another word form; the left side needs whole words in common.</p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {sides.map(({ title, hits, votes }) => (
+                <section key={title} aria-label={title}>
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">{title}</h4>
+                  <p className="mt-2 text-xs text-zinc-400">
+                    Answering document:{" "}
+                    {votes.length ? (
+                      votes.map(([doc, share]) => (
+                        <span key={doc} className="mr-3 font-mono text-zinc-200">
+                          {doc} {Math.round(share * 100)}%
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-zinc-500">none (abstains)</span>
+                    )}
                   </p>
-                  <p className="mt-1 text-sm leading-relaxed text-zinc-300">{hit.text}</p>
-                </li>
+                  <ul className="mt-2 space-y-2">
+                    {hits.map((hit) => (
+                      <li key={hit.text} className="border border-zinc-800 p-3">
+                        <p className="text-xs text-zinc-500">
+                          <span className="font-mono text-[#C785F2]">{hit.label}</span> · score {hit.score.toFixed(2)}
+                        </p>
+                        <p className="mt-1 text-sm leading-relaxed text-zinc-300">{hit.text}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               ))}
-              {query.trim() && !hits.length && <li className="text-sm text-zinc-500">No chunk shares a word with this query.</li>}
-            </ul>
+            </div>
           </div>
         </>
       )}

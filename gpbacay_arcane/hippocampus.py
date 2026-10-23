@@ -30,6 +30,10 @@ Learning without a person in the loop: give ``teacher`` a stronger, slower model
 When ``classify`` is not confident it asks the teacher, returns the answer and remembers it, so the next
 similar request is decided here, fast, without the teacher. Without any outside signal a memory can only echo
 its model; the teacher is that signal. ``observe`` takes outcomes from anywhere else (a rule, a tool result).
+
+Better recall: ``Hippocampus(model, occipital=Occipital())`` also recalls examples by their letters (see
+``occipital.py``), so a typo or another word form still finds its neighbors. It changes which examples vote, not
+the model, so it helps whatever model is behind the memory.
 """
 
 from __future__ import annotations
@@ -122,12 +126,14 @@ class Hippocampus:
         teacher: ``(text, labels) -> label | {label: probability} | None``, a stronger model that ``classify``
             asks when its own decision is under ``confident`` (see the module docstring). An answer under
             ``confident`` is not trusted. ``None`` (default) asks nobody.
+        occipital: an ``Occipital`` of its own, which also recalls examples by their letters. ``None`` (default)
+            searches words only.
     """
 
     def __init__(self, model: Any = None, graph: Optional[DocumentGraph] = None, k: int = 8, weight: float = 0.5,
                  max_size: Optional[int] = None, confident: float = 0.8, threshold: float = 1.0, leak: float = 0.0,
-                 max_pending: int = 10000, teacher: Any = None):
-        self.model, self.k, self.weight, self.teacher = model, k, weight, teacher
+                 max_pending: int = 10000, teacher: Any = None, occipital: Any = None):
+        self.model, self.k, self.weight, self.teacher, self.occipital = model, k, weight, teacher, occipital
         self.max_size, self.confident, self.threshold, self.leak = max_size, confident, threshold, leak
         self.max_pending = max_pending
         self.graph = graph if graph is not None else DocumentGraph(semantic_neighbors=0)
@@ -137,6 +143,8 @@ class Hippocampus:
         for d, doc in self.graph.docs.items():  # a loaded graph brings its memory with it
             if d.startswith(MEMORY_PREFIX):
                 self._index(d, doc["description"] or None)
+                if occipital is not None:
+                    occipital.add(d, "\n".join(self.graph.nodes[n]["content"] for n in doc["nodeIds"]))
 
     # ------------------------------------------------------------- memory
     def remember(self, text: str, label: Optional[str], arguments: Optional[Dict[str, Any]] = None) -> str:
@@ -159,6 +167,8 @@ class Hippocampus:
         if arguments:
             doc["arguments"] = dict(arguments)
         self._index(doc_id, label or None)
+        if self.occipital is not None:
+            self.occipital.add(doc_id, text)
         return doc_id
 
     def observe(self, text: str, label: Optional[str], arguments: Optional[Dict[str, Any]] = None,
@@ -220,12 +230,16 @@ class Hippocampus:
                 return  # only manual examples left: they are never evicted
             self._by_label[self._label.pop(victim)].discard(victim)
             self.graph.remove_document(victim)
+            if self.occipital is not None:
+                self.occipital.remove(victim)
 
     def forget(self, text: str) -> bool:
         doc_id = _doc_id(text)
         self._pending.pop(doc_id, None)
         if doc_id in self._label:
             self._by_label[self._label.pop(doc_id)].discard(doc_id)
+        if self.occipital is not None:
+            self.occipital.remove(doc_id)
         return self.graph.remove_document(doc_id)
 
     def labels(self) -> Dict[str, Optional[str]]:
@@ -246,8 +260,23 @@ class Hippocampus:
         allowed = None
         if len(self._label) < len(self.graph.docs) or wanted != self._by_label.keys():
             allowed = set().union(*(self._by_label[lab] for lab in wanted))
+        if self.occipital is not None:
+            return self._fused_neighbors(text, allowed)
         return [{"docId": h["docId"], "text": h["content"], "label": self._label[h["docId"]], "score": h["score"]}
                 for h in self.graph.search(text, max_results=self.k, doc_ids=allowed)]
+
+    def _fused_neighbors(self, text: str, allowed: Optional[Set[str]]) -> List[Dict[str, Any]]:
+        """Word scores (the graph's BM25, per example) fused with Occipital's letter scores. Skips the graph walk,
+        which for a memory of one-node examples adds nothing to BM25."""
+        lexical: Dict[str, float] = {}
+        for nid, score in self.graph._bm25(text, allowed).items():
+            d = self.graph.nodes[nid]["docId"]
+            if d in self._label:
+                lexical[d] = max(lexical.get(d, 0.0), score)
+        fused = self.occipital.fuse(text, lexical, allowed.__contains__ if allowed is not None else None)
+        top = sorted(fused.items(), key=lambda kv: -kv[1])[:self.k]
+        return [{"docId": d, "text": self.graph.nodes[self.graph.docs[d]["rootId"]]["content"],
+                 "label": self._label[d], "score": score} for d, score in top]
 
     def react(self, text: str, labels: Optional[Sequence[Optional[str]]] = None) -> Dict[str, Any]:
         """The memory's own decision, no model involved: ``votes`` (label -> share of the neighbors'
