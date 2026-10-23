@@ -276,7 +276,9 @@ class Hippocampus:
         fused = self.occipital.fuse(text, lexical, allowed.__contains__ if allowed is not None else None)
         top = sorted(fused.items(), key=lambda kv: -kv[1])[:self.k]
         return [{"docId": d, "text": self.graph.nodes[self.graph.docs[d]["rootId"]]["content"],
-                 "label": self._label[d], "score": score} for d, score in top]
+                 "label": self._label[d], "score": score,
+                 "letters": d not in lexical}  # True: only the letters found it (a typo or another word form)
+                for d, score in top]
 
     def react(self, text: str, labels: Optional[Sequence[Optional[str]]] = None) -> Dict[str, Any]:
         """The memory's own decision, no model involved: ``votes`` (label -> share of the neighbors'

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListboxSelect } from "@/components/ui/listbox-select";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CodeSnippet } from "@/components/CodeSnippet";
 import {
@@ -45,12 +46,14 @@ type Health = {
   layers?: number;
   error?: string | null;
   hippocampus?: boolean;
+  occipital?: boolean;
 };
 
 /** A decided example in Hippocampus's memory: a class label or tool name (null = no tool applies). */
 type MemoryItem = { text: string; label: string | null; arguments?: Record<string, unknown> };
 
-type Neighbor = { text: string; label: string | null; score: number };
+/** `letters`: Occipital found it by its letters alone, so word matching would have missed it (a typo, another form). */
+type Neighbor = { text: string; label: string | null; score: number; letters?: boolean };
 
 type Decision = {
   tool: string;
@@ -573,8 +576,8 @@ function LabelEditor({ labels, onChange }: { labels: string[]; onChange: (labels
     setDraft("");
   };
   return (
-    <div className="mt-4">
-      <label htmlFor="arc1-label-input" className="mb-2 block text-sm font-medium text-zinc-200">
+    <div>
+      <label htmlFor="arc1-label-input" className="sr-only">
         Labels
       </label>
       <div className="flex flex-wrap items-center gap-1.5 border border-zinc-800 bg-black p-2 focus-within:border-[#835BD9]">
@@ -639,6 +642,50 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
+/** One collapsible section; the summary stays visible when it is closed so the current choice is never hidden. */
+function Panel({
+  value,
+  title,
+  summary,
+  info,
+  children,
+}: {
+  value: string;
+  title: string;
+  summary?: string;
+  info?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <AccordionItem value={value} className="relative border-zinc-800">
+      <AccordionTrigger className="items-center gap-3 px-3 py-2.5 text-zinc-200 hover:bg-zinc-900/60 hover:no-underline focus-visible:ring-0 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]">
+        <span className={`flex min-w-0 flex-1 items-baseline gap-2 ${info ? "pr-6" : ""}`}>
+          <span className="shrink-0">{title}</span>
+          {summary && <span className="truncate text-xs font-normal text-zinc-500">{summary}</span>}
+        </span>
+      </AccordionTrigger>
+      {/* A sibling of the trigger, not a child: a button can't nest inside a button. Sits on the title row, left of the chevron. */}
+      {info && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={`About ${title}`}
+              className="absolute right-9 top-3 text-zinc-500 transition-colors hover:text-zinc-200 focus-visible:text-zinc-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
+            >
+              <Info className="h-4 w-4" aria-hidden />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left" className="max-w-56 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
+            {info}
+          </TooltipContent>
+        </Tooltip>
+      )}
+      <AccordionContent className="px-3 pb-3">{children}</AccordionContent>
+    </AccordionItem>
+  );
+}
+
 type Draft = { text: string; label: string; args: Record<string, string> };
 
 const EMPTY_DRAFT: Draft = { text: "", label: "", args: {} };
@@ -689,14 +736,8 @@ function MemoryPanel({
   const field = "min-w-0 border border-zinc-800 bg-black px-2.5 py-1.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-[#835BD9]";
 
   return (
-    <div className="mt-4 border border-zinc-800">
-      <div className="flex items-baseline justify-between gap-3 border-b border-zinc-800 px-3 py-2">
-        <h3 className="text-sm font-medium text-zinc-200">Hippocampus memory</h3>
-        <span className="text-xs tabular-nums text-zinc-500">
-          {memory.length} example{memory.length === 1 ? "" : "s"}
-        </span>
-      </div>
-      <p className="px-3 pt-2 text-xs leading-relaxed text-zinc-500">
+    <div className="-mx-3">
+      <p className="px-3 text-xs leading-relaxed text-zinc-500">
         Decided examples ARC 1 retrieves at request time, instead of fine-tuning. Occipital also matches them by
         their letters, so a typo still finds them.{" "}
         {isRun
@@ -725,7 +766,7 @@ function MemoryPanel({
         </ul>
       )}
       <form
-        className="grid gap-2 p-3"
+        className="grid gap-2 px-3 pt-3"
         onSubmit={(e) => {
           e.preventDefault();
           add();
@@ -789,7 +830,7 @@ export function Arc1Demo() {
   const [checking, setChecking] = useState(true);
   const [sceneId, setSceneId] = useState(DEFAULT_SCENE.id);
   const [input, setInput] = useState(DEFAULT_SCENE.prompts[0]);
-  const [useHippocampus, setUseHippocampus] = useState(false);
+  const [useHippocampus, setUseHippocampus] = useState(true);
   // Hippocampus memory per scene, seeded from the scene's examples. It lives in this page and is sent with
   // each request, so the server stays stateless and visitors never share a memory.
   const [memories, setMemories] = useState<Record<string, MemoryItem[]>>({});
@@ -804,6 +845,9 @@ export function Arc1Demo() {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const memoryTextRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  // Setup sections start closed so the result sits right under the input. Controlled, so "Correct and
+  // remember" can open the memory form before focusing it.
+  const [openPanels, setOpenPanels] = useState<string[]>([]);
   const labelNames = labels.map((l) => splitLabel(l)[0]);
 
   const scene = useMemo(() => SCENES.find((s) => s.id === sceneId) || DEFAULT_SCENE, [sceneId]);
@@ -1107,18 +1151,37 @@ export function Arc1Demo() {
                 </button>
               ))}
             </div>
-            {scene.mode === "classify" && <LabelEditor labels={labels} onChange={setLabels} />}
-            {hippocampusOn && (
-              <MemoryPanel
-                scene={scene}
-                labelNames={labelNames}
-                memory={memory}
-                draft={draft}
-                setDraft={setDraft}
-                onRemember={remember}
-                onForget={forget}
-                textRef={memoryTextRef}
-              />
+            {(scene.mode === "classify" || hippocampusOn) && (
+              <Accordion
+                type="multiple"
+                value={openPanels}
+                onValueChange={setOpenPanels}
+                className="mt-4 border border-zinc-800"
+              >
+                {scene.mode === "classify" && (
+                  <Panel value="labels" title="Labels" summary={`${labelNames.length}: ${labelNames.join(", ")}`}>
+                    <LabelEditor labels={labels} onChange={setLabels} />
+                  </Panel>
+                )}
+                {hippocampusOn && (
+                  <Panel
+                    value="memory"
+                    title="Hippocampus memory"
+                    summary={`${memory.length} example${memory.length === 1 ? "" : "s"}`}
+                  >
+                    <MemoryPanel
+                      scene={scene}
+                      labelNames={labelNames}
+                      memory={memory}
+                      draft={draft}
+                      setDraft={setDraft}
+                      onRemember={remember}
+                      onForget={forget}
+                      textRef={memoryTextRef}
+                    />
+                  </Panel>
+                )}
+              </Accordion>
             )}
             {error && (
               <p role="alert" className="mt-3 border border-red-900/60 bg-red-950/30 px-3 py-2 text-sm text-red-200">
@@ -1225,12 +1288,27 @@ export function Arc1Demo() {
 
                 {result.neighbors && (
                   <div>
-                    <h3 className="mb-2 text-sm font-medium text-zinc-400">Hippocampus: remembered examples used</h3>
+                    <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <h3 className="text-sm font-medium text-zinc-400">Hippocampus: remembered examples used</h3>
+                      {health?.occipital && (
+                        <a
+                          href="/docs/occipital"
+                          className="border border-[#835BD9]/60 bg-[#835BD9]/15 px-1.5 py-0.5 text-[11px] text-zinc-200 hover:border-[#835BD9] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
+                        >
+                          Occipital active
+                          {result.neighbors.some((n) => n.letters) &&
+                            `: ${result.neighbors.filter((n) => n.letters).length} found by letters`}
+                        </a>
+                      )}
+                    </div>
                     {result.neighbors.length ? (
                       <ul className="divide-y divide-zinc-900 border-y border-zinc-900">
                         {result.neighbors.map((n) => (
                           <li key={n.text} className="flex items-baseline gap-3 py-1.5 text-xs">
                             <span className="min-w-0 flex-1 truncate text-zinc-300">{n.text}</span>
+                            {n.letters && (
+                              <span className="shrink-0 border border-[#835BD9]/60 px-1 text-[10px] text-[#C785F2]">by letters</span>
+                            )}
                             <code className="shrink-0 text-[#C785F2]">{n.label ?? "no tool"}</code>
                             <span className="w-10 shrink-0 text-right tabular-nums text-zinc-500">{pct(n.score)}</span>
                           </li>
@@ -1238,7 +1316,7 @@ export function Arc1Demo() {
                       </ul>
                     ) : (
                       <p className="text-xs text-zinc-500">
-                        No remembered example shares words with this text, so ARC 1 decided alone.
+                        No remembered example shares words or letters with this text, so ARC 1 decided alone.
                       </p>
                     )}
                     <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
@@ -1266,7 +1344,8 @@ export function Arc1Demo() {
                               label: call?.name ?? "",
                               args: Object.fromEntries(Object.entries(call?.arguments ?? {}).map(([k, v]) => [k, String(v)])),
                             });
-                            memoryTextRef.current?.focus();
+                            setOpenPanels((p) => (p.includes("memory") ? p : [...p, "memory"]));
+                            setTimeout(() => memoryTextRef.current?.focus(), 0);
                           }}
                           className="inline-flex items-center gap-1.5 border border-zinc-800 px-2 py-1 text-zinc-300 hover:border-[#835BD9] hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
                         >
@@ -1284,25 +1363,13 @@ export function Arc1Demo() {
 
         {/* Side column: controls, measurements, state */}
         <aside className="border-t border-zinc-800 p-4 sm:p-5 lg:border-t-0">
-          <fieldset>
-            <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium text-zinc-200">
-              Harness
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="About the Hippocampus harness"
-                    className="text-zinc-500 transition-colors hover:text-zinc-200 focus-visible:text-zinc-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
-                  >
-                    <Info className="h-3.5 w-3.5" aria-hidden />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="max-w-56 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
-                  Hippocampus gives ARC 1 a memory of decided examples. Similar examples vote and show where arguments
-                  sit, so it handles new tools and labels without fine-tuning.
-                </TooltipContent>
-              </Tooltip>
-            </legend>
+          <Accordion type="multiple" className="border border-zinc-800">
+          <Panel
+            value="harness"
+            title="Harness"
+            summary={hippocampusOn ? "+ Hippocampus" : "ARC 1"}
+            info="Hippocampus gives ARC 1 a memory of decided examples. Similar examples vote and show where arguments sit, so it handles new tools and labels without fine-tuning."
+          >
             <div className="grid grid-cols-2 gap-px bg-zinc-800" role="radiogroup" aria-label="Harness">
               {[
                 { on: false, label: "ARC 1" },
@@ -1315,7 +1382,7 @@ export function Arc1Demo() {
                   aria-checked={hippocampusOn === opt.on}
                   disabled={opt.on && !hippocampusReady}
                   onClick={() => setUseHippocampus(opt.on)}
-                  className={`py-1.5 text-sm transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2] disabled:cursor-not-allowed disabled:opacity-40 ${
+                  className={`whitespace-nowrap py-1.5 text-xs transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2] disabled:cursor-not-allowed disabled:opacity-40 ${
                     hippocampusOn === opt.on ? "bg-[#835BD9] text-white" : "bg-zinc-950 text-zinc-400 hover:text-zinc-100"
                   }`}
                 >
@@ -1331,26 +1398,14 @@ export function Arc1Demo() {
             <a href="/docs/hippocampus" className="mt-1.5 inline-block text-[11px] text-zinc-500 underline hover:text-zinc-200">
               How Hippocampus works
             </a>
-          </fieldset>
+          </Panel>
 
-          <fieldset className="mt-6">
-            <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium text-zinc-200">
-              Binding cycles
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="About binding cycles"
-                    className="text-zinc-500 transition-colors hover:text-zinc-200 focus-visible:text-zinc-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
-                  >
-                    <Info className="h-3.5 w-3.5" aria-hidden />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="max-w-56 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
-                  Auto stops each probe once its update settles, up to the trained maximum. A number runs exactly that many cycles.
-                </TooltipContent>
-              </Tooltip>
-            </legend>
+          <Panel
+            value="binding"
+            title="Binding cycles"
+            summary={bindingAuto ? "Auto" : String(cycles)}
+            info="Auto stops each probe once its update settles, up to the trained maximum. A number runs exactly that many cycles."
+          >
             <div className="grid grid-flow-col gap-px bg-zinc-800" role="radiogroup" aria-label="Binding cycles">
               <button
                 type="button"
@@ -1378,27 +1433,15 @@ export function Arc1Demo() {
                 </button>
               ))}
             </div>
-          </fieldset>
+          </Panel>
 
           {maxRsaaCycles > 0 && (
-            <fieldset className="mt-6">
-              <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium text-zinc-200">
-                RSAA alignment cycles
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="About RSAA alignment cycles"
-                      className="text-zinc-500 transition-colors hover:text-zinc-200 focus-visible:text-zinc-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#C785F2]"
-                    >
-                      <Info className="h-3.5 w-3.5" aria-hidden />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="max-w-64 border border-zinc-700 bg-zinc-800 leading-relaxed text-zinc-100 [&_svg]:hidden">
-                    Auto uses the checkpoint budget. A step is kept only when it reduces divergence between layers, and a harmful step is rolled back. A number forces that budget.
-                  </TooltipContent>
-                </Tooltip>
-              </legend>
+            <Panel
+              value="rsaa"
+              title="RSAA alignment"
+              summary={rsaaAuto ? "Auto" : rsaaCycles === 0 ? "Off" : String(rsaaCycles)}
+              info="Auto uses the checkpoint budget. A step is kept only when it reduces divergence between layers, and a harmful step is rolled back. A number forces that budget."
+            >
               <div className="grid grid-flow-col gap-px bg-zinc-800" role="radiogroup" aria-label="RSAA cycles">
                 <button
                   type="button"
@@ -1428,8 +1471,9 @@ export function Arc1Demo() {
                   </button>
                 ))}
               </div>
-            </fieldset>
+            </Panel>
           )}
+          </Accordion>
 
           {result?.stats && (
             <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
