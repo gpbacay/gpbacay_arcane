@@ -126,8 +126,9 @@ function DocsLayoutContent({ children, headings, tocOpen, setTocOpen }: { childr
               </main>
 
               {/* Desktop Table of Contents - Right */}
-              <aside className="hidden lg:block sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto scrollbar-hide scroll-smooth">
-                <div className="sticky top-16 p-6">
+              {/* Scrolls on its own: TableOfContents keeps the active sections centered in it. */}
+              <aside className="hidden lg:block sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto overscroll-contain scrollbar-hide">
+                <div className="p-6">
                   <TableOfContents headings={headings} />
                   
                   <div className="pt-10 mt-10 border-t border-zinc-900 px-1">

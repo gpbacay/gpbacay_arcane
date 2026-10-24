@@ -64,20 +64,21 @@ export function TableOfContents({ headings, onNavigate }: TOCProps) {
     return () => observer.disconnect();
   }, [headings]);
 
-  // Keep the first active item in view when the list scrolls on its own.
-  const firstActive = activeIds[0];
+  // The list follows the page: whenever the active sections change, it scrolls to keep them centered.
   useEffect(() => {
     const list = listRef.current;
-    const item = firstActive ? list?.querySelector<HTMLElement>(`[data-id="${CSS.escape(firstActive)}"]`) : null;
-    let box = list?.parentElement ?? null;
+    if (!list || !activeIds.length) return;
+    let box = list.parentElement;
     while (box && box.scrollHeight <= box.clientHeight) box = box.parentElement;
-    if (!item || !box || box === document.documentElement || box === document.body) return;
-    const containerBounds = box.getBoundingClientRect();
-    const itemBounds = item.getBoundingClientRect();
-    if (itemBounds.top < containerBounds.top || itemBounds.bottom > containerBounds.bottom) {
-      box.scrollBy({ top: itemBounds.top - containerBounds.top - containerBounds.height / 2, behavior: "smooth" });
-    }
-  }, [firstActive]);
+    if (!box || box === document.documentElement || box === document.body) return;
+    const items = activeIds
+      .map((id) => list.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`))
+      .filter((item): item is HTMLElement => Boolean(item));
+    if (!items.length) return;
+    const middle = (items[0].getBoundingClientRect().top + items[items.length - 1].getBoundingClientRect().bottom) / 2;
+    const boxBounds = box.getBoundingClientRect();
+    box.scrollTo({ top: box.scrollTop + middle - boxBounds.top - box.clientHeight / 2, behavior: "smooth" });
+  }, [activeIds]);
 
   const goTo = (id: string) => {
     const element = document.getElementById(id);
