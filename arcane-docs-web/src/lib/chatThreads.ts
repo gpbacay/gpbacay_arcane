@@ -1,8 +1,12 @@
+import type { TraceStep } from "./docsChat";
+
 export type ThreadMsg = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  /** Heads the thought trace. Older saved replies have only this line. */
   trace?: string;
+  steps?: TraceStep[];
   pageId?: string | null;
   /** Snippet of the bubble this message answers. */
   replyTo?: string;

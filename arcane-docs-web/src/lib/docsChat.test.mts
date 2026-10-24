@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Hippocampus } from "gpbacay-arcane/hippocampus";
 import { Occipital } from "gpbacay-arcane/occipital";
 import { appendTranscript, blankThread, removeThread, titleFrom, truncateBefore } from "./chatThreads.ts";
-import { EXAMPLES, answerDocs, decide, navigationOnly, withContext } from "./docsChat.ts";
+import { EXAMPLES, answerDocs, decide, navigationOnly, routeThought, withContext } from "./docsChat.ts";
 
 const hippo = new Hippocampus(null, { k: 8, weight: 0.7, memory: EXAMPLES, occipital: new Occipital() }); // as arc1Router.ts
 
@@ -43,6 +43,10 @@ const about = await decide(hippo, "who is the creator of this project");
 assert.equal(about.recallId, "about", `recalled ${about.recallId}`);
 assert.equal(about.source, "memory");
 assert.match(answerDocs("the person behind it", about).text, /Gianne P\. Bacay/);
+const thought = routeThought(await decide(hippo, "opn the hipocampus page"), { title: "Opened Hippocampus", tool: "/docs/hippocampus" });
+assert.match(thought.label, /Hippocampus \+ Occipital/);
+assert.equal(thought.steps.length, 3);
+assert.match(thought.steps[0].children?.[0]?.title ?? "", /Hippocampus/, "the recall node lists what it recalled");
 assert.equal(withContext("when?", [{ role: "user", text: "who made arcane" }]), "who made arcane. when?");
 assert.equal(withContext("how do I install the package from a source checkout", []), "how do I install the package from a source checkout");
 

@@ -29,11 +29,18 @@ export type ChatRoute = {
   confidence: number;
   latencyMs: number;
   calls: string[];
+  /** The closest remembered examples, shown in the chat's thought trace. */
+  recalled?: Neighbor[];
 };
+
+type Neighbor = { text: string; label: string | null; score: number };
+
+/** One node of a reply's thought trace. A `tool` step renders as a tool-call card. */
+export type TraceStep = { title: string; detail?: string; tool?: string; children?: TraceStep[] };
 
 export type Classifier = {
   classify(text: string, labels: string[]): Promise<{ distribution: Record<string, number>; source?: string }>;
-  neighbors?(text: string): { text: string; label: string | null; score: number }[];
+  neighbors?(text: string): Neighbor[];
 };
 
 export const PAGES: DocPage[] = [
@@ -430,18 +437,40 @@ export function answerDocs(message: string, route: ChatRoute | null = null): { t
   return { text: "Not in the docs.", pageId: null };
 }
 
-export function routeTrace(route: ChatRoute | null): string {
-  if (!route) return "ARC 1 is still loading, so this reply comes straight from the docs.";
+function callName(call: string | null): string {
+  if (call === "answer") return "answer";
+  if (!call || call === "none") return "no tool";
+  return `open ${pageById(call.slice(3))?.title ?? call}`;
+}
+
+/** The thought trace for one reply: `label` heads it, `steps` are its nodes, ending with what the chat did. */
+export function routeThought(route: ChatRoute | null, outcome: TraceStep): { label: string; steps: TraceStep[] } {
+  if (!route) {
+    return {
+      label: "Docs only",
+      steps: [{ title: "ARC 1 is still loading", detail: "This reply comes straight from the docs." }, outcome],
+    };
+  }
   // The chat's Hippocampus always recalls through Occipital too (arc1Router.ts).
   const via =
     route.source === "memory" ? "Hippocampus + Occipital" : route.source === "model+memory" ? "ARC 1 + Hippocampus + Occipital" : "ARC 1";
-  const names = route.calls.map((call) => {
-    if (call === "answer") return "answer";
-    if (call === "none") return "no tool";
-    return `open ${pageById(call.slice(3))?.title ?? call}`;
-  });
-  const head = names.length ? names.join(", ") : "unsure, answering from the docs";
-  return `${via} · ${head} · ${Math.round(route.confidence * 100)}% · ${Math.round(route.latencyMs)} ms`;
+  const recalled = route.recalled ?? [];
+  const recall: TraceStep = recalled.length
+    ? {
+        title: `Hippocampus + Occipital recalled ${recalled.length} example${recalled.length === 1 ? "" : "s"}`,
+        detail: "Matched by words, and by letters through Occipital, so typos still find them.",
+        // A label is a routing call (go_x, answer, none) or, for remembered docs passages, a page id.
+        children: recalled.map((hit) => ({
+          title: `“${hit.text.length > 60 ? `${hit.text.slice(0, 57)}…` : hit.text}” → ${pageById(hit.label)?.title ?? callName(hit.label)} · ${Math.round(hit.score * 100)}%`,
+        })),
+      }
+    : { title: "Hippocampus + Occipital found no similar example" };
+  const names = route.calls.map(callName);
+  const decision: TraceStep = {
+    title: `${route.source === "memory" ? "Hippocampus" : "ARC 1"} chose ${names.length ? names.join(", ") : "nothing it was sure of"}`,
+    detail: `${Math.round(route.confidence * 100)}% confident · ${Math.round(route.latencyMs)} ms`,
+  };
+  return { label: `${via} · ${Math.round(route.latencyMs)} ms`, steps: [recall, decision, outcome] };
 }
 
 // ponytail: one margin for every label; split per label if a real log shows a systematic miss.
@@ -467,7 +496,8 @@ export async function decide(hippo: Classifier, text: string): Promise<ChatRoute
       margin: confidence - (ranked[1]?.[1] ?? 0),
     });
   }
-  const recallId = (hippo.neighbors?.(text) ?? []).slice(0, 3).find((hit) => pageById(hit.label))?.label ?? null;
+  const recalled = (hippo.neighbors?.(text) ?? []).slice(0, 3);
+  const recallId = recalled.find((hit) => pageById(hit.label))?.label ?? null;
   const sure = decided.filter((item) => item.margin >= INTENT_MIN_MARGIN);
   const has = (label: string) => sure.some((item) => item.label === label);
   const nav = sure.find((item) => item.label.startsWith("go_") && item.margin >= NAV_MIN_MARGIN);
@@ -482,5 +512,6 @@ export async function decide(hippo: Classifier, text: string): Promise<ChatRoute
     confidence: Math.min(...decided.map((item) => item.confidence)),
     latencyMs: Math.round(performance.now() - started),
     calls: sure.map((item) => item.label),
+    recalled,
   };
 }

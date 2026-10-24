@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { ArrowUp, Check, Copy, MessageSquare, Mic, MicOff, MoreVertical, Pencil, Plus, Reply, Trash2, X } from "lucide-react";
 import { onArc1Status, rememberTurn, routeWithArc1, warmArc1 } from "@/lib/arc1Router";
 import { appendTranscript, blankThread, removeThread, titleFrom, truncateBefore, type Thread, type ThreadMsg } from "@/lib/chatThreads";
-import { answerDocs, navigationOnly, pageById, routeTrace, withContext, type ChatRoute } from "@/lib/docsChat";
+import { answerDocs, navigationOnly, pageById, routeThought, withContext, type ChatRoute, type TraceStep } from "@/lib/docsChat";
+import { ThoughtTrace } from "./ThoughtTrace";
 
 const STORAGE_KEY = "arcane_docs_chat_v2";
 const LEGACY_KEY = "arcane_docs_chat_v1";
@@ -169,32 +170,32 @@ export function ArcaneChat() {
     const modelId = store?.modelId ?? DOCS_MODEL;
     const model = models.find((item) => item.id === modelId);
     let message: ThreadMsg;
+    // Every reply ends its thought trace with what the chat did (`outcome`).
+    const reply = (body: string, outcome: TraceStep, pageId: string | null = null): ThreadMsg => {
+      const thought = routeThought(route, outcome);
+      return { id: crypto.randomUUID(), role: "assistant", text: body, pageId, trace: thought.label, steps: thought.steps };
+    };
+    const source = (pageId: string | null) => pageById(pageId)?.href ?? "docs";
     if (page && jump) {
-      message = { id: crypto.randomUUID(), role: "assistant", text: `Opening ${page.title}.`, trace: routeTrace(route), pageId: page.id };
+      message = reply(`Opening ${page.title}.`, { title: `Opened ${page.title}`, tool: page.href }, page.id);
       router.push(page.href);
       setOpen(false);
     } else if (modelId !== DOCS_MODEL && model?.ready) {
       try {
-        const reply = await languageReply(modelId, text, quote, history);
-        message = { id: crypto.randomUUID(), role: "assistant", text: reply, trace: `${routeTrace(route)} · ${model.label}` };
+        const answer = await languageReply(modelId, text, quote, history);
+        message = reply(answer, { title: `${model.label} wrote the reply`, tool: modelId });
       } catch (error) {
         const fallback = answerDocs(text, route);
         const why = error instanceof Error ? error.message : "The language model failed";
-        message = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          text: fallback.text,
-          pageId: fallback.pageId,
-          trace: `${why}. ${routeTrace(route)}`,
-        };
+        message = reply(fallback.text, { title: "Answered from the docs", tool: source(fallback.pageId), detail: why }, fallback.pageId);
       }
     } else {
       const docs = answerDocs(text, route);
       // The keyword rules alone are the outcome. The page from `route` came out of the memory, so learning it would reinforce itself.
       const byRules = answerDocs(text).pageId;
       if (byRules) rememberTurn(asked, byRules);
-      const offline = modelId !== DOCS_MODEL ? `${model?.label ?? "That model"} is offline, so this reply comes from the docs. ` : "";
-      message = { id: crypto.randomUUID(), role: "assistant", text: docs.text, pageId: docs.pageId, trace: `${offline}${routeTrace(route)}` };
+      const offline = modelId !== DOCS_MODEL ? `${model?.label ?? "That model"} is offline.` : undefined;
+      message = reply(docs.text, { title: "Answered from the docs", tool: source(docs.pageId), detail: offline }, docs.pageId);
     }
     patchChat(chatId, (chat) => ({ ...chat, messages: [...chat.messages, message] }));
   };
@@ -441,7 +442,7 @@ export function ArcaneChat() {
               return (
                 <div key={message.id} className={mine ? "flex justify-end" : ""}>
                   <div
-                    className={`group relative w-fit pb-7 ${mine ? "max-w-[85%]" : "max-w-full"}`}
+                    className={`group relative pb-7 ${mine ? "w-fit max-w-[85%]" : "w-full"}`}
                     onMouseLeave={() => setMenuId((id) => (id === message.id ? null : id))}
                     onBlur={(event) => {
                       if (!event.currentTarget.contains(event.relatedTarget)) setMenuId((id) => (id === message.id ? null : id));
@@ -449,6 +450,7 @@ export function ArcaneChat() {
                   >
                     <div className={mine ? "bg-zinc-900 px-3 py-2 text-sm text-zinc-100" : "text-sm leading-relaxed text-zinc-200"}>
                       {message.replyTo && <p className="mb-1 border-l border-[#C785F2] pl-2 text-[11px] text-zinc-500">{message.replyTo}</p>}
+                      {message.trace && <ThoughtTrace label={message.trace} steps={message.steps} />}
                       <p className="whitespace-pre-wrap">{message.text}</p>
                       {message.role === "assistant" && page && (
                         <button
@@ -461,9 +463,7 @@ export function ArcaneChat() {
                         >
                           Open {page.title}
                         </button>
-                      )}
-                      {message.trace && <p className="mt-1 text-[11px] text-zinc-500">{message.trace}</p>}
-                    </div>
+                      )}                    </div>
                     {pendingDeleteId === message.id ? (
                       <p className="mt-1 text-[11px] text-zinc-400">
                         Delete this and everything after it?{" "}
@@ -536,6 +536,7 @@ export function ArcaneChat() {
                 </div>
               );
             })}
+            {busy && <ThoughtTrace thinking />}
           </div>
 
           <form
