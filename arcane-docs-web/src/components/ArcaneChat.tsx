@@ -43,7 +43,7 @@ type Store = { chats: Thread[]; currentId: string; modelId: string };
 const STATUS_LABEL = {
   idle: "ARC 1",
   loading: "Loading ARC 1",
-  ready: "ARC 1 on-device",
+  ready: "ARC 1 + Hippocampus + Occipital, on-device",
   error: "Docs only",
 } as const;
 

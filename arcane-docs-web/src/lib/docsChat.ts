@@ -432,7 +432,9 @@ export function answerDocs(message: string, route: ChatRoute | null = null): { t
 
 export function routeTrace(route: ChatRoute | null): string {
   if (!route) return "ARC 1 is still loading, so this reply comes straight from the docs.";
-  const via = route.source === "memory" ? "Hippocampus" : route.source === "model+memory" ? "ARC 1 + Hippocampus" : "ARC 1";
+  // The chat's Hippocampus always recalls through Occipital too (arc1Router.ts).
+  const via =
+    route.source === "memory" ? "Hippocampus + Occipital" : route.source === "model+memory" ? "ARC 1 + Hippocampus + Occipital" : "ARC 1";
   const names = route.calls.map((call) => {
     if (call === "answer") return "answer";
     if (call === "none") return "no tool";
