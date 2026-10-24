@@ -134,7 +134,7 @@ export const PAGES: DocPage[] = [
     title: "Chain of Thought",
     href: "/docs/chain-of-thought",
     answer:
-      "Chain of Thought is one of ARCANE's components: a React component that shows the steps a model took as a graph of nodes, with sub-steps branching off their step. It works with any model, and this chat uses it for every reply.",
+      "Chain of Thought is a component that shows the steps an AI model took as a graph of nodes, with sub-steps branching off their step in their own color. It works with any model, so any AI project can use it, and this chat uses it for every reply.",
     aliases: ["chain of thought", "thought trace", "reasoning trace"],
     keys: [/\bchain[- ]of[- ]thought\b/, /\b(cot|thought trace|reasoning trace|sub-?steps)\b/],
     nav: ["go to the chain of thought page", "open chain of thought", "take me to the components docs", "show the reasoning trace component"],

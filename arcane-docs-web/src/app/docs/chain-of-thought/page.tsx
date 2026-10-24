@@ -20,7 +20,7 @@ const COMPOSED = `import {
   ChainOfThoughtResults,
   ChainOfThoughtStep,
   ChainOfThoughtSubsteps,
-} from "@/components/arcane/chain-of-thought";
+} from "@/components/chain-of-thought";
 
 <ChainOfThought defaultOpen>
   <ChainOfThoughtHeader>Thought · ARC 1 + Hippocampus</ChainOfThoughtHeader>
@@ -40,7 +40,7 @@ const COMPOSED = `import {
   </ChainOfThoughtContent>
 </ChainOfThought>`;
 
-const FROM_DATA = `import { ChainOfThoughtTrace, type ThoughtStep } from "@/components/arcane/chain-of-thought";
+const FROM_DATA = `import { ChainOfThoughtTrace, type ThoughtStep } from "@/components/chain-of-thought";
 
 // Any model: map what it did to steps, and what each step did to its sub-steps. Store them with the reply.
 const steps: ThoughtStep[] = [
@@ -86,10 +86,13 @@ export default function ChainOfThoughtPage() {
           Chain of Thought
         </h1>
         <p className="mt-6 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          A React component that shows the steps a model took, as a graph of nodes that opens from one header. A step
-          can branch into sub-steps, each with its own node. It knows
-          nothing about the model behind it: ARC 1, an LLM or a plain rule engine all hand it the same steps. The ARCANE
-          chat uses it for every reply.
+          A component that shows the steps an AI model took, as a graph of nodes that opens from one header. A step can
+          branch into sub-steps, each level in its own color, so you can see which process every step belongs to.
+        </p>
+        <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
+          It knows nothing about the model behind it. An LLM chat, an agent calling tools, a router or a rule engine
+          all hand it the same list of steps, so it fits into any AI project. The chat on this site uses it for every
+          reply.
         </p>
       </header>
 
@@ -106,9 +109,9 @@ export default function ChainOfThoughtPage() {
         </h2>
         <p className={p}>
           Copy the file below into your project, for example to{" "}
-          <code className={code}>components/arcane/chain-of-thought.tsx</code>. It needs React 18 or later and
-          Tailwind, nothing else. Set <code className={code}>--cot-accent</code> on a parent to change the node color, and{" "}
-          <code className={code}>--cot-rail</code> to change the lines on a light background.
+          <code className={code}>components/chain-of-thought.tsx</code>. It needs React 18 or later and Tailwind,
+          nothing else. Set <code className={code}>--cot-accent</code> on a parent to change the top-level color, and{" "}
+          <code className={code}>--cot-bg</code> to the background color when it isn&apos;t dark, so the lines blend in.
         </p>
         <CodeSnippet filename="chain-of-thought.tsx" language="tsx" code={SOURCE} maxHeight="24rem" />
 

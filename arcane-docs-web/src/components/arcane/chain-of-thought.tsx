@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * ARCANE components · Chain of Thought: the steps a model took, as a collapsible graph of nodes.
- * A step can hold sub-steps, which branch off it with their own nodes, to any depth.
+ * Chain of Thought: the steps an AI model took, as a collapsible graph of nodes.
+ * A step can hold sub-steps, which branch off it with their own nodes, to any depth, one color per level.
  * It knows nothing about the model behind it. Needs React 18+ and Tailwind; copy this file into any project.
- * Set --cot-accent on a parent to change the node color, and --cot-rail for the lines on a light background.
+ * Set --cot-accent on a parent for the top-level color, and --cot-bg to the background when it isn't dark.
  */
 import { Children, createContext, isValidElement, useContext, useId, useState, type ReactNode } from "react";
 
@@ -21,7 +21,9 @@ export type ThoughtStep = {
 
 const ThoughtContext = createContext<{ open: boolean; toggle: () => void; id: string } | null>(null);
 /** Where a step sits in its list, so it can draw its own connections. */
-const PlaceContext = createContext({ root: true, first: true, last: true });
+const PlaceContext = createContext({ depth: 0, first: true, last: true });
+/** The depth of the list being rendered: 0 for the top-level steps, 1 for their sub-steps, and so on. */
+const DepthContext = createContext(0);
 
 function useThought() {
   const context = useContext(ThoughtContext);
@@ -29,37 +31,39 @@ function useThought() {
   return context;
 }
 
-const accent = "var(--cot-accent, #C785F2)";
-// Opaque, so lines that meet or cross never look darker where they overlap.
-const railColor = `var(--cot-rail, color-mix(in srgb, ${accent} 35%, #09090b))`;
+// One color per level, like branch lanes in a git graph, so a sub-step's color shows which process it belongs to.
+const LANES = ["var(--cot-accent, #C785F2)", "#f5a524", "#4f9cff", "#34d399"];
+const lane = (depth: number) => LANES[depth % LANES.length];
+// Mixed into the background so it is opaque: lines that meet never look darker where they overlap.
+const rail = (depth: number) => `color-mix(in srgb, ${lane(depth)} 35%, var(--cot-bg, #09090b))`;
 
 // Geometry (px): an 11px node at x 0-11, its center line at x = 5, sub-steps indented 20px.
 // From inside a sub-step, the parent's center line is at x = -15.
-function Line({ className }: { className: string }) {
-  return <span aria-hidden className={`absolute w-px ${className}`} style={{ backgroundColor: railColor }} />;
+function Line({ depth, className }: { depth: number; className: string }) {
+  return <span aria-hidden className={`absolute w-px ${className}`} style={{ backgroundColor: rail(depth) }} />;
 }
 
-function Node({ status }: { status: ThoughtStatus }) {
+function Node({ status, depth }: { status: ThoughtStatus; depth: number }) {
+  const color = lane(depth);
   return (
     <span
       aria-hidden
       className={`relative flex size-[11px] shrink-0 items-center justify-center rounded-full border-2 ${status === "pending" ? "border-dashed" : ""}`}
-      style={{ borderColor: status === "pending" ? railColor : accent }}
+      style={{ borderColor: status === "pending" ? rail(depth) : color }}
     >
-      {status === "active" && (
-        <span className="absolute inset-[-4px] animate-ping rounded-full opacity-40" style={{ backgroundColor: accent }} />
-      )}
-      {status !== "pending" && <span className="size-[3px] rounded-full" style={{ backgroundColor: accent }} />}
+      {status === "active" && <span className="absolute inset-0 animate-ping rounded-full opacity-60" style={{ backgroundColor: color }} />}
+      {status !== "pending" && <span className="size-[3px] rounded-full" style={{ backgroundColor: color }} />}
     </span>
   );
 }
 
-function StepList({ root, className = "", children }: { root: boolean; className?: string; children: ReactNode }) {
+function StepList({ className = "", children }: { className?: string; children: ReactNode }) {
+  const depth = useContext(DepthContext);
   const items = Children.toArray(children);
   return (
     <ol className={className}>
       {items.map((item, index) => (
-        <PlaceContext.Provider key={isValidElement(item) ? item.key : index} value={{ root, first: index === 0, last: index === items.length - 1 }}>
+        <PlaceContext.Provider key={isValidElement(item) ? item.key : index} value={{ depth, first: index === 0, last: index === items.length - 1 }}>
           {item}
         </PlaceContext.Provider>
       ))}
@@ -105,7 +109,7 @@ export function ChainOfThoughtHeader({ thinking = false, children }: { thinking?
       aria-controls={id}
       className={`group flex w-full items-center gap-2 text-[11px] tracking-wide transition-colors hover:text-zinc-200 ${open ? "text-zinc-300" : "text-zinc-500"}`}
     >
-      <Node status={thinking ? "active" : "complete"} />
+      <Node status={thinking ? "active" : "complete"} depth={0} />
       <span className={`min-w-0 flex-1 truncate text-left ${thinking ? "animate-pulse" : ""}`}>
         {children ?? (thinking ? "Thinking" : "Thought")}
       </span>
@@ -120,8 +124,9 @@ export function ChainOfThoughtContent({ children }: { children: ReactNode }) {
   const { open, id } = useThought();
   return (
     <div id={id} inert={!open} className={`grid transition-[grid-template-rows,opacity] duration-200 ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr] opacity-0"}`}>
-      <div className="min-h-0 overflow-hidden">
-        <StepList root className="pt-3">
+      {/* The side padding, pulled back by the negative margin, keeps an active node's ping from being clipped. */}
+      <div className="-mx-2 min-h-0 overflow-hidden px-2">
+        <StepList className="pb-1 pt-3">
           {children}
         </StepList>
       </div>
@@ -132,7 +137,7 @@ export function ChainOfThoughtContent({ children }: { children: ReactNode }) {
 /** Sub-steps of a step: each branches off the step's line with its own node. Can nest. */
 export function ChainOfThoughtSubsteps({ children }: { children: ReactNode }) {
   return (
-    <StepList root={false} className="mt-2">
+    <StepList className="mt-2">
       {children}
     </StepList>
   );
@@ -150,7 +155,8 @@ export function ChainOfThoughtStep({
   status?: ThoughtStatus;
   children?: ReactNode;
 }) {
-  const { root, first, last } = useContext(PlaceContext);
+  const { depth, first, last } = useContext(PlaceContext);
+  const root = depth === 0;
   const parts = Children.toArray(children);
   const substeps = parts.filter((part) => isValidElement(part) && part.type === ChainOfThoughtSubsteps);
   const rest = parts.filter((part) => !substeps.includes(part));
@@ -158,24 +164,24 @@ export function ChainOfThoughtStep({
   const continues = root && !last;
   return (
     <li className={`relative pl-5 transition-[opacity,translate] duration-300 starting:-translate-y-1 starting:opacity-0 ${last ? "" : root ? "pb-3" : "pb-2"}`}>
-      {root && first && <Line className="-top-3 left-[5px] h-[15px]" />}
-      {continues && <Line className="bottom-0 left-[5px] top-[14px]" />}
+      {root && first && <Line depth={0} className="-top-3 left-[5px] h-[15px]" />}
+      {continues && <Line depth={depth} className="bottom-0 left-[5px] top-[14px]" />}
       {!root && (
         <>
-          {/* the elbow from the parent's line into this node, and that line on past it to the next sub-step */}
+          {/* the parent's line on past this node to the next sub-step, and the elbow, in this level's color, into it */}
+          {!last && <Line depth={depth - 1} className="-left-[15px] bottom-0 top-0" />}
           <span
             aria-hidden
             className="absolute -left-[15px] top-0 h-[9px] w-[15px] rounded-bl-[6px] border-b border-l"
-            style={{ borderColor: railColor }}
+            style={{ borderColor: rail(depth) }}
           />
-          {!last && <Line className="-left-[15px] bottom-0 top-0" />}
         </>
       )}
       <span className="absolute left-0 top-[3px]">
-        <Node status={status} />
+        <Node status={status} depth={depth} />
       </span>
       <div className="relative">
-        {substeps.length > 0 && !continues && <Line className="-bottom-2 -left-[15px] top-[14px]" />}
+        {substeps.length > 0 && !continues && <Line depth={depth} className="-bottom-2 -left-[15px] top-[14px]" />}
         <p
           className={`text-[12px] leading-[17px] ${status === "pending" ? "text-zinc-600" : status === "active" ? "text-zinc-100" : root ? "text-zinc-300" : "text-zinc-400"}`}
         >
@@ -184,7 +190,7 @@ export function ChainOfThoughtStep({
         {description && <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-500">{description}</p>}
         {rest}
       </div>
-      {substeps}
+      <DepthContext.Provider value={depth + 1}>{substeps}</DepthContext.Provider>
     </li>
   );
 }
