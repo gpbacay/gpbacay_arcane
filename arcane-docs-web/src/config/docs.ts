@@ -123,7 +123,7 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
       ],
     },
     {
-      title: "Harness",
+      title: "Components",
       items: [
         {
           title: "Chain of Thought",

@@ -2,7 +2,7 @@
  * What the docs chat knows, and how a message becomes a route.
  * ARC 1 only classifies. The reply text comes from these pages.
  */
-import type { ThoughtStep } from "../components/harness/chain-of-thought";
+import type { ThoughtStep } from "../components/arcane/chain-of-thought";
 
 export type DocPage = {
   id: string;
@@ -32,6 +32,8 @@ export type ChatRoute = {
   calls: string[];
   /** The closest remembered examples, shown in the chat's thought trace. */
   recalled?: Neighbor[];
+  /** Each clause of a split message and what was decided for it (null when unsure). Shown as sub-steps. */
+  parts?: { text: string; call: string | null }[];
 };
 
 type Neighbor = { text: string; label: string | null; score: number };
@@ -132,10 +134,10 @@ export const PAGES: DocPage[] = [
     title: "Chain of Thought",
     href: "/docs/chain-of-thought",
     answer:
-      "Chain of Thought is ARCANE's harness component for showing the steps a model took: a React component with a header that opens a line of nodes. It works with any model, and this chat uses it for every reply.",
+      "Chain of Thought is one of ARCANE's components: a React component that shows the steps a model took as a graph of nodes, with sub-steps branching off their step. It works with any model, and this chat uses it for every reply.",
     aliases: ["chain of thought", "thought trace", "reasoning trace"],
-    keys: [/\bchain[- ]of[- ]thought\b/, /\b(cot|thought trace|reasoning trace|harness)\b/],
-    nav: ["go to the chain of thought page", "open chain of thought", "take me to the harness docs", "show the reasoning trace component"],
+    keys: [/\bchain[- ]of[- ]thought\b/, /\b(cot|thought trace|reasoning trace|sub-?steps)\b/],
+    nav: ["go to the chain of thought page", "open chain of thought", "take me to the components docs", "show the reasoning trace component"],
   },
   {
     id: "graph-of-thought",
@@ -456,9 +458,18 @@ export function routeThought(route: ChatRoute | null, outcome: ThoughtStep): { l
   // The example that backs the decision, else the closest one.
   const recalled = route.recalled?.find((hit) => route.calls.includes(hit.label ?? "none")) ?? route.recalled?.[0];
   const steps: ThoughtStep[] = recalled ? [{ label: "Recalled a similar request", results: [recalled.text] }] : [];
-  steps.push({
-    label: route.calls.length ? `Decided to ${route.calls.map(callName).join(" and ")}` : "Unsure, so checked the docs",
-  });
+  // A split message is decided clause by clause: each clause is a sub-step.
+  steps.push(
+    route.parts
+      ? {
+          label: `Split the message into ${route.parts.length} parts`,
+          steps: route.parts.map((part) => ({
+            label: part.call ? `Decided to ${callName(part.call)}` : "Unsure",
+            results: [part.text],
+          })),
+        }
+      : { label: route.calls.length ? `Decided to ${route.calls.map(callName).join(" and ")}` : "Unsure, so checked the docs" },
+  );
   // The chat's Hippocampus always recalls through Occipital too (arc1Router.ts).
   const via =
     route.source === "memory" ? "Hippocampus + Occipital" : route.source === "model+memory" ? "ARC 1 + Hippocampus + Occipital" : "ARC 1";
@@ -483,6 +494,7 @@ export async function decide(hippo: Classifier, text: string): Promise<ChatRoute
     const ranked = Object.entries(result.distribution).sort((a, b) => b[1] - a[1]);
     const confidence = ranked[0]?.[1] ?? 0;
     decided.push({
+      clause,
       label: ranked[0]?.[0] ?? "none",
       confidence,
       margin: confidence - (ranked[1]?.[1] ?? 0),
@@ -505,5 +517,6 @@ export async function decide(hippo: Classifier, text: string): Promise<ChatRoute
     latencyMs: Math.round(performance.now() - started),
     calls: sure.map((item) => item.label),
     recalled,
+    parts: decided.length > 1 ? decided.map((item) => ({ text: item.clause, call: sure.includes(item) ? item.label : null })) : undefined,
   };
 }

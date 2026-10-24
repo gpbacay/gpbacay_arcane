@@ -1,4 +1,4 @@
-import type { ThoughtStep } from "../components/harness/chain-of-thought";
+import type { ThoughtStep } from "../components/arcane/chain-of-thought";
 
 export type ThreadMsg = {
   id: string;

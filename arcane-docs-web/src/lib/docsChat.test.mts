@@ -50,6 +50,10 @@ assert.deepEqual(
   ["Recalled a similar request", "Decided to open Hippocampus", "Opened Hippocampus"],
 );
 assert.match(thought.steps[0].results?.[0] ?? "", /hippocampus/i, "the recall backs the decision");
+const split = routeThought(await decide(hippo, "open hippocampus and then show the install docs"), { label: "Opened" });
+const parts = split.steps.find((step) => step.steps);
+assert.equal(parts?.label, "Split the message into 2 parts");
+assert.deepEqual(parts?.steps?.map((step) => step.results?.[0]), ["open hippocampus", "show the install docs"]);
 assert.equal(withContext("when?", [{ role: "user", text: "who made arcane" }]), "who made arcane. when?");
 assert.equal(withContext("how do I install the package from a source checkout", []), "how do I install the package from a source checkout");
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface TOCProps {
@@ -8,35 +8,34 @@ interface TOCProps {
   onNavigate?: () => void;
 }
 
+// Height of the sticky header: a section scrolled under it is out of view.
 const SCROLL_OFFSET = 120;
+const X_BASE = 4;
+const X_INDENT = 20;
+
+type Metric = { y: number; height: number; x: number };
 
 export function TableOfContents({ headings, onNavigate }: TOCProps) {
-  const [activeId, setActiveId] = useState<string>("");
-  const [itemMetrics, setItemMetrics] = useState<{ id: string; y: number; height: number; x: number }[]>([]);
+  // Every heading whose section is on screen, like fumadocs: one section, or several when they are short.
+  const [activeIds, setActiveIds] = useState<string[]>([]);
+  const [metrics, setMetrics] = useState<Metric[]>([]);
   const listRef = useRef<HTMLUListElement>(null);
-
-  const xBase = 4;
-  const xIndent = 20;
-  const lockRef = useRef<{ id: string; timer: number } | null>(null);
 
   useEffect(() => {
     let frame = 0;
     const update = () => {
       frame = 0;
-      if (lockRef.current) return;
-      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
-      let current = headings[0]?.id ?? "";
-      for (const heading of headings) {
-        const element = document.getElementById(heading.id);
-        if (element && element.getBoundingClientRect().top <= SCROLL_OFFSET + 8) current = heading.id;
-      }
-      if (atBottom && headings.length) current = headings[headings.length - 1].id;
-      setActiveId(current);
+      const tops = headings.map((heading) => document.getElementById(heading.id)?.getBoundingClientRect().top ?? Infinity);
+      // A section runs from its heading to the next one; the last runs to the end of the page.
+      const visible = headings.filter(
+        (_, index) => tops[index] < window.innerHeight && (tops[index + 1] ?? Infinity) > SCROLL_OFFSET,
+      );
+      const next = visible.length ? visible.map((heading) => heading.id) : headings.slice(0, 1).map((heading) => heading.id);
+      setActiveIds((prev) => (prev.join() === next.join() ? prev : next));
     };
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
-
     update();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
@@ -48,65 +47,28 @@ export function TableOfContents({ headings, onNavigate }: TOCProps) {
   }, [headings]);
 
   useEffect(() => {
-    const measure = () => {
-      if (!listRef.current) return;
-      const items = Array.from(listRef.current.children) as HTMLElement[];
-      const metrics = items.map((item, index) => ({
-        id: headings[index].id,
-        y: item.offsetTop,
-        height: item.offsetHeight,
-        x: headings[index].level === 3 ? xIndent : xBase,
-      }));
-      setItemMetrics(metrics);
-    };
-
+    const list = listRef.current;
+    if (!list) return;
+    const measure = () =>
+      setMetrics(
+        (Array.from(list.children) as HTMLElement[]).map((item, index) => ({
+          y: item.offsetTop,
+          height: item.offsetHeight,
+          x: headings[index]?.level === 3 ? X_INDENT : X_BASE,
+        })),
+      );
     measure();
-    window.addEventListener("resize", measure);
-    const timer = setTimeout(measure, 500);
-    return () => {
-      window.removeEventListener("resize", measure);
-      clearTimeout(timer);
-    };
+    // Fonts loading or the sidebar resizing rewraps items, which moves the line.
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    return () => observer.disconnect();
   }, [headings]);
 
-  const segments = useMemo(() => {
-    if (itemMetrics.length === 0) return [];
-    const result: { path: string; id: string }[] = [];
-    let currentX = xBase;
-
-    itemMetrics.forEach((metric) => {
-      const targetX = metric.x;
-      const startY = metric.y;
-      const endY = metric.y + metric.height;
-      let path = "";
-
-      if (currentX !== targetX) {
-        const curveHeight = Math.min(12, metric.height / 2);
-        path = `M ${currentX} ${startY} L ${targetX} ${startY + curveHeight} V ${endY}`;
-        currentX = targetX;
-      } else {
-        path = `M ${currentX} ${startY} V ${endY}`;
-      }
-
-      result.push({ path, id: metric.id });
-    });
-
-    return result;
-  }, [itemMetrics]);
-
-  const activeIndex = headings.findIndex((heading) => heading.id === activeId);
-  const activeGroupIds = useMemo(() => {
-    if (activeIndex < 0) return new Set<string>();
-    let parentIndex = activeIndex;
-    while (parentIndex > 0 && headings[parentIndex].level !== 2) parentIndex -= 1;
-    let endIndex = parentIndex + 1;
-    while (endIndex < headings.length && headings[endIndex].level !== 2) endIndex += 1;
-    return new Set(headings.slice(parentIndex, endIndex).map((heading) => heading.id));
-  }, [activeIndex, headings]);
-
+  // Keep the first active item in view when the list scrolls on its own.
+  const firstActive = activeIds[0];
   useEffect(() => {
     const list = listRef.current;
-    const item = list?.querySelector<HTMLElement>(`[data-id="${CSS.escape(activeId)}"]`);
+    const item = firstActive ? list?.querySelector<HTMLElement>(`[data-id="${CSS.escape(firstActive)}"]`) : null;
     let box = list?.parentElement ?? null;
     while (box && box.scrollHeight <= box.clientHeight) box = box.parentElement;
     if (!item || !box || box === document.documentElement || box === document.body) return;
@@ -115,24 +77,37 @@ export function TableOfContents({ headings, onNavigate }: TOCProps) {
     if (itemBounds.top < containerBounds.top || itemBounds.bottom > containerBounds.bottom) {
       box.scrollBy({ top: itemBounds.top - containerBounds.top - containerBounds.height / 2, behavior: "smooth" });
     }
-  }, [activeId]);
+  }, [firstActive]);
 
   const goTo = (id: string) => {
     const element = document.getElementById(id);
     if (!element) return;
-    setActiveId(id);
-    if (lockRef.current) clearTimeout(lockRef.current.timer);
-    lockRef.current = { id, timer: window.setTimeout(() => (lockRef.current = null), 1400) };
     element.scrollIntoView({ behavior: "smooth", block: "start" });
     window.history.replaceState(null, "", `#${id}`);
     onNavigate?.();
   };
 
-  const totalHeight = itemMetrics.length > 0
-    ? itemMetrics[itemMetrics.length - 1].y + itemMetrics[itemMetrics.length - 1].height
-    : 0;
-
   if (headings.length === 0) return null;
+
+  // One line through every item, stepping in and out with the heading level.
+  let path = "";
+  let x = X_BASE;
+  metrics.forEach((metric, index) => {
+    if (index === 0) path += `M ${metric.x} ${metric.y}`;
+    else if (metric.x !== x) path += ` L ${metric.x} ${metric.y + Math.min(12, metric.height / 2)}`;
+    path += ` V ${metric.y + metric.height}`;
+    x = metric.x;
+  });
+  const height = metrics.length ? metrics[metrics.length - 1].y + metrics[metrics.length - 1].height : 0;
+  const line = (stroke: string) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="${height}"><path d="${path}" stroke="${stroke}" stroke-width="2" fill="none"/></svg>`;
+  const mask = `url("data:image/svg+xml,${encodeURIComponent(line("black"))}")`;
+
+  // The thumb covers the active items; it is the line itself, revealed through a mask, so it follows the bends.
+  const first = headings.findIndex((heading) => activeIds.includes(heading.id));
+  const last = headings.findLastIndex((heading) => activeIds.includes(heading.id));
+  const thumb =
+    first >= 0 && metrics[last] ? { top: metrics[first].y, height: metrics[last].y + metrics[last].height - metrics[first].y } : null;
 
   return (
     <div className="relative select-none px-1 font-sans">
@@ -144,59 +119,30 @@ export function TableOfContents({ headings, onNavigate }: TOCProps) {
       </div>
 
       <div className="relative flex">
-        <div className="pointer-events-none absolute left-0 top-0 w-[40px]">
-          <svg width="40" height={totalHeight} viewBox={`0 0 40 ${totalHeight}`} fill="none" preserveAspectRatio="none">
-            {segments.map((segment) => (
-              <path
-                key={`bg-${segment.id}`}
-                d={segment.path}
-                stroke="rgba(113, 113, 122, 0.8)"
-                strokeWidth="1.5"
-                fill="none"
-                strokeLinecap="round"
-              />
-            ))}
-
-            {segments
-              .filter((segment) => activeGroupIds.has(segment.id))
-              .map((segment) => (
-                <path
-                  key={`group-${segment.id}`}
-                  d={segment.path}
-                  stroke="rgba(199, 133, 242, 0.65)"
-                  strokeWidth="1.75"
-                  fill="none"
-                  strokeLinecap="square"
-                  className="transition-all duration-300 ease-in-out"
-                />
-              ))}
-
-            {activeIndex !== -1 && segments[activeIndex] && (
-              <path
-                d={segments[activeIndex].path}
-                stroke="white"
-                strokeWidth="2"
-                fill="none"
-                strokeLinecap="square"
-                className="transition-all duration-300 ease-in-out"
-                style={{ filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.6))" }}
+        {height > 0 && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-0 top-0 w-[40px]"
+            style={{ height, maskImage: mask, WebkitMaskImage: mask, maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat" }}
+          >
+            <div className="absolute inset-0 bg-zinc-700" />
+            {thumb && (
+              <div
+                className="absolute inset-x-0 bg-white transition-[top,height] duration-300 ease-out motion-reduce:transition-none"
+                style={thumb}
               />
             )}
-          </svg>
-        </div>
+          </div>
+        )}
 
-        <ul ref={listRef} className="relative z-10 flex-1 space-y-0">
+        <ul ref={listRef} className="relative z-10 flex-1">
           {headings.map((heading) => {
-            const exactActive = activeId === heading.id;
-            const groupActive = activeGroupIds.has(heading.id);
+            const active = activeIds.includes(heading.id);
             return (
               <li
                 key={heading.id}
                 data-id={heading.id}
-                className={cn(
-                  "flex min-h-[32px] items-center py-1 transition-all duration-300",
-                  heading.level === 3 ? "pl-10" : "pl-6"
-                )}
+                className={cn("flex min-h-[32px] items-center py-1", heading.level === 3 ? "pl-10" : "pl-6")}
               >
                 <a
                   href={`#${heading.id}`}
@@ -204,12 +150,10 @@ export function TableOfContents({ headings, onNavigate }: TOCProps) {
                     event.preventDefault();
                     goTo(heading.id);
                   }}
-                  aria-current={exactActive ? "location" : undefined}
+                  aria-current={active ? "location" : undefined}
                   className={cn(
-                    "block w-full text-[13px] leading-snug transition-all duration-300",
-                    exactActive && "translate-x-0.5 font-semibold text-zinc-50",
-                    !exactActive && groupActive && "text-zinc-300 hover:text-zinc-100",
-                    !groupActive && "text-zinc-500 hover:text-zinc-300"
+                    "block w-full text-[13px] leading-snug transition-colors duration-300",
+                    active ? "text-zinc-50" : "text-zinc-500 hover:text-zinc-300",
                   )}
                 >
                   {heading.text}
