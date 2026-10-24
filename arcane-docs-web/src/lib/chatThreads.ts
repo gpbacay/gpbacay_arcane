@@ -1,4 +1,4 @@
-import type { TraceStep } from "./docsChat";
+import type { ThoughtStep } from "../components/harness/chain-of-thought";
 
 export type ThreadMsg = {
   id: string;
@@ -6,7 +6,7 @@ export type ThreadMsg = {
   text: string;
   /** Heads the thought trace. Older saved replies have only this line. */
   trace?: string;
-  steps?: TraceStep[];
+  steps?: ThoughtStep[];
   pageId?: string | null;
   /** Snippet of the bubble this message answers. */
   replyTo?: string;

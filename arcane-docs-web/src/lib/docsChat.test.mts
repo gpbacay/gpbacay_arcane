@@ -43,10 +43,13 @@ const about = await decide(hippo, "who is the creator of this project");
 assert.equal(about.recallId, "about", `recalled ${about.recallId}`);
 assert.equal(about.source, "memory");
 assert.match(answerDocs("the person behind it", about).text, /Gianne P\. Bacay/);
-const thought = routeThought(await decide(hippo, "opn the hipocampus page"), { title: "Opened Hippocampus", tool: "/docs/hippocampus" });
+const thought = routeThought(await decide(hippo, "opn the hipocampus page"), { label: "Opened Hippocampus" });
 assert.match(thought.label, /Hippocampus \+ Occipital/);
-assert.equal(thought.steps.length, 3);
-assert.match(thought.steps[0].children?.[0]?.title ?? "", /Hippocampus/, "the recall node lists what it recalled");
+assert.deepEqual(
+  thought.steps.map((step) => step.label),
+  ["Recalled a similar request", "Decided to open Hippocampus", "Opened Hippocampus"],
+);
+assert.match(thought.steps[0].results?.[0] ?? "", /hippocampus/i, "the recall backs the decision");
 assert.equal(withContext("when?", [{ role: "user", text: "who made arcane" }]), "who made arcane. when?");
 assert.equal(withContext("how do I install the package from a source checkout", []), "how do I install the package from a source checkout");
 

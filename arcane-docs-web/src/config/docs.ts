@@ -123,6 +123,16 @@ export const docsConfig: { sidebarNav: SidebarNavItem[] } = {
       ],
     },
     {
+      title: "Harness",
+      items: [
+        {
+          title: "Chain of Thought",
+          href: "/docs/chain-of-thought",
+          keywords: ["cot", "reasoning", "thinking", "trace", "steps", "react component", "ui"],
+        },
+      ],
+    },
+    {
       title: "Reference",
       items: [
         {

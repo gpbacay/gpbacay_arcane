@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { ArrowUp, Check, Copy, MessageSquare, Mic, MicOff, MoreVertical, Pencil, Plus, Reply, Trash2, X } from "lucide-react";
 import { onArc1Status, rememberTurn, routeWithArc1, warmArc1 } from "@/lib/arc1Router";
 import { appendTranscript, blankThread, removeThread, titleFrom, truncateBefore, type Thread, type ThreadMsg } from "@/lib/chatThreads";
-import { answerDocs, navigationOnly, pageById, routeThought, withContext, type ChatRoute, type TraceStep } from "@/lib/docsChat";
-import { ThoughtTrace } from "./ThoughtTrace";
+import { answerDocs, navigationOnly, pageById, routeThought, withContext, type ChatRoute } from "@/lib/docsChat";
+import { ChainOfThoughtTrace, type ThoughtStep } from "./harness/chain-of-thought";
 
 const STORAGE_KEY = "arcane_docs_chat_v2";
 const LEGACY_KEY = "arcane_docs_chat_v1";
@@ -171,23 +171,26 @@ export function ArcaneChat() {
     const model = models.find((item) => item.id === modelId);
     let message: ThreadMsg;
     // Every reply ends its thought trace with what the chat did (`outcome`).
-    const reply = (body: string, outcome: TraceStep, pageId: string | null = null): ThreadMsg => {
+    const reply = (body: string, outcome: ThoughtStep, pageId: string | null = null): ThreadMsg => {
       const thought = routeThought(route, outcome);
       return { id: crypto.randomUUID(), role: "assistant", text: body, pageId, trace: thought.label, steps: thought.steps };
     };
-    const source = (pageId: string | null) => pageById(pageId)?.href ?? "docs";
+    const fromDocs = (pageId: string | null) => {
+      const title = pageById(pageId)?.title;
+      return title ? `Answered from the ${title} page` : "Answered from the docs";
+    };
     if (page && jump) {
-      message = reply(`Opening ${page.title}.`, { title: `Opened ${page.title}`, tool: page.href }, page.id);
+      message = reply(`Opening ${page.title}.`, { label: `Opened ${page.title}` }, page.id);
       router.push(page.href);
       setOpen(false);
     } else if (modelId !== DOCS_MODEL && model?.ready) {
       try {
         const answer = await languageReply(modelId, text, quote, history);
-        message = reply(answer, { title: `${model.label} wrote the reply`, tool: modelId });
+        message = reply(answer, { label: `${model.label} wrote the reply` });
       } catch (error) {
         const fallback = answerDocs(text, route);
         const why = error instanceof Error ? error.message : "The language model failed";
-        message = reply(fallback.text, { title: "Answered from the docs", tool: source(fallback.pageId), detail: why }, fallback.pageId);
+        message = reply(fallback.text, { label: fromDocs(fallback.pageId), description: why }, fallback.pageId);
       }
     } else {
       const docs = answerDocs(text, route);
@@ -195,7 +198,7 @@ export function ArcaneChat() {
       const byRules = answerDocs(text).pageId;
       if (byRules) rememberTurn(asked, byRules);
       const offline = modelId !== DOCS_MODEL ? `${model?.label ?? "That model"} is offline.` : undefined;
-      message = reply(docs.text, { title: "Answered from the docs", tool: source(docs.pageId), detail: offline }, docs.pageId);
+      message = reply(docs.text, { label: fromDocs(docs.pageId), description: offline }, docs.pageId);
     }
     patchChat(chatId, (chat) => ({ ...chat, messages: [...chat.messages, message] }));
   };
@@ -450,7 +453,12 @@ export function ArcaneChat() {
                   >
                     <div className={mine ? "bg-zinc-900 px-3 py-2 text-sm text-zinc-100" : "text-sm leading-relaxed text-zinc-200"}>
                       {message.replyTo && <p className="mb-1 border-l border-[#C785F2] pl-2 text-[11px] text-zinc-500">{message.replyTo}</p>}
-                      {message.trace && <ThoughtTrace label={message.trace} steps={message.steps} />}
+                      {message.trace && (
+                        <div className="mb-2">
+                          {/* Steps saved by the previous trace format have no label; those replies keep just the header. */}
+                          <ChainOfThoughtTrace label={`Thought · ${message.trace}`} steps={(message.steps ?? []).filter((step) => step.label)} />
+                        </div>
+                      )}
                       <p className="whitespace-pre-wrap">{message.text}</p>
                       {message.role === "assistant" && page && (
                         <button
@@ -536,7 +544,7 @@ export function ArcaneChat() {
                 </div>
               );
             })}
-            {busy && <ThoughtTrace thinking />}
+            {busy && <ChainOfThoughtTrace thinking steps={[]} />}
           </div>
 
           <form

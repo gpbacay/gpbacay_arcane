@@ -2,6 +2,7 @@
  * What the docs chat knows, and how a message becomes a route.
  * ARC 1 only classifies. The reply text comes from these pages.
  */
+import type { ThoughtStep } from "../components/harness/chain-of-thought";
 
 export type DocPage = {
   id: string;
@@ -34,9 +35,6 @@ export type ChatRoute = {
 };
 
 type Neighbor = { text: string; label: string | null; score: number };
-
-/** One node of a reply's thought trace. A `tool` step renders as a tool-call card. */
-export type TraceStep = { title: string; detail?: string; tool?: string; children?: TraceStep[] };
 
 export type Classifier = {
   classify(text: string, labels: string[]): Promise<{ distribution: Record<string, number>; source?: string }>;
@@ -128,6 +126,16 @@ export const PAGES: DocPage[] = [
     aliases: ["occipital", "visual memory", "letter recall", "qr video"],
     keys: [/\boccipital\b/, /\b(visual memory|visual cortex|typos?|misspell\w*|qr[- ]?video|qr codes?)\b/],
     nav: ["go to the occipital page", "open occipital", "take me to visual memory", "show the qr video docs"],
+  },
+  {
+    id: "chain-of-thought",
+    title: "Chain of Thought",
+    href: "/docs/chain-of-thought",
+    answer:
+      "Chain of Thought is ARCANE's harness component for showing the steps a model took: a React component with a header that opens a line of nodes. It works with any model, and this chat uses it for every reply.",
+    aliases: ["chain of thought", "thought trace", "reasoning trace"],
+    keys: [/\bchain[- ]of[- ]thought\b/, /\b(cot|thought trace|reasoning trace|harness)\b/],
+    nav: ["go to the chain of thought page", "open chain of thought", "take me to the harness docs", "show the reasoning trace component"],
   },
   {
     id: "graph-of-thought",
@@ -437,40 +445,24 @@ export function answerDocs(message: string, route: ChatRoute | null = null): { t
   return { text: "Not in the docs.", pageId: null };
 }
 
-function callName(call: string | null): string {
-  if (call === "answer") return "answer";
-  if (!call || call === "none") return "no tool";
+function callName(call: string): string {
+  if (call === "answer" || call === "none") return call === "answer" ? "answer" : "decline";
   return `open ${pageById(call.slice(3))?.title ?? call}`;
 }
 
-/** The thought trace for one reply: `label` heads it, `steps` are its nodes, ending with what the chat did. */
-export function routeThought(route: ChatRoute | null, outcome: TraceStep): { label: string; steps: TraceStep[] } {
-  if (!route) {
-    return {
-      label: "Docs only",
-      steps: [{ title: "ARC 1 is still loading", detail: "This reply comes straight from the docs." }, outcome],
-    };
-  }
+/** The thought trace for one reply: `label` heads it, `steps` are what was done, ending with `outcome`. */
+export function routeThought(route: ChatRoute | null, outcome: ThoughtStep): { label: string; steps: ThoughtStep[] } {
+  if (!route) return { label: "Docs only, ARC 1 is loading", steps: [outcome] };
+  // The example that backs the decision, else the closest one.
+  const recalled = route.recalled?.find((hit) => route.calls.includes(hit.label ?? "none")) ?? route.recalled?.[0];
+  const steps: ThoughtStep[] = recalled ? [{ label: "Recalled a similar request", results: [recalled.text] }] : [];
+  steps.push({
+    label: route.calls.length ? `Decided to ${route.calls.map(callName).join(" and ")}` : "Unsure, so checked the docs",
+  });
   // The chat's Hippocampus always recalls through Occipital too (arc1Router.ts).
   const via =
     route.source === "memory" ? "Hippocampus + Occipital" : route.source === "model+memory" ? "ARC 1 + Hippocampus + Occipital" : "ARC 1";
-  const recalled = route.recalled ?? [];
-  const recall: TraceStep = recalled.length
-    ? {
-        title: `Hippocampus + Occipital recalled ${recalled.length} example${recalled.length === 1 ? "" : "s"}`,
-        detail: "Matched by words, and by letters through Occipital, so typos still find them.",
-        // A label is a routing call (go_x, answer, none) or, for remembered docs passages, a page id.
-        children: recalled.map((hit) => ({
-          title: `“${hit.text.length > 60 ? `${hit.text.slice(0, 57)}…` : hit.text}” → ${pageById(hit.label)?.title ?? callName(hit.label)} · ${Math.round(hit.score * 100)}%`,
-        })),
-      }
-    : { title: "Hippocampus + Occipital found no similar example" };
-  const names = route.calls.map(callName);
-  const decision: TraceStep = {
-    title: `${route.source === "memory" ? "Hippocampus" : "ARC 1"} chose ${names.length ? names.join(", ") : "nothing it was sure of"}`,
-    detail: `${Math.round(route.confidence * 100)}% confident · ${Math.round(route.latencyMs)} ms`,
-  };
-  return { label: `${via} · ${Math.round(route.latencyMs)} ms`, steps: [recall, decision, outcome] };
+  return { label: via, steps: [...steps, outcome] };
 }
 
 // ponytail: one margin for every label; split per label if a real log shows a systematic miss.
