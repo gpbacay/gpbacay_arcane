@@ -103,6 +103,12 @@ from .language_model import (
     ArcaneSmallLanguageModel,
 )
 
+from .hosted_slm import (
+    ArcaneHostedSLM,
+    OllamaCompleter,
+    BASE_MODEL_ID,
+)
+
 from .arc1 import (
     Arc1Config,
     Arc1Model,
@@ -252,6 +258,9 @@ __all__ = [
     "AblationRecord",
     "AblationReport",
     "ArcaneSmallLanguageModel",
+    "ArcaneHostedSLM",
+    "OllamaCompleter",
+    "BASE_MODEL_ID",
     "Arc1Model",
     "Arc1Config",
     "Arc1Agent",

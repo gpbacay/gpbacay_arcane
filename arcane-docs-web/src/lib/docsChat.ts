@@ -104,7 +104,7 @@ export const PAGES: DocPage[] = [
     title: "Chat with ARCANE",
     href: "/docs/chat",
     answer:
-      "The chat page runs ARCANE's compact language models for open-ended generation. They are next-token models, not instruction-tuned assistants. Locally that server starts with npm run dev:with-slm.",
+      "The chat page is the same on-device chatbot as the button on every docs page. ARC 1, Hippocampus, and Occipital run in the browser from the shipped ONNX model, so it answers with no server. A local SLM server can add extra models to the menu.",
     aliases: ["chat page", "language model", "slm"],
     keys: [/\b(slm|language model|text generation)\b/, /\bchat with arcane\b/],
     nav: ["go to the chat page", "open the language model chat", "take me to the slm demo", "show the generation chat"],

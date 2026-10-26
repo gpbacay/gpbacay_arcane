@@ -6,6 +6,7 @@ lets each chat request choose a model.  With the repository defaults this is:
 * ``arc1-lm-100m`` -- the compact 16-layer model, when trained weights exist
 * ``arc1-lm-v2`` -- the 12-layer hybrid convolution/GQA model (default fallback)
 * ``arc1-lm-v1`` -- the original six-layer causal ARC 1 model
+* ``arcane-hosted`` -- SmolLM2-135M-Instruct through Ollama, no local training
 
 An explicit ``SLM_CONFIG_PATH`` keeps the old single-model deployment mode.
 
@@ -30,6 +31,8 @@ from __future__ import annotations
 import json
 import os
 import sys
+import urllib.error
+import urllib.request
 from typing import Any, Dict, List, Optional
 
 EXAMPLES_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -148,7 +151,23 @@ def _discover_specs() -> Dict[str, Dict[str, Any]]:
     }
 
 
+HOSTED_ID = "arcane-hosted"
+HOSTED_PARAMETERS = 135_000_000
+
 MODEL_SPECS = _discover_specs()
+if not _env("SLM_CONFIG_PATH"):
+    MODEL_SPECS[HOSTED_ID] = {
+        "id": HOSTED_ID,
+        "label": "ARCANE hosted SLM · SmolLM2-135M",
+        "kind": "hosted",
+        "config_path": "",
+        "weights_path": "",
+        "preset": HOSTED_ID,
+        "quality_note": (
+            "Open weights: HuggingFaceTB/SmolLM2-135M-Instruct (Apache-2.0) via Ollama. "
+            "Run: ollama pull smollm2:135m. ARCANE does not train this model."
+        ),
+    }
 DEFAULT_MODEL_ID = _env("SLM_DEFAULT_MODEL") or (
     "arc1-lm-100m" if "arc1-lm-100m" in MODEL_SPECS else
     "arc1-lm-v2" if "arc1-lm-v2" in MODEL_SPECS else next(iter(MODEL_SPECS))
@@ -242,7 +261,61 @@ def _public_model(entry: Dict[str, Any]) -> Dict[str, Any]:
     return {key: value for key, value in entry.items() if key not in {"model", "tokenizer", "allowed_ids"}}
 
 
+def _probe_ollama(completer) -> Optional[str]:
+    """None when the Ollama tag is installed. Otherwise the reason it cannot answer."""
+    try:
+        with urllib.request.urlopen(completer.host + "/api/tags", timeout=1.0) as response:
+            body = json.loads(response.read().decode())
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        return (
+            f"Ollama is not reachable at {completer.host}. "
+            f"Start it and run: ollama pull {completer.model}"
+        )
+    names = [str(item.get("name", "")) for item in body.get("models", [])]
+    stem = completer.model.split(":", 1)[0]
+    if any(name == completer.model or name.startswith(stem + ":") for name in names):
+        return None
+    return f"Ollama is up, and {completer.model} is not installed. Run: ollama pull {completer.model}"
+
+
+def _load_hosted(model_id: str, spec: Dict[str, Any]) -> None:
+    from gpbacay_arcane.hosted_slm import ArcaneHostedSLM, OllamaCompleter
+
+    completer = OllamaCompleter()
+    error = _probe_ollama(completer)
+    _models[model_id] = {
+        "id": model_id,
+        "label": spec["label"],
+        "model": ArcaneHostedSLM(["reply"], completer),
+        "ready": error is None,
+        "trained": True,
+        "status": "ok" if error is None else "error",
+        "error": error,
+        "preset": spec["preset"],
+        "tokenizer_name": "smollm2",
+        "vocab_size": 49152,
+        "parameters": HOSTED_PARAMETERS,
+        "context": 8192,
+        "architecture": "hosted",
+        "quality_note": spec["quality_note"],
+    }
+    print(f"[slm] Hosted SLM {'ready' if error is None else 'offline'}: {error or completer.model}")
+
+
+def _refresh_hosted() -> None:
+    entry = _models.get(HOSTED_ID)
+    if not entry or entry.get("architecture") != "hosted":
+        return
+    error = _probe_ollama(entry["model"].completer)
+    entry["ready"] = error is None
+    entry["status"] = "ok" if error is None else "error"
+    entry["error"] = error
+
+
 def _load_model(model_id: str, spec: Dict[str, Any]) -> None:
+    if spec.get("kind") == "hosted":
+        _load_hosted(model_id, spec)
+        return
     entry: Dict[str, Any] = {
         "id": model_id,
         "label": spec["label"],
@@ -310,6 +383,7 @@ def startup() -> None:
 
 @app.get("/health")
 def health():
+    _refresh_hosted()
     default = _models.get(DEFAULT_MODEL_ID)
     models = [_public_model(_models[mid]) for mid in MODEL_SPECS if mid in _models]
     ready = bool(default and default["ready"])
@@ -338,8 +412,33 @@ def chat(req: ChatRequest):
             status_code=400,
             detail=f"Unknown model {model_id!r}. Available: {', '.join(MODEL_SPECS)}",
         )
+    if entry.get("architecture") == "hosted":
+        _refresh_hosted()
     if not entry["ready"]:
         raise HTTPException(status_code=503, detail=entry["error"] or f"{model_id} is still loading")
+
+    if entry.get("architecture") == "hosted":
+        history = [
+            (turn.role, turn.content.strip())
+            for turn in req.history[-6:]
+            if turn.content.strip()
+        ]
+        try:
+            reply = entry["model"].answer(
+                req.message.strip(),
+                max_new_tokens=req.max_new_tokens,
+                temperature=req.temperature,
+                history=history,
+            ).strip() or "…"
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Generation failed: {exc}") from exc
+        return ChatResponse(
+            reply=reply,
+            trained=True,
+            preset=entry["preset"],
+            model=model_id,
+            parameters=int(entry["parameters"]),
+        )
 
     model = entry["model"]
     tokenizer = entry["tokenizer"]

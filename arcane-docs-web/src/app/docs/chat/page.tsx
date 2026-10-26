@@ -9,8 +9,8 @@ export default function ChatPage() {
           Chat with ARCANE
         </h1>
         <p className="text-xl text-zinc-400">
-          Use ARCANE&apos;s compact language models when a task needs open-ended generation rather than a bounded
-          System 1 decision. Compare ARC 1 LM v2 with the original ARC 1 LM in the model selector.
+          The same on-device chatbot as the button on every docs page. ARC 1, Hippocampus, and Occipital run in
+          the browser, so this page answers with no server.
         </p>
       </div>
 
@@ -24,35 +24,14 @@ export default function ChatPage() {
           How this works
         </h2>
         <p className="leading-relaxed">
-          The page calls a same-origin proxy at <code className="bg-zinc-900 px-1.5 py-0.5">/api/slm-chat</code>,
-          which forwards the selected model ID to the Python SLM server. The server keeps the available{" "}
+          The default model is the{" "}
           <Link href="/docs/arc-1" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
             ARC 1
           </Link>{" "}
-          checkpoints loaded and samples from the model you select. Health metadata shows whether each checkpoint
-          is loaded, trained, and ready before the page enables generation.
+          checkpoint shipped with the site, loaded through onnxruntime-web. Hippocampus recalls similar questions and
+          Occipital tolerates typos. The reply comes from the docs. A local SLM server, when it is running, adds its
+          ready models to the same menu. Those extras are not required for the page to answer.
         </p>
-        <p className="leading-relaxed">
-          These are compact next-token continuation models designed to demonstrate ARCANE&apos;s local generation path;
-          they are not instruction-tuned assistants. The bundled v2 checkpoint is trained for architecture validation,
-          so use a task-trained checkpoint when factual reliability is required.
-        </p>
-
-        <div className="rounded-none border border-amber-900/50 bg-amber-900/10 p-4 not-prose">
-          <p className="text-sm text-amber-200">
-            <strong>Local:</strong> from <code className="bg-zinc-900 px-1.5 py-0.5 text-amber-100">arcane-docs-web</code> run{" "}
-            <code className="bg-zinc-900 px-1.5 py-0.5 text-amber-100">npm run dev:with-slm</code>. This starts Next.js
-            and <code className="bg-zinc-900 px-1.5 py-0.5">python examples/serve_slm_api.py</code> together. Or start
-            the API on port 8001 and set{" "}
-            <code className="bg-zinc-900 px-1.5 py-0.5">SLM_API_URL=http://127.0.0.1:8001</code> in{" "}
-            <code className="bg-zinc-900 px-1.5 py-0.5">.env.local</code>.
-          </p>
-          <p className="text-sm text-amber-200 mt-2">
-            The server discovers <code className="bg-zinc-900 px-1.5 py-0.5">Models/arc1_lm_v2.*</code> and{" "}
-            <code className="bg-zinc-900 px-1.5 py-0.5">Models/arc1_lm.*</code> automatically. Set{" "}
-            <code className="bg-zinc-900 px-1.5 py-0.5">SLM_DEFAULT_MODEL=arc1-lm-v1</code> to change the initial selection.
-          </p>
-        </div>
       </div>
     </div>
   );
