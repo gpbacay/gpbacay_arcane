@@ -308,9 +308,11 @@ export const PAGES: DocPage[] = [
 const SELF = {
   keys: [
     /\b(are you|who are you|this (chat|bot)|how (do|does) (you|this) work|what can you (do|answer))\b/,
+    /\b(primary directive|your (purpose|job|role|mission))\b/,
     /\b(chatgpt|openai|gpt-?\d|third[- ]party)\b/,
   ],
-  answer: "ARC 1, in your browser. Answers come from these docs.",
+  answer:
+    "Your primary directive is to answer from these docs and to say when something is not in them. ARC 1 does that in your browser. SmolLM2 writes only what those docs do not already answer.",
 };
 
 export const MEMORY: Record<string, string[]> = {
@@ -464,29 +466,88 @@ export function arc1CanAnswer(message: string): { text: string; pageId: string |
   return null;
 }
 
-/** Short facts for SmolLM2. The closest docs page, not the whole site. */
+/** Always in the SmolLM2 prompt. The job, then what this chat actually is. */
+const ASSISTANT_FACTS =
+  "Primary directive: answer only from the facts below. If a fact is missing, say it is not in the docs. Do not invent function names, version numbers, dates, or links.\n" +
+  "This chat runs in the browser. ARC 1 (the shipped ONNX model) answers a short docs question. SmolLM2, the text decoder of SmolVLM-256M-Instruct Q4 (Apache-2.0), writes open questions on WebGPU. No server and no API key.\n" +
+  "ARCANE is a Python library by Gianne P. Bacay for System 1 models: adaptive inference, grounded decisions, neural memory, and biologically inspired components.";
+
+const FACT_STOP = new Set(
+  "the a an is of to and or what how why does do you your me my about in on for it this that with can please explain tell more like just was are from have has not into".split(" "),
+);
+
+function tokens(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length > 3 && !FACT_STOP.has(word));
+}
+
+function pageLine(page: DocPage, message: string): string {
+  const hits = (page.facts ?? []).filter((fact) => fact.key.test(message));
+  return `${page.title}: ${hits.length ? hits.map((fact) => fact.text).join(" ") : page.answer}`;
+}
+
+/** Short facts for SmolLM2. The directive, then at most two matching pages. */
 export function generationFacts(message: string, route: ChatRoute | null): string {
+  const query = new Set(tokens(message));
+  const ranked = PAGES.map((page) => {
+    const keys = page.keys.filter((key) => key.test(message)).length * 4;
+    const alias = new Set([...tokens(page.title), ...page.aliases.flatMap(tokens)]);
+    const answer = new Set(tokens(page.answer));
+    let score = keys;
+    for (const word of query) score += alias.has(word) ? 2 : answer.has(word) ? 1 : 0;
+    return { page, score };
+  })
+    .filter((hit) => hit.score >= 2)
+    .sort((a, b) => b.score - a.score);
   const picked: DocPage[] = [];
   const seen = new Set<string>();
   const add = (page: DocPage | null) => {
-    if (!page || seen.has(page.id)) return;
+    if (!page || seen.has(page.id) || picked.length >= 2) return;
     seen.add(page.id);
     picked.push(page);
   };
-  const text = message.toLowerCase();
-  let best: DocPage | null = null;
-  let score = 0;
-  for (const page of PAGES) {
-    const next = page.keys.filter((key) => key.test(text)).length;
-    if (next > score) [best, score] = [page, next];
-  }
-  if (score > 0) add(best);
+  if (ranked[0]) add(ranked[0].page);
   add(pageById(route?.recallId ?? null));
-  const lines = picked.slice(0, 2).map((page) => `${page.title}: ${page.answer}`);
-  return (
-    lines.join("\n") ||
-    "ARCANE is a Python library for System 1 models: adaptive inference, grounded decisions, neural memory, and biologically inspired components."
-  );
+  if (picked.length < 2 && ranked[1]) add(ranked[1].page);
+  // ponytail: 1400 chars so prefill stays short on a 256M model; raise it if answers miss a second page.
+  let body = ASSISTANT_FACTS;
+  for (const line of picked.map((page) => pageLine(page, message))) {
+    if (body.length + 1 + line.length > 1400) break;
+    body += `\n${line}`;
+  }
+  return body;
+}
+
+/** A number, month, acronym, or parenthesis the facts do not contain. A 256M model invents these. */
+export function ungroundedDetail(reply: string, facts: string): string | null {
+  const specifics =
+    reply.match(
+      /\d+|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\b|\b[A-Za-z]*[A-Z][a-z]*[A-Z][A-Za-z]*\b|\b[A-Z]{2,}\b|\([^)\n]+\)/g,
+    ) ?? [];
+  return specifics.find((item) => !facts.includes(item)) ?? null;
+}
+
+const CREATIVE = /\b(haiku|poem|poetry|story|joke|song|limerick)\b/i;
+
+/** The reply names a retrieved page but uses none of that page's fact words. */
+export function missesPageFact(reply: string, facts: string, question = ""): boolean {
+  if (CREATIVE.test(question)) return false;
+  const page = facts.split("\n").find((line) => line.includes(": ") && !line.startsWith("Primary directive"));
+  if (!page) return false;
+  const needed = tokens(page.slice(page.indexOf(":") + 1)).filter((word) => word.length > 4);
+  if (!needed.length) return false;
+  const said = new Set(tokens(reply));
+  return !needed.some((word) => said.has(word));
+}
+
+/** The reply when it stays on the facts. Otherwise the docs sentence. */
+export function groundedText(reply: string, facts: string, fallback: string, question = ""): string {
+  const text = reply.trim();
+  if (!text || ungroundedDetail(text, facts) || missesPageFact(text, facts, question)) return fallback;
+  return text;
 }
 
 function callName(call: string): string {

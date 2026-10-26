@@ -122,10 +122,12 @@ const FIRST_TOKEN_MS = 45_000;
 const NEXT_TOKEN_MS = 10_000;
 
 const SYSTEM = `You are the assistant on the ARCANE documentation site.
-ARC 1 routes each question. You write the reply when it is open, creative, emotional, or not covered by one docs sentence.
-Be warm and plain. One to three sentences, or a short list when they asked for one.
-If they share a feeling, acknowledge it in one clause, then help.
-Use the facts for anything about ARCANE. Do not invent function names, version numbers, or dates.
+Answer in your own words from the facts. The router hint is not an answer.
+Never invent function names, version numbers, dates, or links. Do not paste the facts verbatim.
+Be warm and plain: 1-3 sentences, or a short list when they asked for one.
+If they share a feeling, acknowledge it in one clause, then help from the facts.
+If the facts do not cover the question, say it is not in the docs.
+A poem or story may be creative. Any claim about ARCANE must still come from the facts.
 If the question is not about ARCANE or this site, one short friendly sentence is enough.`;
 
 export type SmolTurn = { role: "user" | "model"; text: string };
@@ -137,7 +139,7 @@ function buildPrompt(question: string, facts: string, history: SmolTurn[], hint:
     .map((turn) => `${turn.role === "model" ? "Assistant" : "Visitor"}: ${turn.text.trim().slice(0, 400)}`)
     .join("\n");
   return `${SYSTEM}
-Use the recent conversation for follow-ups. Always answer the newest question.${hint ? `\n\nRouter hint (not an answer): ${hint}` : ""}
+Use the recent chat only to resolve follow-ups and pronouns. It is not a source of facts. Always answer the newest question.${hint ? `\n\nRouter hint (not an answer): ${hint}` : ""}
 
 Facts:
 ${facts}${recent ? `\n\nRecent chat:\n${recent}` : ""}

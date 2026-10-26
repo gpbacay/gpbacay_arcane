@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Hippocampus } from "gpbacay-arcane/hippocampus";
 import { Occipital } from "gpbacay-arcane/occipital";
 import { appendTranscript, blankThread, removeThread, titleFrom, truncateBefore } from "./chatThreads.ts";
-import { EXAMPLES, answerDocs, arc1CanAnswer, decide, navigationOnly, routeThought, withContext } from "./docsChat.ts";
+import { EXAMPLES, answerDocs, arc1CanAnswer, decide, generationFacts, groundedText, missesPageFact, navigationOnly, routeThought, ungroundedDetail, withContext } from "./docsChat.ts";
 
 const hippo = new Hippocampus(null, { k: 8, weight: 0.7, memory: EXAMPLES, occipital: new Occipital() }); // as arc1Router.ts
 
@@ -71,5 +71,24 @@ const only = blankThread("only");
 assert.equal(removeThread([only], "only", "fresh").currentId, "fresh");
 const kept = removeThread([only, blankThread("other")], "only", "unused");
 assert.deepEqual(kept.threads.map((thread) => thread.id), ["other"]);
+
+assert.match(arc1CanAnswer("what is your primary directive?")?.text ?? "", /primary directive/);
+assert.match(arc1CanAnswer("what is your primary directive?")?.text ?? "", /not in them/);
+const directiveFacts = generationFacts("what is your primary directive?", null);
+assert.match(directiveFacts, /Primary directive/);
+assert.doesNotMatch(directiveFacts, /fruit fly/i);
+const memoryFacts = generationFacts("what does the memory do", null);
+assert.match(memoryFacts, /Hippocampus/);
+const authorFacts = generationFacts("who made this", null);
+assert.match(authorFacts, /Gianne P\. Bacay/);
+assert.doesNotMatch(authorFacts, /September/);
+assert.equal(ungroundedDetail("Hippocampus stores decided examples.", memoryFacts), null);
+assert.equal(ungroundedDetail("It was released in October 1999.", memoryFacts), "October");
+assert.equal(groundedText("It was released in October 1999.", memoryFacts, "Not in the docs."), "Not in the docs.");
+assert.match(groundedText("It is a fast memory of decided examples.", memoryFacts, "Not in the docs."), /memory/);
+const invented = "Hippocampus has been used extensively in my brain for decades.";
+assert.equal(missesPageFact(invented, memoryFacts), true);
+assert.equal(groundedText(invented, memoryFacts, "Not in the docs."), "Not in the docs.");
+assert.equal(missesPageFact("rain on the glass", generationFacts("write a haiku about rain", null), "write a haiku about rain"), false);
 
 console.log("docs chat ok");

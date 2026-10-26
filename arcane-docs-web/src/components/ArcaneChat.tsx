@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ArrowUp, Check, Copy, MessageSquare, Mic, MicOff, MoreVertical, Pencil, Plus, Reply, Trash2, X } from "lucide-react";
 import { onArc1Status, rememberTurn, routeWithArc1, warmArc1 } from "@/lib/arc1Router";
 import { getSmolStatus, smolReady, streamSmol, warmSmol } from "@/lib/smol";
 import { appendTranscript, blankThread, removeThread, titleFrom, truncateBefore, type Thread, type ThreadMsg } from "@/lib/chatThreads";
-import { answerDocs, arc1CanAnswer, generationFacts, navigationOnly, pageById, routeThought, withContext, type ChatRoute } from "@/lib/docsChat";
+import { answerDocs, arc1CanAnswer, generationFacts, groundedText, navigationOnly, pageById, routeThought, withContext, type ChatRoute } from "@/lib/docsChat";
 import { ChainOfThoughtTrace, type ThoughtStep } from "./arcane/chain-of-thought";
 
 const STORAGE_KEY = "arcane_docs_chat_v2";
@@ -93,6 +93,7 @@ async function languageReply(modelId: string, text: string, quote: string | unde
 
 export function ArcaneChat() {
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -206,8 +207,15 @@ export function ArcaneChat() {
             role: turn.role === "assistant" ? "model" as const : "user" as const,
             text: turn.text,
           }));
-          const written = await streamSmol(text, generationFacts(text, route), () => {}, new AbortController().signal, prior);
-          message = reply(written.trim() || answerDocs(text, route).text, { label: "Written by SmolLM2" });
+          const facts = generationFacts(text, route);
+          const written = await streamSmol(text, facts, () => {}, new AbortController().signal, prior);
+          const docs = answerDocs(text, route);
+          const textOut = groundedText(written, facts, docs.text, text);
+          message = reply(
+            textOut,
+            { label: textOut === docs.text ? fromDocs(docs.pageId) : "Written by SmolLM2" },
+            textOut === docs.text ? docs.pageId : null,
+          );
         } catch (error) {
           const docs = answerDocs(text, route);
           const why = error instanceof Error ? error.message : "SmolLM2 failed";
@@ -336,7 +344,7 @@ export function ArcaneChat() {
     setPendingDeleteId(null);
   };
 
-  if (!store || !current) return null;
+  if (!store || !current || pathname === "/docs/chat") return null;
 
   return (
     <>
