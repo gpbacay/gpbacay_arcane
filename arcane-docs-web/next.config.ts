@@ -35,8 +35,21 @@ const nextConfig: NextConfig = {
     "/docs/neural-resonance": ["../docs/NEURAL_RESONANCE.md"],
     "/docs/homeostatic-plasticity": ["../docs/HOMEOSTATIC_PLASTICITY.md"],
   },
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      sharp$: false,
+      "onnxruntime-node$": false,
+    };
+    config.resolve.fallback = { ...config.resolve.fallback, fs: false, path: false, crypto: false };
+    return config;
+  },
   turbopack: {
     root: path.join(__dirname, ".."),
+    resolveAlias: {
+      sharp: "./src/lib/empty.ts",
+      "onnxruntime-node": "./src/lib/empty.ts",
+    },
   },
 };
 

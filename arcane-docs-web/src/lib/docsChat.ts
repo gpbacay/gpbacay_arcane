@@ -104,7 +104,7 @@ export const PAGES: DocPage[] = [
     title: "Chat with ARCANE",
     href: "/docs/chat",
     answer:
-      "The chat page is the same on-device chatbot as the button on every docs page. ARC 1, Hippocampus, and Occipital run in the browser from the shipped ONNX model, so it answers with no server. A local SLM server can add extra models to the menu.",
+      "The chat page runs in the browser. ARC 1 answers a short docs question from the shipped ONNX model. Open, creative, or emotional questions are written by SmolLM2 (SmolVLM-256M Q4, text only) on WebGPU. The first visit downloads that model. No server and no API key.",
     aliases: ["chat page", "language model", "slm"],
     keys: [/\b(slm|language model|text generation)\b/, /\bchat with arcane\b/],
     nav: ["go to the chat page", "open the language model chat", "take me to the slm demo", "show the generation chat"],
@@ -437,14 +437,56 @@ export function answerDocs(message: string, route: ChatRoute | null = null): { t
   }
   if (best) return brief(best, message);
 
-  if (THANKS.test(message)) return { text: "You're welcome.", pageId: null };
-  if (GREETING.test(message)) return { text: "Hi. Ask me about the ARCANE docs.", pageId: null };
+  const direct = arc1CanAnswer(message);
+  if (direct) return direct;
   if (route?.intent === "none") return { text: "I only answer questions about ARCANE.", pageId: null };
   const recalled = pageById(route?.recallId ?? null);
   if (recalled) return brief(recalled, message);
   const routed = pageById(route?.pageId ?? null);
   if (routed && route?.intent === "docs") return brief(routed, message);
   return { text: "Not in the docs.", pageId: null };
+}
+
+/** A short docs hit ARC 1 can say itself. Open, creative, or emotional questions return null so SmolLM2 writes them. */
+export function arc1CanAnswer(message: string): { text: string; pageId: string | null } | null {
+  const text = message.toLowerCase();
+  if (SELF.keys.some((key) => key.test(text))) return { text: SELF.answer, pageId: null };
+  if (THANKS.test(message)) return { text: "You're welcome.", pageId: null };
+  if (GREETING.test(message)) return { text: "Hi. Ask me about the ARCANE docs.", pageId: null };
+  const words = message.trim().split(/\s+/).filter(Boolean).length;
+  let best: DocPage | null = null;
+  let score = 0;
+  for (const page of PAGES) {
+    const next = page.keys.filter((key) => key.test(text)).length;
+    if (next > score) [best, score] = [page, next];
+  }
+  if (best && words <= 16) return brief(best, message);
+  return null;
+}
+
+/** Short facts for SmolLM2. The closest docs page, not the whole site. */
+export function generationFacts(message: string, route: ChatRoute | null): string {
+  const picked: DocPage[] = [];
+  const seen = new Set<string>();
+  const add = (page: DocPage | null) => {
+    if (!page || seen.has(page.id)) return;
+    seen.add(page.id);
+    picked.push(page);
+  };
+  const text = message.toLowerCase();
+  let best: DocPage | null = null;
+  let score = 0;
+  for (const page of PAGES) {
+    const next = page.keys.filter((key) => key.test(text)).length;
+    if (next > score) [best, score] = [page, next];
+  }
+  if (score > 0) add(best);
+  add(pageById(route?.recallId ?? null));
+  const lines = picked.slice(0, 2).map((page) => `${page.title}: ${page.answer}`);
+  return (
+    lines.join("\n") ||
+    "ARCANE is a Python library for System 1 models: adaptive inference, grounded decisions, neural memory, and biologically inspired components."
+  );
 }
 
 function callName(call: string): string {

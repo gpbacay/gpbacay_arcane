@@ -9,8 +9,8 @@ export default function ChatPage() {
           Chat with ARCANE
         </h1>
         <p className="text-xl text-zinc-400">
-          The same on-device chatbot as the button on every docs page. ARC 1, Hippocampus, and Occipital run in
-          the browser, so this page answers with no server.
+          ARC 1 answers a short docs question. SmolLM2, running in this browser, writes the open, creative, and
+          emotional ones. No server and no API key.
         </p>
       </div>
 
@@ -28,9 +28,9 @@ export default function ChatPage() {
           <Link href="/docs/arc-1" className="text-[#C785F2] hover:text-[#d49cf5] underline font-medium">
             ARC 1
           </Link>{" "}
-          checkpoint shipped with the site, loaded through onnxruntime-web. Hippocampus recalls similar questions and
-          Occipital tolerates typos. The reply comes from the docs. A local SLM server, when it is running, adds its
-          ready models to the same menu. Those extras are not required for the page to answer.
+          checkpoint shipped with the site. A short question it recognizes is answered from the docs. Anything it
+          does not cover is written by SmolLM2 (the text decoder of SmolVLM-256M Q4) on WebGPU. The first visit
+          downloads that model into the browser cache. A local SLM server can still add extra models to the menu.
         </p>
       </div>
     </div>

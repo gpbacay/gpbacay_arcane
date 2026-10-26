@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Hippocampus } from "gpbacay-arcane/hippocampus";
 import { Occipital } from "gpbacay-arcane/occipital";
 import { appendTranscript, blankThread, removeThread, titleFrom, truncateBefore } from "./chatThreads.ts";
-import { EXAMPLES, answerDocs, decide, navigationOnly, routeThought, withContext } from "./docsChat.ts";
+import { EXAMPLES, answerDocs, arc1CanAnswer, decide, navigationOnly, routeThought, withContext } from "./docsChat.ts";
 
 const hippo = new Hippocampus(null, { k: 8, weight: 0.7, memory: EXAMPLES, occipital: new Occipital() }); // as arc1Router.ts
 
@@ -29,6 +29,9 @@ assert.equal(navigationOnly("open the installation page"), "installation");
 assert.equal(navigationOnly("show me the fruit fly demo"), "fruitfly");
 assert.equal(navigationOnly("what is hippocampus?"), null);
 assert.match(answerDocs("how do I install arcane").text, /pip install gpbacay-arcane/);
+assert.match(arc1CanAnswer("how do I install arcane")?.text ?? "", /pip install gpbacay-arcane/);
+assert.equal(arc1CanAnswer("write me a haiku about rain"), null);
+assert.equal(arc1CanAnswer("I feel lost, can you explain this in a kinder and more encouraging way"), null);
 assert.match(answerDocs("is ARC 1 a system 1 decision model").text, /System 1 decision model/);
 assert.match(answerDocs("why should I use hippocampus").text, /fast memory of decided examples/);
 assert.match(answerDocs("who are you").text, /ARC 1/);

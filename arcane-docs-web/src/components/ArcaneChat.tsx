@@ -4,8 +4,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUp, Check, Copy, MessageSquare, Mic, MicOff, MoreVertical, Pencil, Plus, Reply, Trash2, X } from "lucide-react";
 import { onArc1Status, rememberTurn, routeWithArc1, warmArc1 } from "@/lib/arc1Router";
+import { getSmolStatus, smolReady, streamSmol, warmSmol } from "@/lib/smol";
 import { appendTranscript, blankThread, removeThread, titleFrom, truncateBefore, type Thread, type ThreadMsg } from "@/lib/chatThreads";
-import { answerDocs, navigationOnly, pageById, routeThought, withContext, type ChatRoute } from "@/lib/docsChat";
+import { answerDocs, arc1CanAnswer, generationFacts, navigationOnly, pageById, routeThought, withContext, type ChatRoute } from "@/lib/docsChat";
 import { ChainOfThoughtTrace, type ThoughtStep } from "./arcane/chain-of-thought";
 
 const STORAGE_KEY = "arcane_docs_chat_v2";
@@ -127,6 +128,7 @@ export function ArcaneChat() {
   useEffect(() => {
     if (!open) return;
     warmArc1();
+    warmSmol();
     const focus = window.setTimeout(() => inputRef.current?.focus(), 50);
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
@@ -193,12 +195,36 @@ export function ArcaneChat() {
         message = reply(fallback.text, { label: fromDocs(fallback.pageId), description: why }, fallback.pageId);
       }
     } else {
-      const docs = answerDocs(text, route);
-      // The keyword rules alone are the outcome. The page from `route` came out of the memory, so learning it would reinforce itself.
-      const byRules = answerDocs(text).pageId;
-      if (byRules) rememberTurn(asked, byRules);
-      const offline = modelId !== DOCS_MODEL ? `${model?.label ?? "That model"} is offline.` : undefined;
-      message = reply(docs.text, { label: fromDocs(docs.pageId), description: offline }, docs.pageId);
+      const direct = arc1CanAnswer(text);
+      if (direct) {
+        if (direct.pageId) rememberTurn(asked, direct.pageId);
+        const offline = modelId !== DOCS_MODEL ? `${model?.label ?? "That model"} is offline.` : undefined;
+        message = reply(direct.text, { label: fromDocs(direct.pageId), description: offline }, direct.pageId);
+      } else if (smolReady()) {
+        try {
+          const prior = history.slice(-4).map((turn) => ({
+            role: turn.role === "assistant" ? "model" as const : "user" as const,
+            text: turn.text,
+          }));
+          const written = await streamSmol(text, generationFacts(text, route), () => {}, new AbortController().signal, prior);
+          message = reply(written.trim() || answerDocs(text, route).text, { label: "Written by SmolLM2" });
+        } catch (error) {
+          const docs = answerDocs(text, route);
+          const why = error instanceof Error ? error.message : "SmolLM2 failed";
+          message = reply(docs.text, { label: fromDocs(docs.pageId), description: why }, docs.pageId);
+        }
+      } else {
+        warmSmol();
+        const state = getSmolStatus().state;
+        if (state === "loading" || state === "idle") {
+          message = reply("SmolLM2 is still loading in this browser. Ask again in a moment and it will answer in its own words.", {
+            label: "Passed to SmolLM2",
+          });
+        } else {
+          const docs = answerDocs(text, route);
+          message = reply(docs.text, { label: fromDocs(docs.pageId), description: "SmolLM2 is not available in this browser." }, docs.pageId);
+        }
+      }
     }
     patchChat(chatId, (chat) => ({ ...chat, messages: [...chat.messages, message] }));
   };

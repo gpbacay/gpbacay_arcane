@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { onArc1Status, rememberTurn, routeWithArc1, warmArc1 } from "@/lib/arc1Router";
-import { answerDocs, navigationOnly, pageById, routeThought, withContext } from "@/lib/docsChat";
+import { rememberTurn, routeWithArc1, warmArc1 } from "@/lib/arc1Router";
+import { answerDocs, arc1CanAnswer, generationFacts, navigationOnly, pageById, routeThought, type ChatRoute } from "@/lib/docsChat";
+import { getSmolStatus, onSmolStatus, smolReady, smolStatusLabel, streamSmol, warmSmol, type SmolStatus } from "@/lib/smol";
 import { ChainOfThoughtTrace, type ThoughtStep } from "./arcane/chain-of-thought";
 
 type Role = "user" | "assistant";
@@ -33,8 +34,6 @@ type ModelHealth = {
 
 type Health = { models?: ModelHealth[] };
 
-type Arc1Status = "idle" | "loading" | "ready" | "error";
-
 const BROWSER: ModelHealth = {
   id: "arc1-browser",
   label: "ARC 1",
@@ -43,7 +42,7 @@ const BROWSER: ModelHealth = {
   status: "ok",
   preset: "browser",
   architecture: "browser",
-  quality_note: "Same on-device model as the site chatbot. ARC 1, Hippocampus, and Occipital run in this browser.",
+  quality_note: "ARC 1 answers a short docs question. SmolLM2 writes the open, creative, and emotional ones in this browser.",
 };
 
 function parameterLabel(parameters?: number | null) {
@@ -51,11 +50,48 @@ function parameterLabel(parameters?: number | null) {
   return `${(parameters / 1_000_000).toFixed(1)}M`;
 }
 
-function browserBadge(status: Arc1Status) {
-  if (status === "ready") return { text: "On device", color: "bg-emerald-400" };
-  if (status === "error") return { text: "Docs only", color: "bg-amber-400" };
-  if (status === "loading") return { text: "Loading ARC 1…", color: "bg-amber-400" };
-  return { text: "On device", color: "bg-emerald-400" };
+async function writeWithSmol(
+  text: string,
+  route: ChatRoute | null,
+  history: { role: "user" | "model"; text: string }[],
+  onPartial: (text: string) => void,
+): Promise<{ text: string; by: string }> {
+  warmSmol();
+  const state = getSmolStatus().state;
+  const docs = () => answerDocs(text, route).text;
+  if (!smolReady()) {
+    if (state === "loading" || state === "idle") {
+      return {
+        text: "SmolLM2 is still loading in this browser. Ask again in a moment and it will answer in its own words.",
+        by: "Passed to SmolLM2",
+      };
+    }
+    return { text: docs(), by: "Answered from the docs" };
+  }
+  const controller = new AbortController();
+  let latest = "";
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const reply = await streamSmol(
+      text,
+      generationFacts(text, route),
+      (partial) => {
+        latest = partial;
+        if (timer) return;
+        timer = setTimeout(() => {
+          timer = undefined;
+          onPartial(latest);
+        }, 120);
+      },
+      controller.signal,
+      history,
+    );
+    return { text: reply.trim() || latest.trim() || docs(), by: "Written by SmolLM2" };
+  } catch {
+    return { text: latest.trim() || docs(), by: latest.trim() ? "Written by SmolLM2" : "Answered from the docs" };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function remoteBadge(model: ModelHealth) {
@@ -67,7 +103,7 @@ export function SlmChat() {
   const router = useRouter();
   const [remote, setRemote] = useState<ModelHealth[]>([]);
   const [selectedModelId, setSelectedModelId] = useState(BROWSER.id);
-  const [arc1Status, setArc1Status] = useState<Arc1Status>("idle");
+  const [smol, setSmol] = useState<SmolStatus>(getSmolStatus);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -75,10 +111,11 @@ export function SlmChat() {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => onArc1Status(setArc1Status), []);
+  useEffect(() => onSmolStatus(setSmol), []);
 
   useEffect(() => {
     warmArc1();
+    warmSmol();
     let cancelled = false;
     fetch("/api/slm-health", { cache: "no-store" })
       .then((res) => res.json())
@@ -117,8 +154,7 @@ export function SlmChat() {
     setSending(true);
     try {
       if (onDevice) {
-        const asked = withContext(text, history);
-        const route = await routeWithArc1(asked);
+        const route = await routeWithArc1(text);
         const jump = navigationOnly(text) ?? (route?.intent === "none" ? route.pageId : null);
         const destination = pageById(jump);
         if (destination && jump) {
@@ -129,7 +165,7 @@ export function SlmChat() {
               role: "assistant",
               content: `Opening ${destination.title}.`,
               model: BROWSER.id,
-              modelLabel: BROWSER.label,
+              modelLabel: "ARC 1",
               trace: thought.label,
               steps: thought.steps,
             },
@@ -137,18 +173,49 @@ export function SlmChat() {
           router.push(destination.href);
           return;
         }
-        const docs = answerDocs(text, route);
-        const byRules = answerDocs(text).pageId;
-        if (byRules) rememberTurn(asked, byRules);
-        const title = pageById(docs.pageId)?.title;
-        const thought = routeThought(route, { label: title ? `Answered from the ${title} page` : "Answered from the docs" });
+        const direct = arc1CanAnswer(text);
+        if (direct) {
+          if (direct.pageId) rememberTurn(text, direct.pageId);
+          const title = pageById(direct.pageId)?.title;
+          const thought = routeThought(route, { label: title ? `Answered from the ${title} page` : "Answered by ARC 1" });
+          setMessages([
+            ...nextMessages,
+            {
+              role: "assistant",
+              content: direct.text,
+              model: BROWSER.id,
+              modelLabel: "ARC 1",
+              trace: thought.label,
+              steps: thought.steps,
+            },
+          ]);
+          return;
+        }
+        const written = await writeWithSmol(text, route, history.map((turn) => ({
+          role: turn.role === "assistant" ? "model" as const : "user" as const,
+          text: turn.text,
+        })), (partial) => {
+          const thought = routeThought(route, { label: "SmolLM2 is writing" });
+          setMessages([
+            ...nextMessages,
+            {
+              role: "assistant",
+              content: partial,
+              model: BROWSER.id,
+              modelLabel: "SmolLM2",
+              trace: thought.label,
+              steps: thought.steps,
+            },
+          ]);
+        });
+        const thought = routeThought(route, { label: written.by });
         setMessages([
           ...nextMessages,
           {
             role: "assistant",
-            content: docs.text,
+            content: written.text,
             model: BROWSER.id,
-            modelLabel: BROWSER.label,
+            modelLabel: written.by.startsWith("Written") ? "SmolLM2" : "ARC 1",
             trace: thought.label,
             steps: thought.steps,
           },
@@ -198,7 +265,9 @@ export function SlmChat() {
     }
   };
 
-  const badge = onDevice ? browserBadge(arc1Status) : remoteBadge(selectedModel);
+  const badge = onDevice
+    ? { text: smolStatusLabel(smol), color: smol.state === "ready" ? "bg-emerald-400" : "bg-amber-400" }
+    : remoteBadge(selectedModel);
 
   return (
     <div className="not-prose flex flex-col border border-zinc-800 bg-zinc-950/80 min-h-[520px] h-[min(68vh,640px)]">
@@ -209,7 +278,7 @@ export function SlmChat() {
           </p>
           <p className="text-sm text-zinc-300">
             {onDevice
-              ? "On device · Hippocampus + Occipital"
+              ? smolStatusLabel(smol)
               : selectedModel.architecture === "hosted"
                 ? `SmolLM2-135M · open weights · ${parameterLabel(selectedModel.parameters)}`
                 : `${selectedModel.architecture || "causal"} decoder · ${parameterLabel(selectedModel.parameters)}`}
@@ -263,7 +332,7 @@ export function SlmChat() {
             </p>
             <p className="text-sm text-zinc-500 mt-2 max-w-md">
               {onDevice
-                ? "This is the same chatbot as the button on every docs page. It answers from the docs and stays available with no server."
+                ? "A short docs question stays with ARC 1. An open, creative, or emotional one is written by SmolLM2 in this browser, the same split as the portfolio chatbot."
                 : selectedModel.trained
                   ? "Weights are loaded. This model continues text. It needs the local SLM server, which the on-device ARC 1 model does not."
                   : "The decoder is live, but its weights are random until you pretrain it."}
