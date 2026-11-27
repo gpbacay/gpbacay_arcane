@@ -596,7 +596,9 @@ class Arc1Agent:
         from .arc1_codec import best_span, word_edges
 
         start, end = out["anchor_start"][i], out["anchor_end"][i]
-        starts_ok, ends_ok = word_edges(utt, len(start))  # never cut a word in half
+        if getattr(utt, "word_edges", None) is None:  # never cut a word in half; once per request
+            utt.word_edges = word_edges(utt, len(start))
+        starts_ok, ends_ok = utt.word_edges
         start = np.where(starts_ok, start, -1e9)
         end = np.where(ends_ok, end, -1e9)
         if blocked is not None:

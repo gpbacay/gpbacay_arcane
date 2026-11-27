@@ -192,11 +192,11 @@ Every readout has a temperature fitted on held-out data, so `confidence` is cali
 `cycles` independently trades accuracy for speed with the same weights. Pre-5.0 configs load with
 RSAA disabled for checkpoint compatibility.
 
-**Experimental: `probe_attention`.** `Arc1Config(probe_attention=True)` (train with
-`--probe-attention`) lets the probes of one request attend to each other between binding cycles, aimed at
-requests that make several tool calls. It adds about 66K parameters, starts as a no-op so existing
-checkpoints warm-start to identical outputs, and is **off by default and not part of the shipped
-checkpoint**. Its effect is being measured with `Models/ab_probe_attention/run.sh`; do not assume it helps.
+**Tried and removed: probe-to-probe attention.** Letting the probes of one request attend to each
+other between binding cycles (an HRM-style refinement loop, about 66K parameters) was tested against a
+control fine-tuned from the same weights for 1,000 steps. On 735 held-out requests that make two calls
+it scored 56.7% exact against the control's 57.3% (it fixed 36 and broke 40), and it was level or
+slightly worse everywhere else, so it was not kept.
 
 ```python
 from gpbacay_arcane import Arc1Agent, Arc1Config, Arc1Model, BytePairTokenizer, ToolParam, ToolSpec
@@ -219,6 +219,7 @@ agent.classify("my card was charged twice", ["billing", "technical support", "sa
 
 ```bash
 python examples/train_arc1.py --preset arc1-tiny --steps 4000   # train + calibrate + evaluate (plain recipe)
+python examples/refresh_arc1_metrics.py                          # re-score the same weights after a decoding change
 python examples/serve_arc1_api.py                                # port 8002: /run /extract /classify /embed
 python examples/export_arc1.py --config Models/arc1_arc1_tiny.config.json     --weights Models/arc1_arc1_tiny.weights.h5 --cycles 2 --tflite
 # Docs sandbox: cd arcane-docs-web && npm run dev:with-arc1  →  /docs/arc-1
@@ -393,7 +394,7 @@ with every argument right:
 | 5 | 93.7% | 54.7% | **86.0%** | 83.5% |
 | 10 | 99.3% | 54.7% | **99.3%** | 100% |
 
-For comparison, arc1-tiny's fully correct calls on the tools it *was* trained on: 86.0% (a different test set). Refusals stayed at
+For comparison, arc1-tiny's fully correct calls on the tools it *was* trained on: 88.7% (a different test set). Refusals stayed at
 100% throughout. Caveat: these held-out tools are tested with the same sentence patterns used to write the
 examples, only with new values, so by 10 examples the memory has seen every phrasing. Real requests vary
 more, and a phrasing no example covers falls back to ARC 1's own argument copying. Store varied examples.

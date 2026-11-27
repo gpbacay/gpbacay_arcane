@@ -34,15 +34,17 @@ Why call it neuromimetic? Its building blocks come from ARCANE, a library of lay
 On withheld evaluation data, the base arc1-tiny checkpoint showed high accuracy and reliable calibration. All numbers below use three binding cycles.
 
 - **98.3% tool selection:** the correct action identified across 300 held-out cases.
-- **86.0% exact tool calls:** the complete call, with every argument right, formed correctly.
+- **88.7% exact tool calls:** the complete call, with every argument right, formed correctly.
 - **100% correct refusals:** when no tool applied, it declined every time, which matters because a wrongly triggered action usually costs more than a missed one.
-- **96.6% extraction F1:** across 150 held-out records, with 88.0% of records entirely correct.
+- **97.3% extraction F1:** across 150 held-out records, with 90.0% of records entirely correct.
 - **74.7% classification** on held-out wordings, and **62.7%** when the labels describe tools it never trained on.
 - **57.7% on real text:** 600 real CLINC150 utterances for intents left out of every training set, a five-way choice where chance is 20%.
 - **100% intent retrieval at rank one:** for embedding-based lookup.
 - **0.60% expected calibration error:** on the firing decision (0.68% before temperature fitting), so stated confidence tracks real accuracy closely enough to route uncertain cases to a person.
 
 **What changed against the previous checkpoint, honestly.** Distilling language knowledge raised the real-text score from about 38% to 58% and classification for unseen tools from 39% to 70%, product-topic accuracy roughly doubled (29% to 53%), and support-ticket routing rose from 55% to 71%. It cost about 6 points of exact tool calls (89.5% to 83.3% on a larger 1,000-case check at one binding cycle, same code and machine for both) and about 6 points of fully correct extracted records (94.4% to 88.4%). Tool selection and refusals did not move meaningfully. Tool calling and extraction are what ARC 1 is for, so fine-tune it on your own tools before relying on either number. Retraining the old recipe for the same number of steps gave 85.0% exact calls, so the drop is not only a training-length effect.
+
+**A decoding fix since then, same weights.** Most wrong arguments were values cut mid-word ("swahi" for "Swahili", "Radiol" for "Radiolab"), because the small tokenizer splits words into several pieces and the pointer could stop on any of them. Spans now start and end only on word boundaries. On the same weights this raised exact tool calls from 86.0% to 88.7% and fully correct records from 88.0% to 90.0% on the sets above, and on 1,600 fresh held-out cases from 83.4% to 86.1% and 87.0% to 90.8%. It adds under 0.1 ms to a typical request (0.4 ms at the full 160-token window).
 
 ## The .rcn container: one file, 772 KB
 
@@ -51,7 +53,7 @@ Shipping a model usually means juggling weights, vocabularies, and runtime confi
 - **Self-contained:** the architecture, per-readout calibration, tokenizer, a baked device profile, and the quantized weights all live in one file, with a checksum on the data.
 - **Inspect without loading:** a fixed 128-byte header describes the model, so a runtime can read a file's details without touching the weights.
 - **No parsing pass:** tensors are aligned and stored in their final layout, then memory-mapped and read in place.
-- **Extreme compression:** the original Keras weights are 5.47 MB. The half-precision .rcn is 2.66 MB, the 8-bit version is 1.43 MB, and the 4-bit version is 0.77 MB. On a 150-case check, exact-call accuracy is 86.7% for the Keras weights, 86.0% for half precision and 8-bit, and 86.7% for 4-bit, and extraction F1 is 97.5% against 97.2% for 4-bit, so a roughly sevenfold size reduction costs no meaningful accuracy.
+- **Extreme compression:** the original Keras weights are 5.47 MB. The half-precision .rcn is 2.66 MB, the 8-bit version is 1.43 MB, and the 4-bit version is 0.77 MB. On a 150-case check (run before the word-boundary decoding fix), exact-call accuracy is 86.7% for the Keras weights, 86.0% for half precision and 8-bit, and 86.7% for 4-bit, and extraction F1 is 97.5% against 97.2% for 4-bit, so a roughly sevenfold size reduction costs no meaningful accuracy.
 - **Runs where you do:** it loads directly in Python and Node, converts to ONNX for browsers, and has a TFLite export for mobile. It also converts back to weights and a tokenizer when you want to fine-tune.
 
 ## Flexible and scalable

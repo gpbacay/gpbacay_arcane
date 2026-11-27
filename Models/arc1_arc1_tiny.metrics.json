@@ -19,8 +19,8 @@
       "tools_heldout_values": {
         "n": 300,
         "tool_selection_acc": 0.9833333333333333,
-        "exact_call_acc": 0.85,
-        "argument_acc": 0.8485639686684073,
+        "exact_call_acc": 0.8766666666666667,
+        "argument_acc": 0.8746736292428199,
         "no_tool_acc": 1.0,
         "latency_ms_p50": 2.51,
         "latency_ms_p90": 5.030000000000004
@@ -28,18 +28,18 @@
       "tools_unseen_tools": {
         "n": 150,
         "tool_selection_acc": 0.4866666666666667,
-        "exact_call_acc": 0.4,
-        "argument_acc": 0.1774193548387097,
+        "exact_call_acc": 0.4066666666666667,
+        "argument_acc": 0.1827956989247312,
         "no_tool_acc": 1.0,
         "latency_ms_p50": 2.21,
         "latency_ms_p90": 5.145999999999997
       },
       "extraction_heldout_values": {
         "n": 150,
-        "field_precision": 0.9802955665024631,
-        "field_recall": 0.9498806682577565,
-        "field_f1": 0.9648484848484848,
-        "exact_record_acc": 0.8666666666666667
+        "field_precision": 0.9851851851851852,
+        "field_recall": 0.9522673031026253,
+        "field_f1": 0.9684466019417475,
+        "exact_record_acc": 0.8733333333333333
       },
       "classify_heldout": {
         "n": 150,
@@ -66,8 +66,8 @@
       "tools_heldout_values": {
         "n": 300,
         "tool_selection_acc": 0.9833333333333333,
-        "exact_call_acc": 0.86,
-        "argument_acc": 0.8590078328981723,
+        "exact_call_acc": 0.8866666666666667,
+        "argument_acc": 0.8877284595300261,
         "no_tool_acc": 1.0,
         "latency_ms_p50": 2.5,
         "latency_ms_p90": 3.3680000000000008
@@ -75,18 +75,18 @@
       "tools_unseen_tools": {
         "n": 150,
         "tool_selection_acc": 0.49333333333333335,
-        "exact_call_acc": 0.38666666666666666,
-        "argument_acc": 0.1827956989247312,
+        "exact_call_acc": 0.3933333333333333,
+        "argument_acc": 0.1935483870967742,
         "no_tool_acc": 1.0,
         "latency_ms_p50": 2.34,
         "latency_ms_p90": 3.2999999999999994
       },
       "extraction_heldout_values": {
         "n": 150,
-        "field_precision": 0.975669099756691,
-        "field_recall": 0.9570405727923628,
-        "field_f1": 0.9662650602409639,
-        "exact_record_acc": 0.88
+        "field_precision": 0.9829683698296837,
+        "field_recall": 0.964200477326969,
+        "field_f1": 0.9734939759036144,
+        "exact_record_acc": 0.9
       },
       "classify_heldout": {
         "n": 150,
@@ -128,7 +128,8 @@
         "accuracy": 0.5766666666666667,
         "chance": 0.2
       }
-    }
+    },
+    "latency_note": "Latency is from the idle-machine run before the word-aligned span decoder, which adds under 0.1 ms to a typical request (0.4 ms at the full 160-token window)."
   },
   "train": {},
   "history_tail": []
