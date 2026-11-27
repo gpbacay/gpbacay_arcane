@@ -138,17 +138,13 @@ def list_callbacks():
 
 def version():
     """Display the current version of the library."""
+    from importlib.metadata import PackageNotFoundError, version as dist_version
+
     try:
-        import pkg_resources
-        ver = pkg_resources.get_distribution("gpbacay-arcane").version
-        print(f"gpbacay-arcane version: {ver}")
-    except pkg_resources.DistributionNotFound:
-        # Fallback to reading from __init__.py
-        try:
-            from gpbacay_arcane import __version__
-            print(f"gpbacay-arcane version: {__version__} (development)")
-        except ImportError:
-            print("gpbacay-arcane version: unknown (not installed)")
+        print(f"gpbacay-arcane version: {dist_version('gpbacay-arcane')}")
+    except PackageNotFoundError:  # running from a source checkout
+        from gpbacay_arcane import __version__
+        print(f"gpbacay-arcane version: {__version__} (development)")
 
 
 def cli():
