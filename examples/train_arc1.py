@@ -76,8 +76,6 @@ def parse_args():
         "--run-name", default=None,
         help="Artifact stem (adaptive defaults to arc1_<preset>_rsaa_adaptive)",
     )
-    p.add_argument("--probe-attention", action="store_true",
-                   help="Probes of one request attend to each other between binding cycles (new variables)")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--teacher-cache", default=None,
                    help="Teacher embeddings dir (gpbacay_arcane/arc1_distill.py): stages A, B, then --steps of stage C")
@@ -107,7 +105,6 @@ def main():
         args.preset,
         rsaa_mode=args.rsaa_mode,
         rsaa_max_factor=args.rsaa_max_factor,
-        probe_attention=args.probe_attention,
     )
     if args.rsaa_cycles is not None:
         config.active_rsaa_cycles = args.rsaa_cycles
@@ -144,7 +141,7 @@ def main():
         if args.init_weights:
             model.load_weights(
                 args.init_weights,
-                skip_mismatch=(config.rsaa_mode == "adaptive" or config.probe_attention),
+                skip_mismatch=(config.rsaa_mode == "adaptive"),
             )
             print(f"[arc1] initialized compatible weights from {args.init_weights}", flush=True)
         tc = TrainConfig(
