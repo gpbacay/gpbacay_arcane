@@ -2110,7 +2110,7 @@ class ResonantBinding(Layer):
     """
 
     def __init__(self, d_model, num_heads=4, cycles=3, leak_rate=0.1, spike_threshold=0.4,
-                 mixer_rank_div=2, dropout_rate=0.0, **kwargs):
+                 mixer_rank_div=2, dropout_rate=0.0, probe_attention=False, **kwargs):
         super().__init__(**kwargs)
         if d_model % num_heads != 0:
             raise ValueError("d_model must be divisible by num_heads")
@@ -2118,6 +2118,17 @@ class ResonantBinding(Layer):
         self.num_heads = int(num_heads)
         self.depth = self.d_model // self.num_heads
         self.cycles = int(cycles)
+        # Optional: after each cycle the probes of one request read each other's
+        # tentative state, so tools can compete and sibling arguments can split
+        # the utterance. ``peer_out`` starts at zero, so a checkpoint trained
+        # without it warm-starts to exactly the same outputs.
+        self.probe_attention = bool(probe_attention)
+        if self.probe_attention:
+            self.peer_norm = RMSNorm(name="peer_norm")
+            self.peer_query = Dense(self.d_model, use_bias=False, name="peer_query")
+            self.peer_key = Dense(self.d_model, use_bias=False, name="peer_key")
+            self.peer_value = Dense(self.d_model, use_bias=False, name="peer_value")
+            self.peer_out = Dense(self.d_model, kernel_initializer="zeros", name="peer_out")
         self.leak_rate = float(leak_rate)
         self.spike_threshold = float(spike_threshold)
         self.mixer_rank_div = int(mixer_rank_div)
@@ -2141,6 +2152,9 @@ class ResonantBinding(Layer):
                              (self.mix_up, self.inner), (self.mix_norm, d)):
             if not layer.built:  # field_memory() may already have built key/value
                 layer.build((None, width))
+        if self.probe_attention:
+            for layer in (self.peer_norm, self.peer_query, self.peer_key, self.peer_value, self.peer_out):
+                layer.build((None, d))
         self.gate_threshold = self.add_weight(
             name="gate_threshold", shape=(d,),
             initializer=tf.keras.initializers.Constant(self.spike_threshold), trainable=True)
@@ -2179,6 +2193,8 @@ class ResonantBinding(Layer):
         peak = tf.zeros((n_probe, self.num_heads), dtype=dtype)
         live = tf.ones((n_probe,), tf.bool)
         applied = tf.zeros((n_probe,), tf.int32)
+        # Probes only see peers bound to the same utterance (self included, so no row is empty).
+        peers = tf.equal(probe_example[:, None], probe_example[None, :])[None]  # (1, P, P)
         for _ in range(cycles):
             q = tf.reshape(self.query(self.q_norm(p)), (n_probe, self.num_heads, 1, self.depth))
             scores = tf.squeeze(tf.matmul(q, k, transpose_b=True), axis=2) / scale  # (P, H, T)
@@ -2192,6 +2208,16 @@ class ResonantBinding(Layer):
             g = tf.sigmoid(sharp * (g / g_scale - self.gate_threshold))
             new_p = p + g * new_heard
             new_p = new_p + self.dropout(self.mix_up(self.mix_down(self.mix_norm(new_p))), training=training)
+            if self.probe_attention:
+                h = self.peer_norm(new_p)
+
+                def heads(x):  # (P, D) -> (H, P, dh)
+                    return tf.transpose(tf.reshape(x, (n_probe, self.num_heads, self.depth)), [1, 0, 2])
+
+                peer_scores = tf.matmul(heads(self.peer_query(h)), heads(self.peer_key(h)), transpose_b=True) / scale
+                peer_attn = tf.nn.softmax(tf.where(peers, peer_scores, tf.cast(_MASK_NEG, dtype)), axis=-1)
+                told = tf.matmul(self.dropout(peer_attn, training=training), heads(self.peer_value(h)))
+                new_p = new_p + self.peer_out(tf.reshape(tf.transpose(told, [1, 0, 2]), (n_probe, self.d_model)))
             step = tf.sqrt(tf.reduce_mean(tf.square(new_p - p), axis=-1))
             size = tf.sqrt(tf.reduce_mean(tf.square(p), axis=-1)) + tf.cast(1e-6, dtype)
             keep = tf.expand_dims(live, -1)
@@ -2209,5 +2235,6 @@ class ResonantBinding(Layer):
             "d_model": self.d_model, "num_heads": self.num_heads, "cycles": self.cycles,
             "leak_rate": self.leak_rate, "spike_threshold": self.spike_threshold,
             "mixer_rank_div": self.mixer_rank_div, "dropout_rate": self.dropout_rate,
+            "probe_attention": self.probe_attention,
         })
         return config

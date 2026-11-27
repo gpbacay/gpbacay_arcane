@@ -176,6 +176,9 @@ class Arc1Config:
     binding_heads: int = 4
     binding_cycles: int = 3
     active_cycles: Optional[int] = None  # None = binding_cycles
+    # Probes of one request attend to each other between binding cycles.
+    # False preserves every existing checkpoint.
+    probe_attention: bool = False
     # State-only RSAA. Zero preserves checkpoints saved before ARCANE 5.0.
     rsaa_cycles: int = 0
     active_rsaa_cycles: Optional[int] = None  # None = rsaa_cycles
@@ -371,6 +374,7 @@ class Arc1Model(tf.keras.Model):
             spike_threshold=cfg.spike_threshold,
             mixer_rank_div=cfg.mixer_rank_div,
             dropout_rate=cfg.dropout_rate,
+            probe_attention=cfg.probe_attention,
             name="resonant_binding",
         )
         self.settle_norm = RMSNorm(name="settle_norm")

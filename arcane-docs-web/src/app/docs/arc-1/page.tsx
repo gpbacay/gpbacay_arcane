@@ -356,7 +356,7 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
             ],
             [
               "Grounded is not correct",
-              "Values are copied from the request but can land in the wrong field. Required details the user never gave are still filled, and option lists always return a closest choice. Validate before acting.",
+              "Values are copied from the request, always whole words, but can land in the wrong field (most often when one request asks for several things). Required details the user never gave are still filled, and option lists always return a closest choice. Validate before acting.",
             ],
             [
               "Mostly synthetic test data",
@@ -364,7 +364,7 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
             ],
             [
               "Scope",
-              `English only, inputs cut at ${m.seqLen} tokens, each tool called at most once per request, only the light language knowledge distilled from a small text encoder and no world knowledge, and no chat replies.`,
+              `English only, inputs cut at ${m.seqLen} tokens (the API reports when a request was cut), each tool called at most once per request, only the light language knowledge distilled from a small text encoder and no world knowledge, and no chat replies.`,
             ],
           ].map(([title, body]) => (
             <li key={title} className="py-3.5">

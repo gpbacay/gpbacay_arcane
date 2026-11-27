@@ -126,6 +126,23 @@ class Arc1Codec:
         return c0, c0 + len(core)
 
 
+def word_edges(utt: Utterance, width: int) -> Tuple[np.ndarray, np.ndarray]:
+    """Token positions where a span may start / end without cutting a word.
+
+    The BPE vocabulary is tiny, so a word is several tokens and an unconstrained
+    pointer can stop mid-word ("swahi", "Radiol"). A boundary is inside a word
+    when the bytes on both sides are alphanumeric (or non-ASCII).
+    """
+    def inside(i: int) -> bool:
+        return 0 < i < len(utt.raw) and all(b >= 0x80 or chr(b).isalnum() for b in utt.raw[i - 1:i + 1])
+
+    starts, ends = np.zeros(width, dtype=bool), np.zeros(width, dtype=bool)
+    for i, (a, b) in enumerate(utt.offsets[: max(width - utt.lo, 0)]):
+        starts[utt.lo + i] = not inside(a)
+        ends[utt.lo + i] = not inside(b)
+    return starts, ends
+
+
 def pad_batch(seqs: Sequence[Sequence[int]], multiple: int = 8, max_len: Optional[int] = None) -> np.ndarray:
     """Right-pad to a shared length rounded up to ``multiple``."""
     longest = max((len(s) for s in seqs), default=1)
@@ -153,3 +170,11 @@ def best_span(start_logits: np.ndarray, end_logits: np.ndarray, lo: int, hi: int
     idx = int(np.argmax(joint))
     i, j = divmod(idx, n)
     return lo + i, lo + j, float(joint[i, j])
+
+
+if __name__ == "__main__":  # python -m gpbacay_arcane.arc1_codec
+    _u = Utterance([BOS_ID, 9, 9, 9], [(0, 5), (5, 9), (9, 11)], b"in swahili!")  # "in sw" | "ahil" | "i!"
+    _s, _e = word_edges(_u, 6)
+    assert _s.tolist() == [False, True, False, False, False, False], _s
+    assert _e.tolist() == [False, False, False, True, False, False], _e
+    print("word_edges ok")

@@ -579,6 +579,7 @@ class Arc1Agent:
         self.memory.misses += len(missing)
         binding_steps = out.pop("binding_steps", None)
         stats = {"tokens": len(utt.ids), "probes": len(probes), "cycles": cycles, "forward_passes": 1,
+                 "truncated": len(utt.raw) < len(text.encode("utf-8")),  # input past seq_len was not read
                  "binding_steps": int(np.max(binding_steps)) if binding_steps is not None and np.size(binding_steps) else cycles,
                  "rsaa_budget": rsaa_cycles, "perception_evaluations": 1 + rsaa_steps,
                  "rsaa_steps": rsaa_steps,
@@ -592,9 +593,12 @@ class Arc1Agent:
     def _anchor(self, utt, i: int, out: Dict[str, np.ndarray], ptype: str,
                 blocked: Optional[np.ndarray] = None, rsaa_cycles: Optional[int] = None) -> Dict[str, Any]:
         """Best grounded span for probe ``i``, skipping ``blocked`` token positions."""
-        from .arc1_codec import best_span
+        from .arc1_codec import best_span, word_edges
 
         start, end = out["anchor_start"][i], out["anchor_end"][i]
+        starts_ok, ends_ok = word_edges(utt, len(start))  # never cut a word in half
+        start = np.where(starts_ok, start, -1e9)
+        end = np.where(ends_ok, end, -1e9)
         if blocked is not None:
             start = np.where(blocked, -1e9, start)
             end = np.where(blocked, -1e9, end)

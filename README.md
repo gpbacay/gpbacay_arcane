@@ -180,8 +180,9 @@ Binding**, is built from ARCANE mechanisms:
 3. **Resonant binding**: each engram is a probe that resonates with the utterance field for a few
    shared-weight cycles through a GSER spiking gate (`ResonantBinding`). All probes bind in parallel.
 4. **Readouts**: `fire` (tool applies / optional argument present / boolean), `anchor` (start/end
-   pointer that copies strings and numbers from the user's words), `select` (enum option or
-   classification label), embedding.
+   pointer that copies strings and numbers from the user's words; a span can only start and end on a
+   word boundary, so a value is never cut mid-word), `select` (enum option or classification label),
+   embedding.
 
 A request has no autoregressive decoding loop. The `arc1-tiny` and `arc1` presets expose up to two
 state-only RSAA cycles; `rsaa_cycles`, `rsaa_factor`, and `rsaa_epsilon` bound alignment and expose convergence.
@@ -190,6 +191,12 @@ The complete result is recorded in [`Models/arc1_rsaa_comparison.json`](Models/a
 Every readout has a temperature fitted on held-out data, so `confidence` is calibrated. Binding
 `cycles` independently trades accuracy for speed with the same weights. Pre-5.0 configs load with
 RSAA disabled for checkpoint compatibility.
+
+**Experimental: `probe_attention`.** `Arc1Config(probe_attention=True)` (train with
+`--probe-attention`) lets the probes of one request attend to each other between binding cycles, aimed at
+requests that make several tool calls. It adds about 66K parameters, starts as a no-op so existing
+checkpoints warm-start to identical outputs, and is **off by default and not part of the shipped
+checkpoint**. Its effect is being measured with `Models/ab_probe_attention/run.sh`; do not assume it helps.
 
 ```python
 from gpbacay_arcane import Arc1Agent, Arc1Config, Arc1Model, BytePairTokenizer, ToolParam, ToolSpec
@@ -220,8 +227,9 @@ python examples/export_arc1.py --config Models/arc1_arc1_tiny.config.json     --
 Held-out metrics are written to `Models/arc1_arc1_tiny.metrics.json`: unseen argument values, tools
 never seen in training, extraction field F1, classification accuracy (held-out wordings and unseen
 tool intents), real-utterance intent accuracy, latency, and calibration error before and after
-temperature fitting. Limits: one call per tool per request, long text is truncated to `seq_len`, and
-the only language knowledge is what was distilled from a small text encoder (below), so classification
+temperature fitting. Limits: one call per tool per request, long text is truncated to `seq_len` (the
+Python result reports it as `stats["truncated"]`, so a request whose values fell past the window is not
+mistaken for "no tool applies"), and the only language knowledge is what was distilled from a small text encoder (below), so classification
 is still weakest on wordings unlike its training data and it has no world knowledge.
 
 **Training recipe (distilled).** The shipped `arc1-tiny` is trained in three stages with a frozen

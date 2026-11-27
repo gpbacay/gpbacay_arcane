@@ -72,7 +72,7 @@ ARC 1 is an intentional specialist, not a conversational engine, and it comes wi
 - **Fine-tuning required for new schemas:** on tools never seen in training, selection accuracy is about 49% and exact calls about 39%, so it is meant to be fine-tuned on your project's actual actions. Fine-tuning only on your own tools can wear away the distilled language knowledge, so check the real-text score in the metrics file afterwards.
 - **Labels should match the text:** classification is strongest when labels tie to words in the input (100% on intent). It is still weaker on wordings unlike its training data, at about 70% on support-ticket routing and 55% on product topics, and it has only the light language knowledge distilled from a small text encoder, no world knowledge.
 - **Mostly synthetic evaluation:** nearly every score comes from generated held-out examples. The only real-text check is the 600-utterance, five-way CLINC150 test above.
-- **Capacity bounds:** inputs are capped at a 160-token window, and it makes at most one call per tool per request.
+- **Capacity bounds:** inputs are capped at a 160-token window (roughly 400 characters; the Python result flags a truncated input), and it makes at most one call per tool per request.
 - **Measure your cycles:** more resonance cycles did not improve accuracy on this checkpoint, so tune the dial by measurement.
 
 ## Get started

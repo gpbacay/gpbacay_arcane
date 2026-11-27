@@ -165,7 +165,12 @@ export async function load(options = {}) {
   }
 
   function anchor(utt, i, out, type, blocked) {
-    let start = out.anchor_start[i], end = out.anchor_end[i];
+    // Never cut a word in half: a span may not start or end between two alphanumeric (or non-ASCII) bytes.
+    const wordByte = (b) => b >= 0x80 || (b >= 48 && b <= 57) || (b >= 65 && b <= 90) || (b >= 97 && b <= 122);
+    const inside = (k) => k > 0 && k < utt.raw.length && wordByte(utt.raw[k - 1]) && wordByte(utt.raw[k]);
+    const edge = (k, side) => k >= utt.lo && k < utt.hi && !inside(utt.offsets[k - utt.lo][side]);
+    let start = Array.from(out.anchor_start[i], (v, k) => (edge(k, 0) ? v : NEG));
+    let end = Array.from(out.anchor_end[i], (v, k) => (edge(k, 1) ? v : NEG));
     if (blocked) {
       start = start.map((v, k) => (blocked[k] ? NEG : v));
       end = end.map((v, k) => (blocked[k] ? NEG : v));
