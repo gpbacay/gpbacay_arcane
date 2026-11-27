@@ -3,6 +3,7 @@
 
   Models/arc1_arc1_tiny.{config.json,weights.h5}, _tokenizer.json   trained model (the docs demo server loads these)
     -> gpbacay_arcane/models/arc1-tiny.rcn   4-bit, bundled in the package (load_arc1(), the Node runtime)
+    -> arcane-docs-web/private/models/arc1-tiny.rcn   same file, served by the docs site's download button
     -> node/web/arc1.onnx + arc1.json        the browser runtime, and the docs site's chatbot
 
 arc1.json records a fingerprint of the trained files. The docs site's build refuses a stale copy
@@ -20,6 +21,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -27,6 +29,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCES = [os.path.join("Models", name) for name in
            ("arc1_arc1_tiny.config.json", "arc1_arc1_tiny.weights.h5", "arc1_arc1_tiny_tokenizer.json")]
 WEB_JSON = os.path.join(ROOT, "node", "web", "arc1.json")
+DOWNLOAD_RCN = os.path.join(ROOT, "arcane-docs-web", "private", "models", "arc1-tiny.rcn")
 
 
 def fingerprint() -> str:
@@ -52,7 +55,9 @@ def main():
     args = ap.parse_args()
     want = fingerprint()
     if args.check:
-        stale = recorded() != want
+        packaged = os.path.join(ROOT, "gpbacay_arcane", "models", "arc1-tiny.rcn")
+        same = lambda a, b: open(a, "rb").read() == open(b, "rb").read()  # noqa: E731
+        stale = recorded() != want or not same(packaged, DOWNLOAD_RCN)
         print(f"ARC 1 copies are {'STALE' if stale else 'up to date'} (weights {want[:12]})")
         sys.exit(1 if stale else 0)
 
@@ -69,6 +74,8 @@ def main():
     model.load_weights(weights_path)
     info = save_rcn(model, BytePairTokenizer.load(tokenizer_path), ARC1_TINY, quant="rq4")
     print(f"RCN -> {ARC1_TINY} ({info['bytes']:,} bytes)")
+    shutil.copyfile(ARC1_TINY, DOWNLOAD_RCN)  # the docs site's download button serves this copy
+    print(f"RCN -> {DOWNLOAD_RCN}")
 
     subprocess.run([sys.executable, os.path.join(ROOT, "examples", "export_arc1_onnx.py"),
                     "--model", ARC1_TINY, "--out", os.path.join(ROOT, "node", "web")], check=True)

@@ -44,7 +44,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add gpbacay_arcane/models/arc1-tiny.rcn node/web/arc1.onnx node/web/arc1.json
+          git add gpbacay_arcane/models/arc1-tiny.rcn arcane-docs-web/private/models/arc1-tiny.rcn node/web/arc1.onnx node/web/arc1.json
           if git diff --cached --quiet; then echo "ARC 1 copies already up to date"; exit 0; fi
           git commit -m "chore: publish ARC 1 to the package and the browser runtime"
           git push

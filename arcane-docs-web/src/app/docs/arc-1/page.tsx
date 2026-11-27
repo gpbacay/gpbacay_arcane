@@ -18,7 +18,7 @@ const CAPABILITIES = [
   {
     icon: Layers,
     title: "Schema as input",
-    body: "Tools, fields, and labels are passed with each request. A new schema still needs fine-tuning or Hippocampus examples before you rely on it.",
+    body: "Tools, fields, and labels arrive with each request, so one checkpoint routes, extracts, and classifies.",
   },
   {
     icon: Crosshair,
@@ -79,7 +79,7 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
   const COMPARE: [string, string, string, string][] = [
     ["Size", "Billions of parameters", `${(LAYA.params / 1e6).toFixed(0)}M parameters`, `${(m.parameters / 1e6).toFixed(2)}M parameters`],
     ["Download", "Gigabytes", `About ${(LAYA.downloadBytes / 1e6).toFixed(0)} MB`, mb(m.rcn.bytes)],
-    ["Hardware", "GPU or paid API", `GPU, ${LAYA.gpuLatencyMs} ms`, `CPU,${full.latencyP50Ms.toFixed(1)} ms median`],
+    ["Hardware", "GPU or paid API", `GPU, ${LAYA.gpuLatencyMs} ms`, `CPU, ${full.latencyP50Ms.toFixed(1)} ms median`],
     ["Tool calls and extraction", "Generated, values can be invented", "Not offered", "Built in, values copied from input"],
     ["Calibration error", "Varies", `${pct(LAYA.ece)} (its own tasks)`, `${pct(m.fireEceAfter)} on tool decisions`],
   ];
@@ -92,13 +92,10 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           ARC 1: Grounded Decisions Without Generation
         </h1>
         <p className="mt-6 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          ARC 1 is ARCANE&apos;s System 1 decision model. {(m.parameters / 1e6).toFixed(1)} million parameters turn a
-          request and a schema into a typed tool call, extracted fields, or a label in {full.latencyP50Ms.toFixed(1)}{" "}
-          milliseconds on a CPU.
-        </p>
-        <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-zinc-300">
-          It does not write the answer. Probes settle in one pass, copy values from the request, and return a calibrated
-          confidence or no call. The weights ship as one {mb(m.rcn.bytes)} .rcn file under the MIT license.
+          ARC 1 turns a request and a schema into a tool call, extracted fields, or a label in{" "}
+          {full.latencyP50Ms.toFixed(1)} ms on a CPU. Values are copied from the request, every answer carries a
+          calibrated confidence, and it returns no call when nothing fits. {(m.parameters / 1e6).toFixed(1)} million
+          parameters in one {mb(m.rcn.bytes)} file, MIT license.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -122,31 +119,30 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
 
       <div className="text-zinc-300">
         <h2 id="why-use-arc-1" className={h2Base}>
-          Why use ARC 1
+          When to use it
         </h2>
         <p className={p}>
-          ARC 1 is a System 1 decision model. In ARCANE that means a fast, automatic choice inside a decision space
-          you declare: which tool, which fields, which label, or no action. It is an engineering profile, not a claim
-          that the model thinks like a person. Use it when the product needs the choice itself. Keep a language model
-          for the reply.
+          Use ARC 1 when the next step is a choice: which tool, which fields, which label, or no action at all. Keep a
+          language model for writing replies. It fits best when:
         </p>
+        <ul className="mt-3 max-w-2xl list-disc space-y-2 pl-5 text-sm leading-relaxed text-zinc-300">
+          <li>an invented value would cost more than a missed one;</li>
+          <li>uncertain cases should go to a person, using a confidence threshold;</li>
+          <li>the decision has to run on your own hardware (laptop CPU, browser, or phone) with no per-call fee.</li>
+        </ul>
 
         <h3 id="what-separates-it" className={h3}>
-          What separates it from other decision models
+          Alternatives
         </h3>
         <ul className="not-prose mt-4 max-w-2xl divide-y divide-zinc-900 border-y border-zinc-800">
           {[
             [
-              "Language models used as routers",
-              "A chat model decides by generating tokens, and a parser then hopes the tool call is real. It can name a city, an amount, or a tool that was never in the request. ARC 1 has no decoding loop. A firing signal says whether a tool or field applies, an anchor copies the span from the request, and a selection signal picks from the list you passed in.",
+              "A chat model as router",
+              "It writes the tool call as text, so it can name a city, an amount, or a tool that was never in the request. ARC 1 copies values from the request and picks labels from your list.",
             ],
             [
-              "Fixed-head classifiers",
-              "An ordinary intent or routing model is one label set baked into one head. A new queue or a new tool means a new model, and it still only returns a class. ARC 1 takes tools, fields, options, and labels with the request, so one checkpoint can route, extract, and classify. New tools still need fine-tuning or a few Hippocampus examples before you rely on them.",
-            ],
-            [
-              "Large encoders and hosted decision APIs",
-              `Laya publishes a ${(LAYA.params / 1e6).toFixed(0)}-million-parameter encoder with no tool calling and no structured extraction, at ${LAYA.gpuLatencyMs} ms on a GPU. Jev is a hosted System 1 service: typed decisions and calibrated probabilities, priced per token, with the request leaving your network. ARC 1 is ${(m.parameters / 1e6).toFixed(1)} million parameters in a file you run yourself. Those accuracy numbers are not on one shared benchmark. The split is the job, the footprint, and who keeps the weights.`,
+              "A fixed-label classifier",
+              "Every new queue or tool means retraining, and it only returns a class. ARC 1 reads the schema from the request and also fills arguments.",
             ],
           ].map(([title, body]) => (
             <li key={title} className="py-4">
@@ -155,49 +151,20 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
             </li>
           ))}
         </ul>
-
-        <h3 id="when-to-choose-it" className={h3}>
-          When it is the right model
-        </h3>
-        <ul className="mt-3 max-w-2xl list-disc space-y-2 pl-5 text-sm leading-relaxed text-zinc-300">
-          <li>
-            The next step is a route, a tool call, a copied field, or a label, and a wrong invented value costs more than
-            a missed one.
-          </li>
-          <li>
-            The result has to be usable as data. Strings and numbers are spans of the input, labels come from your list,
-            and a weak match returns no call.
-          </li>
-          <li>
-            Low confidence should go to a person. The firing score is temperature-fitted on held-out data, so a threshold
-            means something.
-          </li>
-          <li>
-            The decision has to run on your hardware: a laptop CPU, a browser, or a phone, with no GPU and no per-call fee.
-            One MIT-licensed file, inspectable and fine-tunable.
-          </li>
-        </ul>
         <p className={`${p} mt-4 text-sm text-zinc-400`}>
-          The download is a base checkpoint. Fine-tune it on your tools, or teach new ones with Hippocampus, and test it
-          on your own requests. The{" "}
-          <a href="#limitations" className={link}>
-            limits
-          </a>{" "}
-          and the{" "}
+          Encoders and hosted decision APIs are in the{" "}
           <a href="#comparison" className={link}>
-            size comparison
-          </a>{" "}
-          are below. Laya&apos;s figures are from its public page (September 2026). Jev&apos;s are from published early-access
-          accounts of the same month, and they can change.
+            comparison
+          </a>
+          .
         </p>
 
         <h2 id="try-it" className={h2}>
           Try it live
         </h2>
         <p className={`${p} mb-5`}>
-          Runs the real model on a live server. Pick an example or type your own request. Switch the harness to{" "}
-          <strong className="text-zinc-100">+ Hippocampus</strong> to give ARC 1 a memory of examples: the{" "}
-          <em>New tools</em> scene uses tools it never trained on, taught by a few examples instead of fine-tuning.{" "}
+          This runs the real model on a server. With <strong className="text-zinc-100">+ Hippocampus</strong>, ARC 1
+          also gets a memory of examples, which is how the <em>New tools</em> scene handles tools it never trained on.{" "}
           <Link href="/docs/hippocampus" className="font-medium text-[#C785F2] underline hover:text-[#d49cf5]">
             How Hippocampus works
           </Link>
@@ -207,12 +174,6 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
         <h2 id="what-it-does" className={h2}>
           What it does
         </h2>
-        <p className={p}>
-          ARC 1 can run a bounded RSAA perception loop before a decision is committed. Higher perception states align
-          lower states, then every tool, argument, option, and label listens to the resulting field in {m.cycles} short
-          binding cycles. Matching probes open a spiking gate and readouts return typed results directly, with no decoding
-          loop. The deployed checkpoint defaults to RSAA off because its same-checkpoint evaluation favored the legacy path.
-        </p>
         <ul className="not-prose mt-6 grid gap-px border border-zinc-800 bg-zinc-800 sm:grid-cols-2 lg:grid-cols-4">
           {CAPABILITIES.map(({ icon: Icon, title, body }) => (
             <li key={title} className="bg-zinc-950 p-4 sm:p-5">
@@ -242,16 +203,15 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           Architecture
         </h2>
         <p className={p}>
-          ARC 1 uses Resonant Schema Binding with optional RSAA alignment. The request and every schema element go through
-          the same perception hierarchy; bounded, state-only alignment can use higher layers as feedback and re-evaluate
-          the current input with fixed weights. Each schema element becomes a probe that binds in {m.cycles}{" "}
-          shared-weight cycles, and four readouts are taken from the settled probes. Nothing is decoded token by token.
+          The request and each schema element (tool, parameter, option, label) pass through the same bidirectional
+          perception blocks. Each schema element then becomes a probe that binds to the request through a spiking gate
+          for {m.cycles} cycles, and four readouts are taken from the settled probes.
         </p>
         <Mermaid
           chart={`flowchart TD
   REQ["Request text"] --> PER
   SCH["Schema<br/>tools, parameters, options, labels"] --> PER
-  PER["RSAA-aligned perception blocks (bidirectional)<br/>top-down state alignment + current-input re-evaluation<br/>FieldAttention, ResonantChannelMixer,<br/>ConceptEngram memory, FieldResonance"]
+  PER["Perception blocks (bidirectional)<br/>FieldAttention, ResonantChannelMixer,<br/>ConceptEngram memory, FieldResonance"]
   PER --> FIELD["Utterance field"]
   PER --> ENG["Schema engrams<br/>(cached after first use)"]
   ENG --> PROBE["Probes<br/>engram + context engram + role"]
@@ -264,18 +224,17 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
   FIELD --> EMB["Embedding<br/>semantic retrieval"]`}
         />
         <p className={`${p} text-sm text-zinc-400`}>
-          Fire, anchor and select each have a temperature fitted on held-out data, which is what makes the reported
-          confidence meaningful. RSAA reports initial divergence, final divergence, and per-example steps; the model caps
-          alignment at two cycles. On this checkpoint, neither aligned profile passed the replacement gate, so zero is the
-          production default. The live controls expose the measured profiles without presenting them as an accuracy gain.
+          Fire, anchor, and select each have a temperature fitted on held-out data. An optional RSAA loop (up to two
+          cycles) can align lower perception layers to higher ones before binding. It did not improve accuracy on this
+          checkpoint, so it is off by default; the demo lets you switch it on.
         </p>
 
         <h2 id="accuracy" className={h2}>
           Accuracy
         </h2>
         <p className={p}>
-          Measured mostly on held-out synthetic examples, including tool values never seen in training. One check uses
-          real text, below.
+          These figures come from held-out synthetic examples, including argument values never seen in training. One
+          check uses real text.
         </p>
         <ul className="not-prose mt-6 grid gap-px border border-zinc-800 bg-zinc-800 sm:grid-cols-2 lg:grid-cols-4">
           {[
@@ -332,9 +291,9 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           </li>
         </ol>
         <p className={`${p} mt-4 text-sm text-zinc-400`}>
-          The trade-off: against the previous checkpoint this gains about 19 points on real phrasings and 31 points on
-          classifying requests for unseen tools, and gives up about 6 points on exact tool calls and fully correct
-          extracted records. Recipe and commands are in the{" "}
+          Compared with the previous checkpoint, this gained about 19 points on real phrasings and 31 on labeling
+          requests for unseen tools, and cost about 6 points on exact tool calls and fully correct records. Commands are
+          in the{" "}
           <a href={`${REPO_URL}#arc-1--automation-foundation-model`} target="_blank" rel="noreferrer" className={link}>
             repository README
           </a>
@@ -355,16 +314,16 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
               `Classification is ${pct(full.classifyOverall)} overall; feed ranking (${pct(full.classifyFeed)}), product topics (${pct(full.classifyProducts)}) and search intent (${pct(full.classifySearch)}) are weakest, on small subsets.`,
             ],
             [
-              "Grounded is not correct",
-              "Values are copied from the request, always whole words, but can land in the wrong field (most often when one request asks for several things). Required details the user never gave are still filled, and option lists always return a closest choice. Validate before acting.",
+              "Wrong field",
+              "A copied value can land in the wrong field, most often when one request asks for two things. Required details the user never gave still get filled, and an option list always returns its closest option. Validate before acting.",
             ],
             [
-              "Mostly synthetic test data",
-              `Most scores come from generated held-out examples, not real traffic. The one real-text check is ${m.realIntents.n} CLINC150 utterances in a five-way choice.`,
+              "Synthetic test data",
+              `Apart from ${m.realIntents.n} CLINC150 utterances, every score comes from generated examples.`,
             ],
             [
               "Scope",
-              `English only, inputs cut at ${m.seqLen} tokens (the API reports when a request was cut), each tool called at most once per request, only the light language knowledge distilled from a small text encoder and no world knowledge, and no chat replies.`,
+              `English only. Inputs are cut at ${m.seqLen} tokens, and the API flags a cut request. Each tool is called at most once per request. No world knowledge, and no chat replies.`,
             ],
           ].map(([title, body]) => (
             <li key={title} className="py-3.5">
@@ -406,8 +365,10 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           <a href="https://laya.convaiinnovations.com/" target="_blank" rel="noreferrer" className="underline hover:text-zinc-300">
             public page
           </a>{" "}
-          (English checkpoint, checked September 2026), measured on its own tasks and a GPU. This compares size and
-          capability, not accuracy on a shared dataset.
+          (English checkpoint, checked September 2026), measured on its own tasks and a GPU, so the table compares size
+          and capability, not accuracy. Jev, a hosted System 1 service, also returns typed decisions with calibrated
+          probabilities, but it is priced per token and the request leaves your network. Its early-access details
+          (September 2026) may change.
         </p>
 
         <h2 id="get-started" className={h2}>
@@ -419,12 +380,12 @@ export default async function Arc1Page({ searchParams }: { searchParams: Promise
           </p>
         )}
         <p className="not-prose mt-4 border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
-          <strong>Needs fine-tuning or Hippocampus.</strong> This download is a base checkpoint, not a finished model.
-          Fine-tune it on your own data and tools, or give it a few decided examples of each through the{" "}
+          <strong>Base checkpoint.</strong> Before relying on it, fine-tune it on your tools or give it a few examples of
+          each through{" "}
           <Link href="/docs/hippocampus" className="underline">
             Hippocampus
-          </Link>{" "}
-          harness, and test it on your own requests before relying on it in your application.
+          </Link>
+          , then test it on your own requests.
         </p>
         <div className="not-prose mt-4 flex flex-col gap-3 border border-zinc-800 bg-zinc-950 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
@@ -531,9 +492,9 @@ agent.close();`}
               content: (
                 <>
         <p className={p}>
-          <code className={code}>gpbacay-arcane/web</code> runs ARC 1 client-side with onnxruntime-web (WebAssembly), with no server and no
-          Python. The 5.5 MB model is fetched once and cached by the browser. It has the same API as the Node build and
-          returns the same results, and calls take about 10 to 20 ms once loaded.
+          <code className={code}>gpbacay-arcane/web</code> runs ARC 1 in the browser with onnxruntime-web, so you need no
+          server and no Python. The browser fetches the 5.5 MB model once and caches it. The API and results match the
+          Node build, at about 10 to 20 ms per call.
         </p>
         <CodeSnippet filename="Terminal" language="bash" lineNumbers={false} code="npm install gpbacay-arcane onnxruntime-web" />
         <CodeSnippet
@@ -573,14 +534,11 @@ await agent.embed("hello");`}
         </p>
 
         <h2 id="finetuning" className={h2}>
-          Finetuning
+          Fine-tuning
         </h2>
         <p className={p}>
-          The downloaded <code className={code}>arc1-tiny.rcn</code> is a base checkpoint. Finetuning teaches it your own
-          tools, fields and labels. Training runs from the source repository and learns from examples it generates out of
-          tool definitions you write, so you describe each tool once and it produces the phrasings. It needs Python and
-          TensorFlow. The download remains the validated zero-cycle artifact; the optional live RSAA profiles did not pass
-          the replacement gate for these weights.
+          You describe each of your tools once in Python, and the trainer generates phrasings from it. Training runs from
+          the source repository and needs Python and TensorFlow.
         </p>
 
         <Tabs
@@ -588,7 +546,7 @@ await agent.embed("hello");`}
           tabs={[
             {
               id: "yourself",
-              label: "Fine tune it yourself",
+              label: "Step by step",
               content: (
             <>
         <h3 id="ft-setup" className={h3}>
@@ -661,10 +619,9 @@ tokenizer.save("Models/arc1_arc1_tiny_tokenizer.json")`}
           code={`python examples/train_arc1.py --preset arc1-tiny --resume --steps 1500 --learning-rate 3e-4`}
         />
         <p className={`${p} mt-4 text-zinc-400`}>
-          <code className={code}>--resume</code> starts from the weights and tokenizer from step 2. The default learning
-          rate is 2e-3, which is for training from scratch. Use a smaller one so the model keeps what it already knows. Loss is
-          printed every 50 steps and weights are saved every 500. Fine-tuning only on your own tools can wear away the
-          distilled language knowledge, so check the real-text score in the metrics file afterwards.
+          <code className={code}>--resume</code> continues from the files of step 2. The default learning rate (2e-3) is
+          for training from scratch; a smaller one keeps what the model already knows. Training only on your own tools
+          can erode the distilled language knowledge, so check the real-text score in the metrics file afterwards.
         </p>
 
         <h3 id="ft-eval" className={h3}>
@@ -710,13 +667,13 @@ agent = arcane.load_arc1("my-arc1.rcn")`}
             },
             {
               id: "ai",
-              label: "Finetune using AI",
+              label: "With a coding assistant",
               content: (
             <>
               <p className={`${p} mt-6`}>
-                Open the cloned repository in a coding assistant (Claude Code, Cursor, Codex and the like), download{" "}
-                <code className={code}>arc1-tiny.rcn</code> into it, and paste this prompt. Replace the bracketed part with
-                your tools, fields or labels. The assistant does the same six steps as the other tab.
+                Download <code className={code}>arc1-tiny.rcn</code> into the cloned repository, open it in a coding
+                assistant such as Claude Code, Cursor, or Codex, and paste this prompt with your tools filled in. It runs
+                the same six steps.
               </p>
               <CodeSnippet
                 filename="Prompt"
@@ -747,7 +704,7 @@ Do this in order, and stop and tell me if a step fails:
 Do not change any model code other than build_tool_library().`}
               />
               <p className={`${p} mt-4 text-zinc-400`}>
-                Read the assistant&apos;s evaluation numbers yourself before you use the exported file.
+                Check the evaluation numbers yourself before using the exported file.
               </p>
             </>
               ),

@@ -2,8 +2,8 @@
 export const ARC1_METRICS = {
   "rcn": {
     "file": "/api/arc1-download",
-    "bytes": 771520,
-    "sha256": "8b078f4412c65544fd321a6149f651048053b01c8c96d00b1459c97eff9e66c9",
+    "bytes": 772224,
+    "sha256": "e6ff88d273f337f132715ba129357084bb78dbb796fb890eb81c082bda643785",
     "quant": "rq4"
   },
   "formats": [
